@@ -19,9 +19,9 @@ public sealed partial class ApiExceptionHandler(ILogger<ApiExceptionHandler> log
     {
         var (statusCode, title, type) = exception switch
         {
-            _ when exception.GetType().Name == "NotFoundException" => (StatusCodes.Status404NotFound, "Not Found", "https://httpstatuses.com/404"),
-            _ when exception.GetType().Name == "ConflictException" => (StatusCodes.Status409Conflict, "Conflict", "https://httpstatuses.com/409"),
-            _ when exception.GetType().Name == "BusinessRuleException" => (StatusCodes.Status400BadRequest, "Bad Request", "https://httpstatuses.com/400"),
+            NotFoundException => (StatusCodes.Status404NotFound, "Not Found", "https://httpstatuses.com/404"),
+            ConflictException => (StatusCodes.Status409Conflict, "Conflict", "https://httpstatuses.com/409"),
+            BusinessRuleException => (StatusCodes.Status400BadRequest, "Bad Request", "https://httpstatuses.com/400"),
             ArgumentException => (StatusCodes.Status400BadRequest, "Bad Request", "https://httpstatuses.com/400"),
             UnauthorizedAccessException => (StatusCodes.Status403Forbidden, "Forbidden", "https://httpstatuses.com/403"),
             _ => (StatusCodes.Status500InternalServerError, "Internal Server Error", "https://httpstatuses.com/500"),
@@ -43,6 +43,7 @@ public sealed partial class ApiExceptionHandler(ILogger<ApiExceptionHandler> log
                 LogRequestFailedWithStatusCodeTitleForMethodPath(statusCode, title, httpContext.Request.Method, httpContext.Request.Path, exception);
             }
         }
+
         var problem = new ProblemDetails
         {
             Status = statusCode,
