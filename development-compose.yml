@@ -1,0 +1,101 @@
+
+services:
+  localstack:
+    image: localstack/localstack:4.10.0
+    ports:
+      - '4566:4566' # LocalStack Gateway
+      - '4510-4559:4510-4559' # external services port range
+    env_file:
+      - 'compose/aws.env'
+    environment:
+      DEBUG: ${DEBUG:-1}
+      LS_LOG: WARN # Localstack DEBUG Level
+      SERVICES: s3,sqs,sns,firehose
+      LOCALSTACK_HOST: 127.0.0.1
+    volumes:
+      - '${TMPDIR:-/tmp}/localstack:/var/lib/localstack'
+      - ./compose/start-localstack.sh:/etc/localstack/init/ready.d/start-localstack.sh
+    healthcheck:
+      test: ['CMD', 'curl', 'localhost:4566']
+      interval: 5s
+      start_period: 5s
+      retries: 3
+    networks:
+      - cdp-tenant
+
+  redis:
+    image: redis:7.2.3-alpine3.18
+    ports:
+      - '6379:6379'
+    restart: always
+    networks:
+      - cdp-tenant
+
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_USER: identity_service_helper_ddl
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: identity_service_helper
+    networks:
+      - cdp-tenant
+    volumes:
+      - postgres-data:/data
+    restart: always
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U identity_service_helper_ddl -d identity_service_helper" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+      
+  liquibase:
+    image: liquibase/liquibase:5.0.1
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    volumes:
+      - ./changelog:/liquibase/changelog
+    command: >
+      "/liquibase/liquibase lpm add postgresql || true &&
+      /liquibase/liquibase --url=jdbc:postgresql://postgres:5432/identity_service_helper --username=identity_service_helper_ddl --password=postgres --searchPath=/liquibase/changelog --changeLogFile=db.changelog.xml --liquibaseSchemaName=public update --context-filter=default"
+    networks:
+      - cdp-tenant
+      
+  identity-service-helper:
+    container_name: identity-service-helper
+    platform: linux
+    build: ./
+    ports:
+      - '8080:8080'
+    links:
+      - 'localstack:localstack'
+      - 'postgres:postgres'
+    depends_on:
+      localstack:
+        condition: service_healthy
+      postgres:
+        condition: service_started
+      liquibase:
+        condition: service_completed_successfully
+    env_file:
+      - 'compose/aws.env'
+    environment:
+      PORT: 8080
+      ASPNETCORE_ENVIRONMENT: Development
+      LOCALSTACK_ENDPOINT: http://localstack:4566
+      POSTGRES_URI: http://postgres:5432
+      ConnectionStrings__PostgresConnection: "User ID=identity_service_helper_ddl;Password=postgres;Host=postgres;Database=identity_service_helper;"
+      ConnectionStrings__ReadOnlyPostgresConnection: "User ID=identity_service_helper_ddl;Password=postgres;Host=postgres;Database=identity_service_helper;"
+    networks:
+      - cdp-tenant
+
+volumes:
+  postgres-data:
+
+networks:
+  cdp-tenant:
+    driver: bridge
