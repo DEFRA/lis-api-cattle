@@ -1,0 +1,108 @@
+
+services:
+  localstack:
+    image: localstack/localstack:4.10.0
+    ports:
+      - '4567:4567' # LocalStack Gateway
+      - '4610-4659:4610-4659' # external services port range
+    env_file:
+      - 'compose/aws.env'
+    environment:
+      DEBUG: ${DEBUG:-1}
+      LS_LOG: WARN # Localstack DEBUG Level
+      SERVICES: s3,sqs,sns,firehose
+      GATEWAY_LISTEN: 0.0.0.0:4567
+      EXTERNAL_SERVICE_PORTS_START: 4610
+      EXTERNAL_SERVICE_PORTS_END: 4659
+    volumes:
+      - '${TMPDIR:-/tmp}/localstack:/var/lib/localstack'
+      - ./compose/start-localstack-override.sh:/etc/localstack/init/ready.d/start-localstack.sh
+    healthcheck:
+      test: ['CMD', 'curl', 'localhost:4567/_localstack/health']
+      interval: 5s
+      start_period: 5s
+      retries: 3
+    networks:
+      - identity-services
+
+  redis:
+    image: redis:7.2.3-alpine3.18
+    ports:
+      - '6380:6380'
+    restart: always
+    networks:
+      - identity-services
+
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_USER: identity_service_helper_ddl
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: identity_service_helper
+    networks:
+      - identity-services
+    volumes:
+      - postgres-data:/data
+    restart: always
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U identity_service_helper_ddl -d identity_service_helper" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+      
+  liquibase:
+    image: liquibase/liquibase:5.0.1
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    volumes:
+      - ./changelog:/liquibase/changelog
+    command: >
+      "/liquibase/liquibase lpm add postgresql || true &&
+      /liquibase/liquibase --url=jdbc:postgresql://postgres:5432/identity_service_helper --username=identity_service_helper_ddl --password=postgres --searchPath=/liquibase/changelog --changeLogFile=db.changelog.xml --liquibaseSchemaName=public update --context-filter=default"
+    networks:
+      - identity-services
+      
+  identity-service-helper:
+    container_name: identity-service-helper
+    platform: linux
+    build: ./
+    ports:
+      - '3001:8080'
+    links:
+      - 'localstack:localstack'
+      - 'postgres:postgres'
+    depends_on:
+      localstack:
+        condition: service_healthy
+      postgres:
+        condition: service_started
+      liquibase:
+        condition: service_completed_successfully
+    env_file:
+      - path: 'compose/aws.env'
+        required: true
+      - path: 'compose/identity-service-helper.env'
+        required: false
+    environment:
+      PORT: 8080
+      ASPNETCORE_ENVIRONMENT: Development
+      LOCALSTACK_ENDPOINT: http://localstack:4567
+      AWS__ServiceURL: http://localstack:4567
+      QueueOptions__IntakeQueueOptions__Url: http://localstack:4567/000000000000/identity_service_helper_intake
+      POSTGRES_URI: http://postgres:5432
+      ConnectionStrings__PostgresConnection: "User ID=identity_service_helper_ddl;Password=postgres;Host=postgres;Database=identity_service_helper;"
+      ConnectionStrings__ReadOnlyPostgresConnection: "User ID=identity_service_helper_ddl;Password=postgres;Host=postgres;Database=identity_service_helper;"
+    networks:
+      - identity-services
+
+volumes:
+  postgres-data:
+
+networks:
+  identity-services:
+    driver: bridge
