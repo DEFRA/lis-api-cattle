@@ -2,4 +2,7 @@
   <ItemGroup>
     <PackageReference Include="Defra.Lis.Core" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Database\Database.csproj" />
+  </ItemGroup>
 </Project>
