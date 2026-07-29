@@ -36,16 +36,16 @@ services:
     ports:
       - '5432:5432'
     environment:
-      POSTGRES_USER: identity_service_helper_ddl
+      POSTGRES_USER: lis_cattle_ddl
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: identity_service_helper
+      POSTGRES_DB: lis_cattle
     networks:
       - cdp-tenant
     volumes:
       - postgres-data:/data
     restart: always
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U identity_service_helper_ddl -d identity_service_helper" ]
+      test: [ "CMD-SHELL", "pg_isready -U lis_cattle_ddl -d lis_cattle" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -61,12 +61,12 @@ services:
       - ./changelog:/liquibase/changelog
     command: >
       "/liquibase/liquibase lpm add postgresql || true &&
-      /liquibase/liquibase --url=jdbc:postgresql://postgres:5432/identity_service_helper --username=identity_service_helper_ddl --password=postgres --searchPath=/liquibase/changelog --changeLogFile=db.changelog.xml --liquibaseSchemaName=public update --context-filter=default"
+      /liquibase/liquibase --url=jdbc:postgresql://postgres:5432/lis_cattle --username=lis_cattle_ddl --password=postgres --searchPath=/liquibase/changelog --changeLogFile=db.changelog.xml --liquibaseSchemaName=public update --context-filter=default"
     networks:
       - cdp-tenant
       
-  identity-service-helper:
-    container_name: identity-service-helper
+  lis_cattle:
+    container_name: lis_cattle
     platform: linux
     build: ./
     ports:
@@ -88,8 +88,8 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       LOCALSTACK_ENDPOINT: http://localstack:4566
       POSTGRES_URI: http://postgres:5432
-      ConnectionStrings__PostgresConnection: "User ID=identity_service_helper_ddl;Password=postgres;Host=postgres;Database=identity_service_helper;"
-      ConnectionStrings__ReadOnlyPostgresConnection: "User ID=identity_service_helper_ddl;Password=postgres;Host=postgres;Database=identity_service_helper;"
+      ConnectionStrings__PostgresConnection: "User ID=lis_cattle_ddl;Password=postgres;Host=postgres;Database=lis_cattle;"
+      ConnectionStrings__ReadOnlyPostgresConnection: "User ID=lis_cattle_ddl;Password=postgres;Host=postgres;Database=lis_cattle;"
     networks:
       - cdp-tenant
 
