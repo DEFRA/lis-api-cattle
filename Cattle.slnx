@@ -4,6 +4,7 @@
   </Folder>
   <Folder Name="/src/Database/">
     <Project Path="src/Database/Database.csproj" />
+    <Project Path="src/Entities/Entities.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Api.Tests/Api.Tests.csproj" />

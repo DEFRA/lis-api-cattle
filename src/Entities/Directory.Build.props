@@ -1,0 +1,14 @@
+<Project>
+    <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))"/>
+    <PropertyGroup>
+      <RootNamespace>Defra.Lis.Database.Entities</RootNamespace>
+    </PropertyGroup>
+  <ItemGroup>
+      <PackageReference Include="Defra.Lis.Entities" />
+    </ItemGroup>
+    <ItemGroup>
+    <Using Include="Microsoft.EntityFrameworkCore" />
+    <Using Include="Microsoft.EntityFrameworkCore.Metadata.Builders" />
+  </ItemGroup>
+  
+</Project>
