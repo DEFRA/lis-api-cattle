@@ -11,6 +11,7 @@
     <PackageVersion Include="AWSSDK.SecretsManager" Version="4.0.1.9" />
     <PackageVersion Include="Defra.Lis.Core" Version="0.1.5" />
     <PackageVersion Include="Defra.Lis.Database" Version="0.0.2" />
+    <PackageVersion Include="Defra.Lis.Entities" Version="0.0.2" />
     <PackageVersion Include="Elastic.CommonSchema.Serilog" Version="9.0.0" />
     <PackageVersion Include="FluentValidation" Version="12.1.1" />
     <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
