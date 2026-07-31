@@ -60,7 +60,7 @@ services:
     volumes:
       - ./changelog:/liquibase/changelog
     command: >
-      "/liquibase/liquibase lpm add postgresql || true &&
+      "/liquibase/liquibase lpm add postgresql --skip-existing &&
       /liquibase/liquibase --url=jdbc:postgresql://postgres:5432/lis_cattle --username=lis_cattle_ddl --password=postgres --searchPath=/liquibase/changelog --changeLogFile=db.changelog.xml --liquibaseSchemaName=public update --context-filter=default"
     networks:
       - cdp-tenant
