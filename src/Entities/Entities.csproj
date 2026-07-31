@@ -1,2 +1,6 @@
-﻿<Project Sdk="Microsoft.NET.Sdk" />
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Lis.Cattle.Entities</AssemblyName>
+  </PropertyGroup>
+</Project>
 
