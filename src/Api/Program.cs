@@ -1,14 +1,11 @@
 using Defra.Database.Postgres;
-using Lis.Cattle;
 using Lis.Cattle.Interfaces;
 using Lis.Cattle.Services;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Mvc;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddControllers();
-
 builder.Services.AddPostgresDatabase(builder.Configuration);
 
 builder.Services.AddHttpClient<ICadsService, CadsService>(client =>
@@ -22,7 +19,12 @@ var app = builder.Build();
 
 app.UsePostgresDatabase();
 
-app.MapControllers();
+app.MapGet("/holdings/{cph}/cattle", async (string cph, [FromServices] ICattleService cattleService) =>
+{
+    var cattle = await cattleService.GetCattleForHoldingAsync(cph);
+    return Results.Ok(cattle);
+})
+.WithName("GetCattleForHolding");
 
 app.Run();
 
