@@ -1,5 +1,4 @@
 using Defra.Lis.Core.Extensions;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Lis.Cattle.Configurations;
 
