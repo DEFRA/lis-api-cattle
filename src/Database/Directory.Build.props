@@ -1,6 +1,7 @@
 <Project>
   <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
   <ItemGroup>
+    <PackageReference Include="Defra.Lis.Core" />
     <PackageReference Include="Defra.Lis.Database" />
     <PackageReference Include="Defra.Lis.Postgres" />
   </ItemGroup>
