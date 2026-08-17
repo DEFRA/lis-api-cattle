@@ -66,4 +66,46 @@ public class CattleService : ICattleService
 
         return resultList;
     }
+
+    public async Task<BundleResponse?> GetBundleByClientReferenceAsync(string clientReference)
+    {
+        var submission = await _dbContext.Set<Submission>()
+            .Include(s => s.Animals)
+                .ThenInclude(a => a.Errors)
+            .FirstOrDefaultAsync(s => s.ClientReference == clientReference);
+
+        if (submission == null)
+        {
+            return null;
+        }
+
+        return new BundleResponse
+        {
+            Id = submission.Id,
+            ClientReference = submission.ClientReference,
+            CountyParishHolding = submission.CountyParishHolding,
+            SubmittedBy = submission.SubmittedBy,
+            Status = submission.Status,
+            CreatedAt = submission.CreatedAt,
+            Animals = submission.Animals.Select(a => new BundleAnimalResponse
+            {
+                Id = a.Id,
+                EarTag = a.EarTag,
+                DateBirth = a.DateBirth,
+                Sex = a.Sex,
+                Breed = a.Breed,
+                DamType = a.DamType,
+                DamGeneticEarTag = a.DamGeneticEarTag,
+                DamSurrogateEarTag = a.DamSurrogateEarTag,
+                SireEarTag = a.SireEarTag,
+                SireName = a.SireName,
+                Status = a.Status,
+                Errors = a.Errors.Select(e => new CattleErrorResponse
+                {
+                    ErrorCode = e.ErrorCode,
+                    ErrorText = e.ErrorText
+                }).ToList()
+            }).ToList()
+        };
+    }
 }

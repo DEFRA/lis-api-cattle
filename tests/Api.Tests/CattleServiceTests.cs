@@ -140,4 +140,57 @@ public class CattleServiceTests
         var r2 = result.First(r => r.EarTag == earTag2);
         Assert.Equal("new_animal", r2.Status); // Added from local
     }
+
+    [Fact]
+    public async Task GetBundleByClientReferenceAsync_ReturnsCorrectData()
+    {
+        // Arrange
+        var clientReference = "bundle-ref-123";
+        var submission = new Submission
+        {
+            Id = Guid.NewGuid(),
+            ClientReference = clientReference,
+            CountyParishHolding = "12/345/6789",
+            SubmittedBy = "tester",
+            Status = "pending",
+            CreatedAt = DateTimeOffset.UtcNow,
+            Animals = new List<SubmissionAnimal>
+            {
+                new()
+                {
+                    Id = Guid.NewGuid(),
+                    EarTag = "UK000000000001",
+                    Status = "error",
+                    Errors = new List<SubmissionAnimalError>
+                    {
+                        new() { ErrorCode = "E001", ErrorText = "Error 1" }
+                    }
+                }
+            }
+        };
+
+        _setupContext.Set<Submission>().Add(submission);
+        await _setupContext.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        // Act
+        var result = await _service.GetBundleByClientReferenceAsync(clientReference);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(clientReference, result.ClientReference);
+        Assert.Single(result.Animals);
+        Assert.Equal("UK000000000001", result.Animals[0].EarTag);
+        Assert.Single(result.Animals[0].Errors);
+        Assert.Equal("E001", result.Animals[0].Errors[0].ErrorCode);
+    }
+
+    [Fact]
+    public async Task GetBundleByClientReferenceAsync_ReturnsNullWhenNotFound()
+    {
+        // Act
+        var result = await _service.GetBundleByClientReferenceAsync("non-existent");
+
+        // Assert
+        Assert.Null(result);
+    }
 }

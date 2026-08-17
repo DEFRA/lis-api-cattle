@@ -26,6 +26,13 @@ app.MapGet("/holdings/{cph}/cattle", async (string cph, [FromServices] ICattleSe
 })
 .WithName("GetCattleForHolding");
 
+app.MapGet("/submissions/{clientReference}", async (string clientReference, [FromServices] ICattleService cattleService) =>
+{
+    var bundle = await cattleService.GetBundleByClientReferenceAsync(clientReference);
+    return bundle is not null ? Results.Ok(bundle) : Results.NotFound();
+})
+.WithName("GetBundleByClientReference");
+
 app.Run();
 
 
