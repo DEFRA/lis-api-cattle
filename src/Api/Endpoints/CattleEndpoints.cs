@@ -14,11 +14,23 @@ public static class CattleEndpoints
         var group = app.MapGroup("/holdings")
                        .WithTags("Cattle");
 
-        group.MapGet("/{cph}/cattle", GetCattleForHolding)
+        group.MapGet("/{cph1}/{cph2}/{cph3}/cattle", (string cph1, string cph2, string cph3, [FromServices] ICattleService cattleService) =>
+                 GetCattleForHolding($"{cph1}/{cph2}/{cph3}", cattleService))
+             .WithName("GetCattleForHoldingMultiSegment")
+             .Produces<IEnumerable<CattleResponse>>(StatusCodes.Status200OK);
+
+        group.MapGet("/{cph}/cattle", (string cph, [FromServices] ICattleService cattleService) =>
+                 GetCattleForHolding(cph, cattleService))
              .WithName("GetCattleForHolding")
              .Produces<IEnumerable<CattleResponse>>(StatusCodes.Status200OK);
 
-        group.MapGet("/{cph}/bundles", GetBundlesForHolding)
+        group.MapGet("/{cph1}/{cph2}/{cph3}/bundles", (string cph1, string cph2, string cph3, [FromServices] ICattleService cattleService) =>
+                 GetBundlesForHolding($"{cph1}/{cph2}/{cph3}", cattleService))
+             .WithName("GetBundlesForHoldingMultiSegment")
+             .Produces<IEnumerable<BundleResponse>>(StatusCodes.Status200OK);
+
+        group.MapGet("/{cph}/bundles", (string cph, [FromServices] ICattleService cattleService) =>
+                 GetBundlesForHolding(cph, cattleService))
              .WithName("GetBundlesForHolding")
              .Produces<IEnumerable<BundleResponse>>(StatusCodes.Status200OK);
 

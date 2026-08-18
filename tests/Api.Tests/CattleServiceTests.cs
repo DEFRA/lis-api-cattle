@@ -11,45 +11,26 @@ public class CattleServiceTests
 {
     private readonly Mock<ICadsService> _mockCadsService;
     private readonly CattleService _service;
-    private readonly ReadOnlyPostgresDbContext _readOnlyContext;
-    private readonly DbContext _setupContext;
+    private readonly TestDbContext _context;
 
     public CattleServiceTests()
     {
         _mockCadsService = new Mock<ICadsService>();
 
-        var options = new DbContextOptionsBuilder<ReadOnlyPostgresDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-
-        var setupOptions = new DbContextOptionsBuilder<TestSetupDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString()) // Wait, must be same database name!
-            .Options;
-
         var dbName = Guid.NewGuid().ToString();
-        var opt = new DbContextOptionsBuilder().UseInMemoryDatabase(dbName).Options;
+        var options = new DbContextOptionsBuilder<TestDbContext>()
+            .UseInMemoryDatabase(dbName)
+            .Options;
 
-        _setupContext = new TestSetupDbContext(new DbContextOptionsBuilder<TestSetupDbContext>().UseInMemoryDatabase(dbName).Options);
-        _readOnlyContext = new TestReadOnlyPostgresDbContext(new DbContextOptionsBuilder<ReadOnlyPostgresDbContext>().UseInMemoryDatabase(dbName).Options);
-
-        _service = new CattleService(_mockCadsService.Object, _readOnlyContext);
+        _context = new TestDbContext(options);
+        _service = new CattleService(_mockCadsService.Object, _context);
     }
 
-    private class TestSetupDbContext : DbContext
+    private class TestDbContext : DbContext
     {
-        public TestSetupDbContext(DbContextOptions<TestSetupDbContext> options) : base(options) { }
+        public TestDbContext(DbContextOptions<TestDbContext> options) : base(options) { }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            ConfigureModel(modelBuilder);
-        }
-    }
-
-    private class TestReadOnlyPostgresDbContext : ReadOnlyPostgresDbContext
-    {
-        public TestReadOnlyPostgresDbContext(DbContextOptions<ReadOnlyPostgresDbContext> options) : base(options) { }
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
-        {
-            base.OnModelCreating(modelBuilder);
             ConfigureModel(modelBuilder);
         }
     }
@@ -98,8 +79,8 @@ public class CattleServiceTests
         animal1.AddError("ERR01", "Test Error");
         var animal2 = submission.AddAnimal(earTag2, "new_animal");
 
-        _setupContext.Set<Submission>().Add(submission);
-        await _setupContext.SaveChangesAsync(TestContext.Current.CancellationToken);
+        _context.Set<Submission>().Add(submission);
+        await _context.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         // Act
         var result = (await _service.GetCattleForHoldingAsync(cph)).ToList();
@@ -136,8 +117,8 @@ public class CattleServiceTests
         var otherSubmission = new Submission("ref3", otherCph, "user3");
         otherSubmission.AddAnimal("UK999999900001", "pending");
 
-        _setupContext.Set<Submission>().AddRange(submission1, submission2, otherSubmission);
-        await _setupContext.SaveChangesAsync(TestContext.Current.CancellationToken);
+        _context.Set<Submission>().AddRange(submission1, submission2, otherSubmission);
+        await _context.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         // Act
         var result = (await _service.GetBundlesForHoldingAsync(cph)).ToList();
@@ -173,5 +154,163 @@ public class CattleServiceTests
 
         // Assert
         Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task CreateRegistrationBundleAsync_WithValidRequest_DecomposesAndSavesSubmissionWithPendingStatus()
+    {
+        // Arrange
+        var request = new RegistrationBundleRequest
+        {
+            ClientReference = "REG-MNBX4Q2A",
+            Holding = new HoldingRequest
+            {
+                Cph = "10/081/1234"
+            },
+            Animals =
+            [
+                new AnimalRegistrationRequest
+                {
+                    EarTag = "UK 12 3456 100003",
+                    DateOfBirth = new DateOnly(2026, 2, 1),
+                    Sex = "female",
+                    Breed = "Aberdeen Angus",
+                    Dam = new DamRegistrationRequest
+                    {
+                        Type = "surrogate",
+                        GeneticDamEarTag = "UK 12 3456 000002",
+                        SurrogateDamEarTag = "UK 12 3456 000003"
+                    },
+                    Sire = new SireRegistrationRequest
+                    {
+                        EarTag = "UK 12 3456 000010",
+                        Name = "Example sire"
+                    }
+                }
+            ]
+        };
+
+        // Act
+        var result = await _service.CreateRegistrationBundleAsync(request, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.NotEqual(Guid.Empty, result.Id);
+        Assert.Equal("REG-MNBX4Q2A", result.ClientReference);
+        Assert.Equal("10/081/1234", result.CountyParishHolding);
+        Assert.Equal("BE4FE", result.SubmittedBy);
+        Assert.Equal("pending", result.Status);
+        Assert.Single(result.Animals);
+
+        var animalResult = result.Animals.First();
+        Assert.NotEqual(Guid.Empty, animalResult.Id);
+        Assert.Equal(result.Id, animalResult.SubmissionId);
+        Assert.Equal("UK 12 3456 100003", animalResult.EarTag);
+        Assert.Equal("pending", animalResult.Status);
+        Assert.Equal(new DateOnly(2026, 2, 1), animalResult.DateBirth);
+        Assert.Equal("female", animalResult.Sex);
+        Assert.Equal("Aberdeen Angus", animalResult.Breed);
+        Assert.Equal("surrogate", animalResult.DamType);
+        Assert.Equal("UK 12 3456 000002", animalResult.DamGeneticEarTag);
+        Assert.Equal("UK 12 3456 000003", animalResult.DamSurrogateEarTag);
+        Assert.Equal("UK 12 3456 000010", animalResult.SireEarTag);
+        Assert.Equal("Example sire", animalResult.SireName);
+
+        // Verify database persistence
+        var savedSubmission = await _context.Set<Submission>()
+            .Include(s => s.Animals)
+            .FirstOrDefaultAsync(s => s.Id == result.Id, TestContext.Current.CancellationToken);
+
+        Assert.NotNull(savedSubmission);
+        Assert.Equal("pending", savedSubmission.Status);
+        Assert.Single(savedSubmission.Animals);
+        Assert.Equal("pending", savedSubmission.Animals.First().Status);
+    }
+
+    [Theory]
+    [InlineData("", "10/081/1234")]
+    [InlineData("REG-123", "")]
+    public async Task CreateRegistrationBundleAsync_WithInvalidRequest_ThrowsArgumentException(string clientRef, string cph)
+    {
+        var request = new RegistrationBundleRequest
+        {
+            ClientReference = clientRef,
+            Holding = new HoldingRequest { Cph = cph }
+        };
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            _service.CreateRegistrationBundleAsync(request, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task CreateRegistrationBundleAsync_WithNullRequest_ThrowsArgumentNullException()
+    {
+        await Assert.ThrowsAsync<ArgumentNullException>(() =>
+            _service.CreateRegistrationBundleAsync(null!, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task CreateRegistrationBundleAsync_WithNullHolding_ThrowsArgumentNullException()
+    {
+        var request = new RegistrationBundleRequest
+        {
+            ClientReference = "REG-123",
+            Holding = null
+        };
+
+        await Assert.ThrowsAsync<ArgumentNullException>(() =>
+            _service.CreateRegistrationBundleAsync(request, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task CreateRegistrationBundleAsync_WithMultipleAnimalsWithoutDamSire_SavesCorrectly()
+    {
+        // Arrange
+        var request = new RegistrationBundleRequest
+        {
+            ClientReference = "REG-BUNDLE-2",
+            Holding = new HoldingRequest
+            {
+                Cph = "20/082/5678"
+            },
+            SubmittedBy = "CustomUser",
+            Animals =
+            [
+                new AnimalRegistrationRequest
+                {
+                    EarTag = "UK 20 5678 000001",
+                    DateOfBirth = new DateOnly(2026, 1, 15),
+                    Sex = "male",
+                    Breed = "Limousin"
+                },
+                new AnimalRegistrationRequest
+                {
+                    EarTag = "UK 20 5678 000002",
+                    DateOfBirth = new DateOnly(2026, 1, 16),
+                    Sex = "female",
+                    Breed = "Hereford"
+                }
+            ]
+        };
+
+        // Act
+        var result = await _service.CreateRegistrationBundleAsync(request, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("REG-BUNDLE-2", result.ClientReference);
+        Assert.Equal("20/082/5678", result.CountyParishHolding);
+        Assert.Equal("CustomUser", result.SubmittedBy);
+        Assert.Equal("pending", result.Status);
+        Assert.Equal(2, result.Animals.Count);
+        Assert.All(result.Animals, a =>
+        {
+            Assert.Equal("pending", a.Status);
+            Assert.Null(a.DamType);
+            Assert.Null(a.DamGeneticEarTag);
+            Assert.Null(a.DamSurrogateEarTag);
+            Assert.Null(a.SireEarTag);
+            Assert.Null(a.SireName);
+        });
     }
 }

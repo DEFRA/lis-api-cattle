@@ -6,4 +6,5 @@ public interface ICattleService
 {
     Task<IEnumerable<CattleResponse>> GetCattleForHoldingAsync(string cph);
     Task<IEnumerable<BundleResponse>> GetBundlesForHoldingAsync(string cph);
+    Task<BundleResponse> CreateRegistrationBundleAsync(RegistrationBundleRequest request, CancellationToken cancellationToken = default);
 }

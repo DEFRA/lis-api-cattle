@@ -9,4 +9,3 @@ public class CattleResponse
     public string Status { get; set; } = string.Empty;
     public List<CattleErrorResponse> Errors { get; set; } = new();
 }
-

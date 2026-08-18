@@ -10,7 +10,12 @@ public class CattleService : ICattleService
     private readonly ICadsService _cadsService;
     private readonly DbContext _dbContext;
 
-    public CattleService(ICadsService cadsService, ReadOnlyPostgresDbContext dbContext)
+    public CattleService(ICadsService cadsService, PostgresDbContext dbContext)
+        : this(cadsService, (DbContext)dbContext)
+    {
+    }
+
+    public CattleService(ICadsService cadsService, DbContext dbContext)
     {
         _cadsService = cadsService;
         _dbContext = dbContext;
@@ -109,5 +114,68 @@ public class CattleService : ICattleService
                 }).ToList()
             }).ToList()
         }).ToList();
+    }
+
+    public async Task<BundleResponse> CreateRegistrationBundleAsync(RegistrationBundleRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.ClientReference);
+        ArgumentNullException.ThrowIfNull(request.Holding);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.Holding.Cph);
+
+        var submittedBy = string.IsNullOrWhiteSpace(request.SubmittedBy) ? "BE4FE" : request.SubmittedBy;
+
+        var submission = new Submission(
+            clientReference: request.ClientReference,
+            countyParishHolding: request.Holding.Cph,
+            submittedBy: submittedBy,
+            status: "pending");
+
+        if (request.Animals is not null)
+        {
+            foreach (var animalRequest in request.Animals)
+            {
+                submission.AddAnimal(
+                    earTag: animalRequest.EarTag,
+                    status: "pending",
+                    dateBirth: animalRequest.DateOfBirth,
+                    sex: animalRequest.Sex,
+                    breed: animalRequest.Breed,
+                    damType: animalRequest.Dam?.Type,
+                    damGeneticEarTag: animalRequest.Dam?.GeneticDamEarTag,
+                    damSurrogateEarTag: animalRequest.Dam?.SurrogateDamEarTag,
+                    sireEarTag: animalRequest.Sire?.EarTag,
+                    sireName: animalRequest.Sire?.Name);
+            }
+        }
+
+        await _dbContext.Set<Submission>().AddAsync(submission, cancellationToken);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return new BundleResponse
+        {
+            Id = submission.Id,
+            ClientReference = submission.ClientReference,
+            CountyParishHolding = submission.CountyParishHolding,
+            SubmittedBy = submission.SubmittedBy,
+            Status = submission.Status,
+            CreatedAt = submission.CreatedAt,
+            Animals = submission.Animals.Select(a => new BundleAnimalResponse
+            {
+                Id = a.Id,
+                SubmissionId = a.SubmissionId,
+                Status = a.Status,
+                EarTag = a.EarTag,
+                DateBirth = a.DateBirth,
+                Sex = a.Sex,
+                Breed = a.Breed,
+                DamType = a.DamType,
+                DamGeneticEarTag = a.DamGeneticEarTag,
+                DamSurrogateEarTag = a.DamSurrogateEarTag,
+                SireEarTag = a.SireEarTag,
+                SireName = a.SireName,
+                Errors = []
+            }).ToList()
+        };
     }
 }

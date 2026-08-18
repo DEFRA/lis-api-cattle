@@ -1,4 +1,5 @@
 using Defra.Database.Postgres;
+using Lis.Cattle;
 using Lis.Cattle.Endpoints;
 using Lis.Cattle.Interfaces;
 using Lis.Cattle.Services;
@@ -7,6 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddPostgresDatabase(builder.Configuration);
+builder.Services.AddCattleDatabaseConfigurations();
 
 builder.Services.AddHttpClient<ICadsService, CadsService>(client =>
 {
@@ -20,5 +22,6 @@ var app = builder.Build();
 app.UsePostgresDatabase();
 
 app.MapCattleEndpoints();
+app.MapRegistrationEndpoints();
 
 app.Run();

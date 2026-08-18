@@ -1,6 +1,4 @@
-using Lis.Cattle;
-
-namespace Lis.Cattle.Tests;
+namespace Lis.Cattle;
 
 public class SubmissionAggregateTests
 {
