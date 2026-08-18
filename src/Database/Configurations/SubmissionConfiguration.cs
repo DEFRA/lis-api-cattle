@@ -38,7 +38,7 @@ public class SubmissionConfiguration : IEntityTypeConfiguration<Submission>
 
         builder.HasIndex(e => e.CountyParishHolding)
             .HasDatabaseName("submission_county_parish_holding_index");
-            
+
         builder.HasMany(e => e.Animals)
             .WithOne(a => a.Submission)
             .HasForeignKey(a => a.SubmissionId)

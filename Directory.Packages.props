@@ -59,6 +59,5 @@
     <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
     <PackageVersion Include="Moq" Version="4.20.72" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.0" />
-    <PackageVersion Include="Defra.Lis.Postgres" Version="0.0.3" />
   </ItemGroup>
 </Project>

@@ -25,7 +25,7 @@ public class SubmissionAnimalErrorConfiguration : IEntityTypeConfiguration<Submi
             .HasColumnName(nameof(SubmissionAnimalError.ErrorText).ToSnakeCase())
             .IsRequired();
 
-        
-        
+
+
     }
 }

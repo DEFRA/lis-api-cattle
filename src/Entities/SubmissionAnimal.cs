@@ -1,36 +1,84 @@
-using System.ComponentModel.DataAnnotations;
-
 namespace Lis.Cattle;
 
 public class SubmissionAnimal
 {
-    public Guid Id { get; set; }
+    private readonly List<SubmissionAnimalError> _errors = [];
 
-    public Guid SubmissionId { get; set; }
+    private SubmissionAnimal()
+    {
+    }
 
-    public Submission Submission { get; set; } = null!;
+    public SubmissionAnimal(
+        Guid submissionId,
+        string earTag,
+        string status = "submitted",
+        DateOnly? dateBirth = null,
+        string? sex = null,
+        string? breed = null,
+        string? damType = null,
+        string? damGeneticEarTag = null,
+        string? damSurrogateEarTag = null,
+        string? sireEarTag = null,
+        string? sireName = null)
+    {
+        if (submissionId == Guid.Empty)
+            throw new ArgumentException("Submission ID must be valid.", nameof(submissionId));
 
-    [Required]
-    public string Status { get; set; } = string.Empty;
+        ArgumentException.ThrowIfNullOrWhiteSpace(earTag);
+        ArgumentException.ThrowIfNullOrWhiteSpace(status);
 
-    [Required]
-    public string EarTag { get; set; } = string.Empty;
+        Id = Guid.NewGuid();
+        SubmissionId = submissionId;
+        EarTag = earTag;
+        Status = status;
+        DateBirth = dateBirth;
+        Sex = sex;
+        Breed = breed;
+        DamType = damType;
+        DamGeneticEarTag = damGeneticEarTag;
+        DamSurrogateEarTag = damSurrogateEarTag;
+        SireEarTag = sireEarTag;
+        SireName = sireName;
+    }
 
-    public DateOnly? DateBirth { get; set; }
+    public Guid Id { get; private set; }
 
-    public string? Sex { get; set; }
+    public Guid SubmissionId { get; private set; }
 
-    public string? Breed { get; set; }
+    public Submission Submission { get; private set; } = null!;
 
-    public string? DamType { get; set; }
+    public string Status { get; private set; } = string.Empty;
 
-    public string? DamGeneticEarTag { get; set; }
+    public string EarTag { get; private set; } = string.Empty;
 
-    public string? DamSurrogateEarTag { get; set; }
+    public DateOnly? DateBirth { get; private set; }
 
-    public string? SireEarTag { get; set; }
+    public string? Sex { get; private set; }
 
-    public string? SireName { get; set; }
+    public string? Breed { get; private set; }
 
-    public ICollection<SubmissionAnimalError> Errors { get; set; } = new List<SubmissionAnimalError>();
+    public string? DamType { get; private set; }
+
+    public string? DamGeneticEarTag { get; private set; }
+
+    public string? DamSurrogateEarTag { get; private set; }
+
+    public string? SireEarTag { get; private set; }
+
+    public string? SireName { get; private set; }
+
+    public IReadOnlyCollection<SubmissionAnimalError> Errors => _errors.AsReadOnly();
+
+    public SubmissionAnimalError AddError(string errorCode, string errorText)
+    {
+        var error = new SubmissionAnimalError(Id, errorCode, errorText);
+        _errors.Add(error);
+        return error;
+    }
+
+    public void UpdateStatus(string newStatus)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(newStatus);
+        Status = newStatus;
+    }
 }
