@@ -10,8 +10,3 @@ public class CattleResponse
     public List<CattleErrorResponse> Errors { get; set; } = new();
 }
 
-public class CattleErrorResponse
-{
-    public string ErrorCode { get; set; } = string.Empty;
-    public string ErrorText { get; set; } = string.Empty;
-}

@@ -66,4 +66,48 @@ public class CattleService : ICattleService
 
         return resultList;
     }
+
+    public async Task<IEnumerable<BundleResponse>> GetBundlesForHoldingAsync(string cph)
+    {
+        var submissions = await _dbContext.Set<Submission>()
+            .AsNoTracking()
+            .Include(s => s.Animals)
+                .ThenInclude(a => a.Errors)
+            .Where(s => s.CountyParishHolding == cph)
+            .OrderByDescending(s => s.CreatedAt)
+            .ToListAsync();
+
+        return submissions.Select(s => new BundleResponse
+        {
+            Id = s.Id,
+            ClientReference = s.ClientReference,
+            CountyParishHolding = s.CountyParishHolding,
+            SubmittedBy = s.SubmittedBy,
+            Status = s.Status,
+            CreatedAt = s.CreatedAt,
+            Animals = s.Animals.Select(a => new BundleAnimalResponse
+            {
+                Id = a.Id,
+                SubmissionId = a.SubmissionId,
+                Status = a.Status,
+                EarTag = a.EarTag,
+                DateBirth = a.DateBirth,
+                Sex = a.Sex,
+                Breed = a.Breed,
+                DamType = a.DamType,
+                DamGeneticEarTag = a.DamGeneticEarTag,
+                DamSurrogateEarTag = a.DamSurrogateEarTag,
+                SireEarTag = a.SireEarTag,
+                SireName = a.SireName,
+                Errors = a.Errors.Select(e => new BundleAnimalErrorResponse
+                {
+                    Id = e.Id,
+                    AnimalId = e.AnimalId,
+                    ErrorCode = e.ErrorCode,
+                    ErrorText = e.ErrorText,
+                    CreatedAt = e.CreatedAt
+                }).ToList()
+            }).ToList()
+        }).ToList();
+    }
 }

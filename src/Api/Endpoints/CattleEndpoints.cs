@@ -18,6 +18,10 @@ public static class CattleEndpoints
              .WithName("GetCattleForHolding")
              .Produces<IEnumerable<CattleResponse>>(StatusCodes.Status200OK);
 
+        group.MapGet("/{cph}/bundles", GetBundlesForHolding)
+             .WithName("GetBundlesForHolding")
+             .Produces<IEnumerable<BundleResponse>>(StatusCodes.Status200OK);
+
         return app;
     }
 
@@ -25,5 +29,11 @@ public static class CattleEndpoints
     {
         var cattle = await cattleService.GetCattleForHoldingAsync(cph);
         return Results.Ok(cattle);
+    }
+
+    private static async Task<IResult> GetBundlesForHolding(string cph, [FromServices] ICattleService cattleService)
+    {
+        var bundles = await cattleService.GetBundlesForHoldingAsync(cph);
+        return Results.Ok(bundles);
     }
 }
