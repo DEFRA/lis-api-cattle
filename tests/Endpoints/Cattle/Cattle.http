@@ -1,0 +1,13 @@
+### Get Cattle for Holding (using environment variable)
+GET {{host}}/holdings/{{cph}}/cattle
+Accept: application/json
+
+< ../Asserts/Should_be_200_OK.js
+
+### Get Cattle for Holding (explicit CPH)
+GET {{host}}/holdings/12/345/6789/cattle
+Accept: application/json
+
+< ../Asserts/Should_be_200_OK.js
+
+###
