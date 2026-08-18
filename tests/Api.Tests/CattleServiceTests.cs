@@ -21,11 +21,11 @@ public class CattleServiceTests
         var options = new DbContextOptionsBuilder<ReadOnlyPostgresDbContext>()
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
-        
+
         var setupOptions = new DbContextOptionsBuilder<TestSetupDbContext>()
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString()) // Wait, must be same database name!
             .Options;
-        
+
         var dbName = Guid.NewGuid().ToString();
         var opt = new DbContextOptionsBuilder().UseInMemoryDatabase(dbName).Options;
 
@@ -93,37 +93,12 @@ public class CattleServiceTests
         _mockCadsService.Setup(s => s.GetCattleByCphAsync(cph))
             .ReturnsAsync(cadsData);
 
-        var submission = new Submission
-        {
-            Id = Guid.NewGuid(),
-            CountyParishHolding = cph,
-            Status = "submitted",
-            ClientReference = "ref1",
-            SubmittedBy = "user1"
-        };
-
-        var animal1 = new SubmissionAnimal
-        {
-            Id = Guid.NewGuid(),
-            SubmissionId = submission.Id,
-            EarTag = earTag1,
-            Status = "pending_update",
-            Errors = new List<SubmissionAnimalError>
-            {
-                new() { ErrorCode = "ERR01", ErrorText = "Test Error" }
-            }
-        };
-
-        var animal2 = new SubmissionAnimal
-        {
-            Id = Guid.NewGuid(),
-            SubmissionId = submission.Id,
-            EarTag = earTag2,
-            Status = "new_animal"
-        };
+        var submission = new Submission("ref1", cph, "user1");
+        var animal1 = submission.AddAnimal(earTag1, "pending_update");
+        animal1.AddError("ERR01", "Test Error");
+        var animal2 = submission.AddAnimal(earTag2, "new_animal");
 
         _setupContext.Set<Submission>().Add(submission);
-        _setupContext.Set<SubmissionAnimal>().AddRange(animal1, animal2);
         await _setupContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         // Act
@@ -131,7 +106,7 @@ public class CattleServiceTests
 
         // Assert
         Assert.Equal(2, result.Count);
-        
+
         var r1 = result.First(r => r.EarTag == earTag1);
         Assert.Equal("pending_update", r1.Status); // Enhanced from local
         Assert.Single(r1.Errors);

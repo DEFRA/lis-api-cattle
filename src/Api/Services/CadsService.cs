@@ -17,7 +17,7 @@ public class CadsService : ICadsService
         // Endpoint TBC. For now, returning empty or throwing if not configured.
         // In a real scenario, this would call the CADS API.
         var response = await _httpClient.GetAsync($"cattle?cph={cph}");
-        
+
         if (!response.IsSuccessStatusCode)
         {
             return Enumerable.Empty<CattleResponse>();

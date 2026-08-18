@@ -27,7 +27,7 @@ public class CattleService : ICattleService
         // Assuming status 'submitted' or presence of errors means they haven't been delivered to CADS yet.
         var localCattle = await _dbContext.Set<SubmissionAnimal>()
             .Include(a => a.Errors)
-            .Where(a => a.Submission.CountyParishHolding == cph && 
+            .Where(a => a.Submission.CountyParishHolding == cph &&
                         (a.Submission.Status == "submitted" || a.Errors.Any()))
             .Select(a => new CattleResponse
             {
@@ -47,7 +47,7 @@ public class CattleService : ICattleService
         // 3. Enhance/Merge
         // The issue says: "The result from this list will then need to be enhanced with any details 
         // that are held by the cattle API from the bundle list for processing or error entries"
-        
+
         foreach (var localItem in localCattle)
         {
             var existing = resultList.FirstOrDefault(c => c.EarTag == localItem.EarTag);

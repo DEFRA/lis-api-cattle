@@ -1,20 +1,33 @@
-using System.ComponentModel.DataAnnotations;
 using Defra.Database.Entities;
 
 namespace Lis.Cattle;
 
 public class SubmissionAnimalError : BaseAuditEntity
 {
+    private SubmissionAnimalError()
+    {
+    }
 
+    public SubmissionAnimalError(Guid animalId, string errorCode, string errorText)
+    {
+        if (animalId == Guid.Empty)
+            throw new ArgumentException("Animal ID must be valid.", nameof(animalId));
 
-    public Guid AnimalId { get; set; }
+        ArgumentException.ThrowIfNullOrWhiteSpace(errorCode);
+        ArgumentException.ThrowIfNullOrWhiteSpace(errorText);
 
-    public SubmissionAnimal Animal { get; set; } = null!;
+        Id = Guid.NewGuid();
+        AnimalId = animalId;
+        ErrorCode = errorCode;
+        ErrorText = errorText;
+        CreatedAt = DateTime.UtcNow;
+    }
 
-    [Required]
-    public string ErrorCode { get; set; } = string.Empty;
+    public Guid AnimalId { get; private set; }
 
-    [Required]
-    public string ErrorText { get; set; } = string.Empty;
-    
+    public SubmissionAnimal Animal { get; private set; } = null!;
+
+    public string ErrorCode { get; private set; } = string.Empty;
+
+    public string ErrorText { get; private set; } = string.Empty;
 }
