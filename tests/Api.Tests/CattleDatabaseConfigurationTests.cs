@@ -23,9 +23,28 @@ public class CattleDatabaseConfigurationTests
 
         var model = context.Model;
 
-        Assert.NotNull(model.FindEntityType(typeof(Submission)));
-        Assert.NotNull(model.FindEntityType(typeof(SubmissionAnimal)));
-        Assert.NotNull(model.FindEntityType(typeof(SubmissionAnimalError)));
+        var submissionType = model.FindEntityType(typeof(Submission));
+        var animalType = model.FindEntityType(typeof(SubmissionAnimal));
+        var errorType = model.FindEntityType(typeof(SubmissionAnimalError));
+
+        Assert.NotNull(submissionType);
+        Assert.Equal("submissions", submissionType.GetTableName());
+        Assert.Equal("public", submissionType.GetSchema());
+
+        Assert.NotNull(animalType);
+        Assert.Equal("submission_animals", animalType.GetTableName());
+        Assert.Equal("public", animalType.GetSchema());
+
+        Assert.NotNull(errorType);
+        Assert.Equal("submission_animal_errors", errorType.GetTableName());
+        Assert.Equal("public", errorType.GetSchema());
+        Assert.Equal("id", errorType.FindProperty(nameof(SubmissionAnimalError.Id))?.GetColumnName());
+        Assert.Equal("animal_id", errorType.FindProperty(nameof(SubmissionAnimalError.AnimalId))?.GetColumnName());
+        Assert.Equal("error_code", errorType.FindProperty(nameof(SubmissionAnimalError.ErrorCode))?.GetColumnName());
+        Assert.Equal("error_text", errorType.FindProperty(nameof(SubmissionAnimalError.ErrorText))?.GetColumnName());
+        Assert.Equal("created_at", errorType.FindProperty(nameof(SubmissionAnimalError.CreatedAt))?.GetColumnName());
+        Assert.Null(errorType.FindProperty("CreatedById"));
+        Assert.Null(errorType.FindProperty("DeletedAt"));
 
         // Verifies DbSet<Submission> does not throw InvalidOperationException
         var submissionSet = context.Set<Submission>();

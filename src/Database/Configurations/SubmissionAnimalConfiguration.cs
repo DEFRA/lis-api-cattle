@@ -6,7 +6,7 @@ public class SubmissionAnimalConfiguration : IEntityTypeConfiguration<Submission
 {
     public void Configure(EntityTypeBuilder<SubmissionAnimal> builder)
     {
-        builder.ToTable(nameof(SubmissionAnimal).ToSnakeCase(), "public");
+        builder.ToTable("submission_animals", "public");
 
         builder.HasKey(e => e.Id).HasName("submission_animal_pk");
 

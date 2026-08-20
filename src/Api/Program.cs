@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Defra.Database.Postgres;
 using Lis.Cattle;
 using Lis.Cattle.Endpoints;
@@ -6,6 +7,11 @@ using Lis.Cattle.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+    options.SerializerOptions.DictionaryKeyPolicy = JsonNamingPolicy.CamelCase;
+});
 // Add services to the container.
 builder.Services.AddPostgresDatabase(builder.Configuration);
 builder.Services.AddCattleDatabaseConfigurations();
@@ -20,6 +26,11 @@ builder.Services.AddScoped<ICattleService, CattleService>();
 var app = builder.Build();
 
 app.UsePostgresDatabase();
+
+if (app.Environment.IsDevelopment())
+{
+    await app.SeedDevelopmentDatabaseAsync();
+}
 
 app.MapCattleEndpoints();
 app.MapRegistrationEndpoints();

@@ -39,21 +39,21 @@ public class CattleServiceTests
     {
         modelBuilder.Entity<Submission>(builder =>
         {
-            builder.ToTable("submission", "public");
+            builder.ToTable("submissions", "public");
             builder.HasKey(e => e.Id);
             builder.HasMany(e => e.Animals).WithOne(a => a.Submission).HasForeignKey(a => a.SubmissionId);
         });
 
         modelBuilder.Entity<SubmissionAnimal>(builder =>
         {
-            builder.ToTable("submission_animal", "public");
+            builder.ToTable("submission_animals", "public");
             builder.HasKey(e => e.Id);
             builder.HasMany(e => e.Errors).WithOne(a => a.Animal).HasForeignKey(a => a.AnimalId);
         });
 
         modelBuilder.Entity<SubmissionAnimalError>(builder =>
         {
-            builder.ToTable("submission_animal_error", "public");
+            builder.ToTable("submission_animal_errors", "public");
             builder.HasKey(e => e.Id);
         });
     }

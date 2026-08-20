@@ -1,8 +1,6 @@
-using Defra.Database.Entities;
-
 namespace Lis.Cattle;
 
-public class SubmissionAnimalError : BaseAuditEntity
+public class SubmissionAnimalError
 {
     private SubmissionAnimalError()
     {
@@ -23,6 +21,8 @@ public class SubmissionAnimalError : BaseAuditEntity
         CreatedAt = DateTime.UtcNow;
     }
 
+    public Guid Id { get; private set; }
+
     public Guid AnimalId { get; private set; }
 
     public SubmissionAnimal Animal { get; private set; } = null!;
@@ -30,4 +30,6 @@ public class SubmissionAnimalError : BaseAuditEntity
     public string ErrorCode { get; private set; } = string.Empty;
 
     public string ErrorText { get; private set; } = string.Empty;
+
+    public DateTime? CreatedAt { get; private set; }
 }

@@ -6,7 +6,7 @@ public class SubmissionConfiguration : IEntityTypeConfiguration<Submission>
 {
     public void Configure(EntityTypeBuilder<Submission> builder)
     {
-        builder.ToTable(nameof(Submission).ToSnakeCase(), "public");
+        builder.ToTable("submissions", "public");
 
         builder.HasKey(e => e.Id).HasName("submission_pk");
 

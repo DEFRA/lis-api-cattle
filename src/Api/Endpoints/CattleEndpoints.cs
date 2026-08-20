@@ -36,16 +36,18 @@ public static class CattleEndpoints
 
         return app;
     }
-
+    
     private static async Task<IResult> GetCattleForHolding(string cph, [FromServices] ICattleService cattleService)
     {
-        var cattle = await cattleService.GetCattleForHoldingAsync(cph);
+        var decodedCph = Uri.UnescapeDataString(cph);
+        var cattle = await cattleService.GetCattleForHoldingAsync(decodedCph);
         return Results.Ok(cattle);
     }
 
     private static async Task<IResult> GetBundlesForHolding(string cph, [FromServices] ICattleService cattleService)
     {
-        var bundles = await cattleService.GetBundlesForHoldingAsync(cph);
+        var decodedCph = Uri.UnescapeDataString(cph);
+        var bundles = await cattleService.GetBundlesForHoldingAsync(decodedCph);
         return Results.Ok(bundles);
     }
 }

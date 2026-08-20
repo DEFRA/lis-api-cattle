@@ -6,7 +6,7 @@ public class SubmissionAnimalErrorConfiguration : IEntityTypeConfiguration<Submi
 {
     public void Configure(EntityTypeBuilder<SubmissionAnimalError> builder)
     {
-        builder.ToTable(nameof(SubmissionAnimalError).ToSnakeCase(), "public");
+        builder.ToTable("submission_animal_errors", "public");
 
         builder.HasKey(e => e.Id).HasName("submission_animal_errors_pk");
 
@@ -25,7 +25,8 @@ public class SubmissionAnimalErrorConfiguration : IEntityTypeConfiguration<Submi
             .HasColumnName(nameof(SubmissionAnimalError.ErrorText).ToSnakeCase())
             .IsRequired();
 
-
-
+        builder.Property(e => e.CreatedAt)
+            .HasColumnName(nameof(SubmissionAnimalError.CreatedAt).ToSnakeCase())
+            .HasDefaultValueSql("now()");
     }
 }

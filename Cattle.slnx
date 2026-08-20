@@ -26,5 +26,7 @@
     <File Path="tests\Endpoints\Asserts\Should_be_422_error_response.js" />
     <File Path="tests\Endpoints\Asserts\Should_be_ok_and_get_top_application_id.js" />
   </Folder>
-  <Folder Name="/tests/Endpoints/tests/" />
+  <Folder Name="/tests/Endpoints/tests/">
+    <File Path="tests\Endpoints\Cattle\Cattle.http" />
+  </Folder>
 </Solution>
