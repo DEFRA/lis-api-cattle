@@ -22,35 +22,4 @@ Accept: application/json
 
 > ../Asserts/Should_be_200_OK.js
 
-### Create Registration Bundle
-POST {{host}}/registrations
-Content-Type: application/json
-Accept: application/json
-
-{
-  "clientReference": "REG-MNBX4Q2A",
-  "holding": {
-    "cph": "10/081/1234"
-  },
-  "animals": [
-    {
-      "earTag": "UK 12 3456 100003",
-      "dateOfBirth": "2026-02-01",
-      "sex": "female",
-      "breed": "Aberdeen Angus",
-      "dam": {
-        "type": "surrogate",
-        "geneticDamEarTag": "UK 12 3456 000002",
-        "surrogateDamEarTag": "UK 12 3456 000003"
-      },
-      "sire": {
-        "earTag": "UK 12 3456 000010",
-        "name": "Example sire"
-      }
-    }
-  ]
-}
-
-> ../Asserts/Should_be_201_created.js
-
 ###

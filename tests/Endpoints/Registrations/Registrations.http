@@ -1,0 +1,182 @@
+### Create Registration Bundle (using environment variable CPH)
+POST {{host}}/registrations
+Content-Type: application/json
+Accept: application/json
+
+{
+  "clientReference": "REG-MNBX4Q2A",
+  "holding": {
+    "cph": "{{cph}}"
+  },
+  "animals": [
+    {
+      "earTag": "UK 12 3456 100001",
+      "dateOfBirth": "2026-02-01",
+      "sex": "female",
+      "breed": "Aberdeen Angus",
+      "dam": {
+        "type": "surrogate",
+        "geneticDamEarTag": "UK 12 3456 000002",
+        "surrogateDamEarTag": "UK 12 3456 000003"
+      },
+      "sire": {
+        "earTag": "UK 12 3456 000010",
+        "name": "Example sire"
+      }
+    }
+  ]
+}
+
+> ../Asserts/Should_be_201_created.js
+
+### Create Registration Bundle with surrogate dam and sire
+POST {{host}}/registrations
+Content-Type: application/json
+Accept: application/json
+
+{
+  "clientReference": "REG-MNBX4Q2A",
+  "holding": {
+    "cph": "10/081/1234"
+  },
+  "animals": [
+    {
+      "earTag": "UK 12 3456 100003",
+      "dateOfBirth": "2026-02-01",
+      "sex": "female",
+      "breed": "Aberdeen Angus",
+      "dam": {
+        "type": "surrogate",
+        "geneticDamEarTag": "UK 12 3456 000002",
+        "surrogateDamEarTag": "UK 12 3456 000003"
+      },
+      "sire": {
+        "earTag": "UK 12 3456 000010",
+        "name": "Example sire"
+      }
+    }
+  ]
+}
+
+> ../Asserts/Should_be_201_created.js
+
+### Create Registration Bundle with standard dam
+POST {{host}}/registrations
+Content-Type: application/json
+Accept: application/json
+
+{
+  "clientReference": "REG-STD-001",
+  "holding": {
+    "cph": "12/345/6789"
+  },
+  "animals": [
+    {
+      "earTag": "UK 12 3456 100004",
+      "dateOfBirth": "2026-02-05",
+      "sex": "male",
+      "breed": "Hereford",
+      "dam": {
+        "type": "standard",
+        "geneticDamEarTag": "UK 12 3456 000005"
+      }
+    }
+  ]
+}
+
+> ../Asserts/Should_be_201_created.js
+
+### Create Registration Bundle with multiple animals
+POST {{host}}/registrations
+Content-Type: application/json
+Accept: application/json
+
+{
+  "clientReference": "REG-MULTI-001",
+  "holding": {
+    "cph": "12/345/6789"
+  },
+  "animals": [
+    {
+      "earTag": "UK 12 3456 100005",
+      "dateOfBirth": "2026-02-10",
+      "sex": "female",
+      "breed": "Holstein",
+      "dam": {
+        "type": "standard",
+        "geneticDamEarTag": "UK 12 3456 000001"
+      }
+    },
+    {
+      "earTag": "UK 12 3456 100006",
+      "dateOfBirth": "2026-02-11",
+      "sex": "male",
+      "breed": "Limousin"
+    }
+  ]
+}
+
+> ../Asserts/Should_be_201_created.js
+
+### Create Registration Bundle without dam and sire
+POST {{host}}/registrations
+Content-Type: application/json
+Accept: application/json
+
+{
+  "clientReference": "REG-NODAMSIRE",
+  "holding": {
+    "cph": "12/345/6789"
+  },
+  "animals": [
+    {
+      "earTag": "UK 12 3456 100007",
+      "dateOfBirth": "2026-02-15",
+      "sex": "male",
+      "breed": "Charolais"
+    }
+  ]
+}
+
+> ../Asserts/Should_be_201_created.js
+
+### Create Registration Bundle - Invalid (missing client reference)
+POST {{host}}/registrations
+Content-Type: application/json
+Accept: application/json
+
+{
+  "holding": {
+    "cph": "12/345/6789"
+  },
+  "animals": []
+}
+
+> ../Asserts/Should_be_400_bad_request.js
+
+### Create Registration Bundle - Invalid (missing holding)
+POST {{host}}/registrations
+Content-Type: application/json
+Accept: application/json
+
+{
+  "clientReference": "REG-NOHOLDING",
+  "animals": []
+}
+
+> ../Asserts/Should_be_400_bad_request.js
+
+### Create Registration Bundle - Invalid (missing CPH)
+POST {{host}}/registrations
+Content-Type: application/json
+Accept: application/json
+
+{
+  "clientReference": "REG-NOCPH",
+  "holding": {},
+  "animals": []
+}
+
+> ../Asserts/Should_be_400_bad_request.js
+
+###

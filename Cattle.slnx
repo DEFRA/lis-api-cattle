@@ -21,6 +21,7 @@
     <File Path="tests\Endpoints\Asserts\Should_be_200_OK_empty_list.js" />
     <File Path="tests\Endpoints\Asserts\Should_be_201_created.js" />
     <File Path="tests\Endpoints\Asserts\Should_be_204_no_content.js" />
+    <File Path="tests\Endpoints\Asserts\Should_be_400_bad_request.js" />
     <File Path="tests\Endpoints\Asserts\Should_be_404.js" />
     <File Path="tests\Endpoints\Asserts\Should_be_409_conflict.js" />
     <File Path="tests\Endpoints\Asserts\Should_be_422_error_response.js" />
@@ -28,5 +29,6 @@
   </Folder>
   <Folder Name="/tests/Endpoints/tests/">
     <File Path="tests\Endpoints\Cattle\Cattle.http" />
+    <File Path="tests\Endpoints\Registrations\Registrations.http" />
   </Folder>
 </Solution>
