@@ -71,4 +71,40 @@ public class Submission
         ArgumentException.ThrowIfNullOrWhiteSpace(newStatus);
         Status = newStatus;
     }
+
+    public void MarkAsProcessing()
+    {
+        Status = "processing";
+    }
+
+    public void MarkAsComplete()
+    {
+        Status = "complete";
+    }
+
+    public void MarkAsError()
+    {
+        Status = "error";
+    }
+
+    public void RefreshStatusFromAnimals()
+    {
+        if (_animals.Count == 0)
+        {
+            return;
+        }
+
+        if (_animals.Any(a => a.Status == "error"))
+        {
+            Status = "error";
+        }
+        else if (_animals.Any(a => a.Status == "processing" || a.Status == "submitted" || a.Status == "pending"))
+        {
+            Status = "processing";
+        }
+        else if (_animals.All(a => a.Status == "complete"))
+        {
+            Status = "complete";
+        }
+    }
 }

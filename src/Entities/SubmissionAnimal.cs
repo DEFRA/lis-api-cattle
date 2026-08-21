@@ -81,4 +81,26 @@ public class SubmissionAnimal
         ArgumentException.ThrowIfNullOrWhiteSpace(newStatus);
         Status = newStatus;
     }
+
+    public void MarkAsProcessing()
+    {
+        Status = "processing";
+    }
+
+    public void MarkAsComplete()
+    {
+        Status = "complete";
+        _errors.Clear();
+    }
+
+    public void MarkAsError(string errorCode, string errorText)
+    {
+        Status = "error";
+        AddError(errorCode, errorText);
+    }
+
+    public void ClearErrors()
+    {
+        _errors.Clear();
+    }
 }
