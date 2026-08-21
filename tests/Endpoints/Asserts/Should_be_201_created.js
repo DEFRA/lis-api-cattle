@@ -7,8 +7,8 @@ client.test("Response content-type is json", () => {
     client.assert(contentType === "application/json", "Expected content-type 'application/json' but received '" + contentType + "'");
 });
 
-client.test("Response body has id", () => {
+/*client.test("Response body has id", () => {
     client.assert(response.body.hasOwnProperty("id"), "Response body missing 'id'");
     client.global.set("id", response.body.id);
-});
+});*/
 

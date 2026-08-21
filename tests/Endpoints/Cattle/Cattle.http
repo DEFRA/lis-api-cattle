@@ -2,24 +2,24 @@
 GET {{host}}/holdings/{{cph}}/cattle
 Accept: application/json
 
-< ../Asserts/Should_be_200_OK.js
+> ../Asserts/Should_be_200_OK.js
 
 ### Get Cattle for Holding (explicit CPH)
 GET {{host}}/holdings/12/345/6789/cattle
 Accept: application/json
 
-< ../Asserts/Should_be_200_OK.js
+> ../Asserts/Should_be_200_OK.js
 
 ### Get Bundles for Holding (using environment variable)
 GET {{host}}/holdings/{{cph}}/bundles
 Accept: application/json
 
-< ../Asserts/Should_be_200_OK.js
+> ../Asserts/Should_be_200_OK.js
 
 ### Get Bundles for Holding (explicit CPH)
 GET {{host}}/holdings/12/345/6789/bundles
 Accept: application/json
 
-< ../Asserts/Should_be_200_OK.js
+> ../Asserts/Should_be_200_OK.js
 
 ###

@@ -10,7 +10,7 @@ create table public.submissions
     submitted_by          text                                                not null,
     status                text                     default 'submitted'::text  not null
         constraint submission_status_check
-            check (status = ANY (ARRAY ['submitted'::text, 'processing'::text, 'complete'::text, 'error'::text])),
+            check (status = ANY (ARRAY ['pending'::text, 'submitted'::text, 'processing'::text, 'complete'::text, 'error'::text])),
     created_at            timestamp with time zone default now()              not null
 );
 
@@ -33,7 +33,7 @@ create table public.submission_animals
             references public.submissions,
     status                text                            not null
         constraint submission_animal_status_check
-            check (status = ANY (ARRAY ['submitted'::text, 'processing'::text, 'complete'::text, 'error'::text])),
+            check (status = ANY (ARRAY ['pending'::text, 'submitted'::text, 'processing'::text, 'complete'::text, 'error'::text])),
     ear_tag               text                            not null,
     date_birth            date,
     sex                   text,

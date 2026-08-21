@@ -5,7 +5,7 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
                       http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.6.xsd">
     <include file="schema/01/initial.sql" />
-   
+    <include file="schema/02/update_status_check.sql" />
   
     <!-- must be last -->
     <include file="schema/testcontainer.postgresql.sql" />
