@@ -8,6 +8,7 @@
     <PackageVersion Include="AWSSDK.Extensions.NETCore.Setup" Version="4.0.4.1" />
     <PackageVersion Include="AWSSDK.RDS" Version="4.0.20.8" />
     <PackageVersion Include="AWSSDK.SQS" Version="4.0.2.32" />
+    <PackageVersion Include="AWSSDK.SimpleNotificationService" Version="4.0.2.27" />
     <PackageVersion Include="AWSSDK.SecretsManager" Version="4.0.1.9" />
     <PackageVersion Include="Defra.Lis.Core" Version="0.1.6" />
     <PackageVersion Include="Defra.Lis.Database" Version="0.0.3" />

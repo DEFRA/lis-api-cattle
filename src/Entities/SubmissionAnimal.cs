@@ -24,12 +24,11 @@ public class SubmissionAnimal
         if (submissionId == Guid.Empty)
             throw new ArgumentException("Submission ID must be valid.", nameof(submissionId));
 
-        ArgumentException.ThrowIfNullOrWhiteSpace(earTag);
         ArgumentException.ThrowIfNullOrWhiteSpace(status);
 
         Id = Guid.NewGuid();
         SubmissionId = submissionId;
-        EarTag = earTag;
+        EarTag = earTag ?? string.Empty;
         Status = status;
         DateBirth = dateBirth;
         Sex = sex;
