@@ -70,4 +70,49 @@ public class SubmissionAggregateTests
         animal.UpdateStatus("complete");
         Assert.Equal("complete", animal.Status);
     }
+
+    [Fact]
+    public void MarkMethods_UpdateStatusCorrectly()
+    {
+        var submission = new Submission("CLIENT-123", "12/345/6789", "tester");
+        submission.MarkAsProcessing();
+        Assert.Equal("processing", submission.Status);
+
+        submission.MarkAsError();
+        Assert.Equal("error", submission.Status);
+
+        submission.MarkAsComplete();
+        Assert.Equal("complete", submission.Status);
+
+        var animal = submission.AddAnimal("UK123456700001");
+        animal.MarkAsProcessing();
+        Assert.Equal("processing", animal.Status);
+
+        animal.MarkAsError("ERR01", "Some error");
+        Assert.Equal("error", animal.Status);
+        Assert.Single(animal.Errors);
+
+        animal.MarkAsComplete();
+        Assert.Equal("complete", animal.Status);
+        Assert.Empty(animal.Errors);
+    }
+
+    [Fact]
+    public void RefreshStatusFromAnimals_ComputesCorrectStatus()
+    {
+        var submission = new Submission("CLIENT-123", "12/345/6789", "tester");
+        var animal1 = submission.AddAnimal("UK001", status: "complete");
+        var animal2 = submission.AddAnimal("UK002", status: "complete");
+
+        submission.RefreshStatusFromAnimals();
+        Assert.Equal("complete", submission.Status);
+
+        animal2.MarkAsProcessing();
+        submission.RefreshStatusFromAnimals();
+        Assert.Equal("processing", submission.Status);
+
+        animal1.MarkAsError("ERR", "Error");
+        submission.RefreshStatusFromAnimals();
+        Assert.Equal("error", submission.Status);
+    }
 }
