@@ -37,7 +37,6 @@ else
 builder.Services.AddScoped<ICattleService, CattleService>();
 builder.Services.AddScoped<ICtsBundleProcessorService, CtsBundleProcessorService>();
 
-builder.Services.AddAwsMessagingServices(builder.Configuration);
 builder.Services.AddQuartzServices(builder.Configuration);
 
 var app = builder.Build();
