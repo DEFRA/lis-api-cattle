@@ -2,6 +2,8 @@ using Lis.Cattle.Endpoints;
 using Lis.Cattle.Interfaces;
 using Lis.Cattle.Models;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 using Moq;
 
 namespace Lis.Cattle;
@@ -11,7 +13,9 @@ public class RegistrationEndpointsTests
     [Fact]
     public void MapRegistrationEndpoints_MapsGroupAndRouteSuccessfully()
     {
-        var builder = WebApplication.CreateBuilder();
+        var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
+        builder.WebHost.UseTestServer();
+        builder.Services.AddRouting();
         var app = builder.Build();
 
         var returned = app.MapRegistrationEndpoints();
