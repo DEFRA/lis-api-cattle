@@ -1,7 +1,9 @@
 using Defra.Database.Postgres;
 using Lis.Cattle.Interfaces;
+using Lis.Cattle.Messaging;
 using Lis.Cattle.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Lis.Cattle.Services;
 
@@ -9,16 +11,38 @@ public class CattleService : ICattleService
 {
     private readonly ICadsService _cadsService;
     private readonly DbContext _dbContext;
+    private readonly ISubmissionMessagePublisher? _submissionMessagePublisher;
+    private readonly ILogger<CattleService>? _logger;
 
     public CattleService(ICadsService cadsService, PostgresDbContext dbContext)
-        : this(cadsService, (DbContext)dbContext)
+        : this(cadsService, (DbContext)dbContext, null, null)
     {
     }
 
     public CattleService(ICadsService cadsService, DbContext dbContext)
+        : this(cadsService, dbContext, null, null)
+    {
+    }
+
+    public CattleService(
+        ICadsService cadsService,
+        PostgresDbContext dbContext,
+        ISubmissionMessagePublisher? submissionMessagePublisher = null,
+        ILogger<CattleService>? logger = null)
+        : this(cadsService, (DbContext)dbContext, submissionMessagePublisher, logger)
+    {
+    }
+
+    public CattleService(
+        ICadsService cadsService,
+        DbContext dbContext,
+        ISubmissionMessagePublisher? submissionMessagePublisher = null,
+        ILogger<CattleService>? logger = null)
     {
         _cadsService = cadsService;
         _dbContext = dbContext;
+        _submissionMessagePublisher = submissionMessagePublisher;
+        _logger = logger;
     }
 
     public async Task<IEnumerable<CattleResponse>> GetCattleForHoldingAsync(string cph)
@@ -151,6 +175,26 @@ public class CattleService : ICattleService
 
         await _dbContext.Set<Submission>().AddAsync(submission, cancellationToken);
         await _dbContext.SaveChangesAsync(cancellationToken);
+
+        if (_submissionMessagePublisher != null)
+        {
+            try
+            {
+                await _submissionMessagePublisher.PublishSubmissionForValidationAsync(new SubmissionValidationMessage
+                {
+                    SubmissionId = submission.Id,
+                    CountyParishHolding = submission.CountyParishHolding,
+                    ClientReference = submission.ClientReference,
+                    SubmittedBy = submission.SubmittedBy,
+                    AnimalCount = submission.Animals.Count,
+                    Timestamp = submission.CreatedAt
+                }, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Failed to publish validation message for submission {SubmissionId}", submission.Id);
+            }
+        }
 
         return new BundleResponse
         {

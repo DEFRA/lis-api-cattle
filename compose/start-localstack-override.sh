@@ -23,6 +23,14 @@ queue_url=$(awslocal sqs create-queue  \
 
 echo "SQS Queue created: $queue_url"
 
+sub_queue_url=$(awslocal sqs create-queue  \
+  --queue-name submission-validation-queue \
+  --endpoint-url=http://localhost:4567 \
+  --output text \
+  --query 'QueueUrl')
+
+echo "SQS Submission Validation Queue created: $sub_queue_url"
+
 # Get the SQS Queue ARN
 queue_arn=$(awslocal sqs get-queue-attributes \
   --queue-url "$queue_url" \
@@ -33,6 +41,15 @@ queue_arn=$(awslocal sqs get-queue-attributes \
 
 echo "SQS Queue ARN: $queue_arn"
 
+sub_queue_arn=$(awslocal sqs get-queue-attributes \
+  --queue-url "$sub_queue_url" \
+  --endpoint-url=http://localhost:4567 \
+  --attribute-name QueueArn \
+  --output text \
+  --query 'Attributes.QueueArn')
+
+echo "SQS Submission Validation Queue ARN: $sub_queue_arn"
+
 # Create SNS Topics
 topic_arn=$(awslocal sns create-topic \
   --name ls_keeper_data_import_complete \
@@ -41,6 +58,14 @@ topic_arn=$(awslocal sns create-topic \
   --query 'TopicArn')
 
 echo "SNS Topic created: $topic_arn"
+
+sub_topic_arn=$(awslocal sns create-topic \
+  --name submission-validation-topic \
+  --endpoint-url=http://localhost:4567 \
+  --output text \
+  --query 'TopicArn')
+
+echo "SNS Submission Validation Topic created: $sub_topic_arn"
 
 # Check if jq is installed
 if ! command -v jq &> /dev/null; then

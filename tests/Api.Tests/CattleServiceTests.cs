@@ -313,4 +313,36 @@ public class CattleServiceTests
             Assert.Null(a.SireName);
         });
     }
+
+    [Fact]
+    public async Task CreateRegistrationBundleAsync_WithPublisherConfigured_PublishesValidationMessage()
+    {
+        // Arrange
+        var mockPublisher = new Mock<Lis.Cattle.Messaging.ISubmissionMessagePublisher>();
+        var serviceWithPublisher = new CattleService(_mockCadsService.Object, _context, mockPublisher.Object);
+
+        var request = new RegistrationBundleRequest
+        {
+            ClientReference = "REG-MSG-1",
+            Holding = new HoldingRequest { Cph = "10/081/1234" },
+            SubmittedBy = "USER1",
+            Animals =
+            [
+                new AnimalRegistrationRequest { EarTag = "UK123456700001" }
+            ]
+        };
+
+        // Act
+        var result = await serviceWithPublisher.CreateRegistrationBundleAsync(request, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(result);
+        mockPublisher.Verify(p => p.PublishSubmissionForValidationAsync(
+            It.Is<Lis.Cattle.Messaging.SubmissionValidationMessage>(m =>
+                m.SubmissionId == result.Id &&
+                m.CountyParishHolding == "10/081/1234" &&
+                m.ClientReference == "REG-MSG-1" &&
+                m.AnimalCount == 1),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
 }

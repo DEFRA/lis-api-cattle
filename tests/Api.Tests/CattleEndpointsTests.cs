@@ -15,7 +15,9 @@ public class CattleEndpointsTests
     [Fact]
     public void MapCattleEndpoints_MapsGroupAndRouteSuccessfully()
     {
-        var builder = WebApplication.CreateBuilder();
+        var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
+        builder.WebHost.UseTestServer();
+        builder.Services.AddRouting();
         var app = builder.Build();
 
         var returned = app.MapCattleEndpoints();
@@ -36,8 +38,9 @@ public class CattleEndpointsTests
         mockService.Setup(s => s.GetCattleForHoldingAsync(cph))
                    .ReturnsAsync(expected);
 
-        var builder = WebApplication.CreateBuilder();
+        var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
+        builder.Services.AddRouting();
         builder.Services.AddSingleton(mockService.Object);
         var app = builder.Build();
         app.MapCattleEndpoints();
@@ -66,8 +69,9 @@ public class CattleEndpointsTests
         mockService.Setup(s => s.GetCattleForHoldingAsync(cph))
                    .ReturnsAsync(expected);
 
-        var builder = WebApplication.CreateBuilder();
+        var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
+        builder.Services.AddRouting();
         builder.Services.AddSingleton(mockService.Object);
         var app = builder.Build();
         app.MapCattleEndpoints();
@@ -105,8 +109,9 @@ public class CattleEndpointsTests
         mockService.Setup(s => s.GetBundlesForHoldingAsync(cph))
                    .ReturnsAsync(expected);
 
-        var builder = WebApplication.CreateBuilder();
+        var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
+        builder.Services.AddRouting();
         builder.Services.AddSingleton(mockService.Object);
         var app = builder.Build();
         app.MapCattleEndpoints();
@@ -144,8 +149,9 @@ public class CattleEndpointsTests
         mockService.Setup(s => s.GetBundlesForHoldingAsync(cph))
                    .ReturnsAsync(expected);
 
-        var builder = WebApplication.CreateBuilder();
+        var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
+        builder.Services.AddRouting();
         builder.Services.AddSingleton(mockService.Object);
         var app = builder.Build();
         app.MapCattleEndpoints();

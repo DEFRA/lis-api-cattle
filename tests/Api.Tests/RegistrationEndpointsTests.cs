@@ -2,6 +2,8 @@ using Lis.Cattle.Endpoints;
 using Lis.Cattle.Interfaces;
 using Lis.Cattle.Models;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 using Moq;
 
 namespace Lis.Cattle;
@@ -11,7 +13,9 @@ public class RegistrationEndpointsTests
     [Fact]
     public void MapRegistrationEndpoints_MapsGroupAndRouteSuccessfully()
     {
-        var builder = WebApplication.CreateBuilder();
+        var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
+        builder.WebHost.UseTestServer();
+        builder.Services.AddRouting();
         var app = builder.Build();
 
         var returned = app.MapRegistrationEndpoints();
@@ -85,7 +89,7 @@ public class RegistrationEndpointsTests
                    .ReturnsAsync(expected);
 
         // Act
-        var result = await mockService.Object.CreateRegistrationBundleAsync(request, CancellationToken.None);
+        var result = await mockService.Object.CreateRegistrationBundleAsync(request, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.NotNull(result);
@@ -94,5 +98,31 @@ public class RegistrationEndpointsTests
         Assert.Single(result.Animals);
         Assert.Equal("pending", result.Animals[0].Status);
         Assert.Equal("UK 12 3456 100003", result.Animals[0].EarTag);
+    }
+
+    [Fact]
+    public async Task ValidateRegistrationBundle_CallsValidationServiceAndReturnsResult()
+    {
+        // Arrange
+        var mockValidationService = new Mock<Lis.Cattle.Validation.ISubmissionValidationService>();
+        var submissionId = Guid.NewGuid();
+        var expectedResult = new Lis.Cattle.Validation.SubmissionValidationResult
+        {
+            SubmissionId = submissionId,
+            IsValid = true,
+            Status = "complete"
+        };
+
+        mockValidationService.Setup(v => v.ValidateSubmissionByIdAsync(submissionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedResult);
+
+        // Act
+        var result = await mockValidationService.Object.ValidateSubmissionByIdAsync(submissionId, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.True(result.IsValid);
+        Assert.Equal("complete", result.Status);
+        mockValidationService.Verify(v => v.ValidateSubmissionByIdAsync(submissionId, It.IsAny<CancellationToken>()), Times.Once);
     }
 }
