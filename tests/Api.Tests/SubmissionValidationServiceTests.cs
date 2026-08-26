@@ -64,7 +64,7 @@ public class SubmissionValidationServiceTests
         Assert.False(result.IsValid);
         Assert.Equal(Statuses.Error, submission.Status);
         Assert.Equal(Statuses.Error, animal.Status);
-        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.CTWS003);
+        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.Ctws003);
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public class SubmissionValidationServiceTests
 
         Assert.False(result.IsValid);
         Assert.Equal(Statuses.Error, animal.Status);
-        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.CTWS004);
+        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.Ctws004);
     }
 
     [Fact]
@@ -97,7 +97,7 @@ public class SubmissionValidationServiceTests
         var result = await service.ValidateSubmissionAsync(submission, TestContext.Current.CancellationToken);
 
         Assert.False(result.IsValid);
-        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.CTWS023);
+        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.Ctws023);
     }
 
     [Fact]
@@ -113,7 +113,7 @@ public class SubmissionValidationServiceTests
         var result = await service.ValidateSubmissionAsync(submission, TestContext.Current.CancellationToken);
 
         Assert.False(result.IsValid);
-        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.CTWS203);
+        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.Ctws203);
     }
 
     [Fact]
@@ -128,8 +128,8 @@ public class SubmissionValidationServiceTests
         var result = await service.ValidateSubmissionAsync(submission, TestContext.Current.CancellationToken);
 
         Assert.False(result.IsValid);
-        Assert.Contains(animal1.Errors, e => e.ErrorCode == ValidationRuleCodes.CTWS204);
-        Assert.Contains(animal2.Errors, e => e.ErrorCode == ValidationRuleCodes.CTWS204);
+        Assert.Contains(animal1.Errors, e => e.ErrorCode == ValidationRuleCodes.Ctws204);
+        Assert.Contains(animal2.Errors, e => e.ErrorCode == ValidationRuleCodes.Ctws204);
     }
 
     [Fact]
@@ -146,7 +146,7 @@ public class SubmissionValidationServiceTests
         var result = await service.ValidateSubmissionAsync(submission, TestContext.Current.CancellationToken);
 
         Assert.False(result.IsValid);
-        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.CTWS034);
+        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.Ctws034);
     }
 
     [Fact]
@@ -163,7 +163,7 @@ public class SubmissionValidationServiceTests
         var result = await service.ValidateSubmissionAsync(submission, TestContext.Current.CancellationToken);
 
         Assert.False(result.IsValid);
-        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.CTWS042);
+        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.Ctws042);
     }
 
     [Fact]
@@ -181,7 +181,7 @@ public class SubmissionValidationServiceTests
         var result = await service.ValidateSubmissionAsync(submission, TestContext.Current.CancellationToken);
 
         Assert.False(result.IsValid);
-        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.CTWS043);
+        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.Ctws043);
     }
 
     [Fact]
@@ -198,7 +198,7 @@ public class SubmissionValidationServiceTests
         var result = await service.ValidateSubmissionAsync(submission, TestContext.Current.CancellationToken);
 
         Assert.False(result.IsValid);
-        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.CTWS044);
+        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.Ctws044);
     }
 
     [Fact]
@@ -215,7 +215,7 @@ public class SubmissionValidationServiceTests
         var result = await service.ValidateSubmissionAsync(submission, TestContext.Current.CancellationToken);
 
         Assert.False(result.IsValid);
-        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.CTWS050);
+        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.Ctws050);
     }
 
     [Fact]
@@ -233,7 +233,7 @@ public class SubmissionValidationServiceTests
         var result = await service.ValidateSubmissionAsync(submission, TestContext.Current.CancellationToken);
 
         Assert.False(result.IsValid);
-        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.CTWS051);
+        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.Ctws051);
     }
 
     [Fact]
@@ -251,7 +251,7 @@ public class SubmissionValidationServiceTests
         var result = await service.ValidateSubmissionAsync(submission, TestContext.Current.CancellationToken);
 
         Assert.False(result.IsValid);
-        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.CTWS052);
+        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.Ctws052);
     }
 
     [Fact]
@@ -265,7 +265,7 @@ public class SubmissionValidationServiceTests
         var result = await service.ValidateSubmissionAsync(submission, TestContext.Current.CancellationToken);
 
         Assert.False(result.IsValid);
-        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.CTWS079);
+        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.Ctws079);
     }
 
     [Fact]
@@ -288,7 +288,7 @@ public class SubmissionValidationServiceTests
         var result = await service.ValidateSubmissionAsync(submission, TestContext.Current.CancellationToken);
 
         Assert.False(result.IsValid);
-        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.CTWS192);
+        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.Ctws192);
     }
 
     [Fact]
@@ -318,7 +318,7 @@ public class SubmissionValidationServiceTests
         var result = await service.ValidateSubmissionAsync(submission, TestContext.Current.CancellationToken);
 
         Assert.False(result.IsValid);
-        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.CTWS202);
+        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.Ctws202);
     }
 
     [Fact]
@@ -348,7 +348,7 @@ public class SubmissionValidationServiceTests
         var result = await service.ValidateSubmissionAsync(submission, TestContext.Current.CancellationToken);
 
         Assert.False(result.IsValid);
-        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.CTWS202);
+        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.Ctws202);
     }
 
     [Fact]
@@ -366,8 +366,8 @@ public class SubmissionValidationServiceTests
         var result = await service.ValidateSubmissionAsync(submission, TestContext.Current.CancellationToken);
 
         Assert.False(result.IsValid);
-        Assert.Contains(calf1.Errors, e => e.ErrorCode == ValidationRuleCodes.CTWS200);
-        Assert.Contains(calf2.Errors, e => e.ErrorCode == ValidationRuleCodes.CTWS200);
+        Assert.Contains(calf1.Errors, e => e.ErrorCode == ValidationRuleCodes.Ctws200);
+        Assert.Contains(calf2.Errors, e => e.ErrorCode == ValidationRuleCodes.Ctws200);
     }
 
     [Fact]

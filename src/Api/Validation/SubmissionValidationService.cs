@@ -113,8 +113,8 @@ public class SubmissionValidationService(
             {
                 errors.Add(new ValidationErrorItem
                 {
-                    Code = ValidationRuleCodes.CTWS079,
-                    Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS079),
+                    Code = ValidationRuleCodes.Ctws079,
+                    Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.Ctws079),
                 });
             }
 
@@ -123,8 +123,8 @@ public class SubmissionValidationService(
             {
                 errors.Add(new ValidationErrorItem
                 {
-                    Code = ValidationRuleCodes.CTWS003,
-                    Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS003),
+                    Code = ValidationRuleCodes.Ctws003,
+                    Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.Ctws003),
                 });
             }
             else
@@ -134,8 +134,8 @@ public class SubmissionValidationService(
                 {
                     errors.Add(new ValidationErrorItem
                     {
-                        Code = ValidationRuleCodes.CTWS004,
-                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS004),
+                        Code = ValidationRuleCodes.Ctws004,
+                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.Ctws004),
                     });
                 }
 
@@ -144,8 +144,8 @@ public class SubmissionValidationService(
                 {
                     errors.Add(new ValidationErrorItem
                     {
-                        Code = ValidationRuleCodes.CTWS204,
-                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS204),
+                        Code = ValidationRuleCodes.Ctws204,
+                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.Ctws204),
                     });
                 }
 
@@ -159,8 +159,8 @@ public class SubmissionValidationService(
                 {
                     errors.Add(new ValidationErrorItem
                     {
-                        Code = ValidationRuleCodes.CTWS192,
-                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS192),
+                        Code = ValidationRuleCodes.Ctws192,
+                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.Ctws192),
                     });
                 }
             }
@@ -170,8 +170,8 @@ public class SubmissionValidationService(
             {
                 errors.Add(new ValidationErrorItem
                 {
-                    Code = ValidationRuleCodes.CTWS014,
-                    Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS014),
+                    Code = ValidationRuleCodes.Ctws014,
+                    Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.Ctws014),
                 });
             }
 
@@ -182,8 +182,8 @@ public class SubmissionValidationService(
                 {
                     errors.Add(new ValidationErrorItem
                     {
-                        Code = ValidationRuleCodes.CTWS023,
-                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS023),
+                        Code = ValidationRuleCodes.Ctws023,
+                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.Ctws023),
                     });
                 }
                 else
@@ -194,8 +194,8 @@ public class SubmissionValidationService(
                     {
                         errors.Add(new ValidationErrorItem
                         {
-                            Code = ValidationRuleCodes.CTWS203,
-                            Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS203),
+                            Code = ValidationRuleCodes.Ctws203,
+                            Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.Ctws203),
                         });
                     }
                 }
@@ -220,8 +220,8 @@ public class SubmissionValidationService(
             {
                 errors.Add(new ValidationErrorItem
                 {
-                    Code = ValidationRuleCodes.CTWS034,
-                    Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS034),
+                    Code = ValidationRuleCodes.Ctws034,
+                    Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.Ctws034),
                 });
             }
 
@@ -232,8 +232,8 @@ public class SubmissionValidationService(
             {
                 errors.Add(new ValidationErrorItem
                 {
-                    Code = ValidationRuleCodes.CTWS042,
-                    Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS042),
+                    Code = ValidationRuleCodes.Ctws042,
+                    Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.Ctws042),
                 });
             }
 
@@ -244,8 +244,8 @@ public class SubmissionValidationService(
             {
                 errors.Add(new ValidationErrorItem
                 {
-                    Code = ValidationRuleCodes.CTWS043,
-                    Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS043),
+                    Code = ValidationRuleCodes.Ctws043,
+                    Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.Ctws043),
                 });
             }
 
@@ -259,8 +259,8 @@ public class SubmissionValidationService(
                 {
                     errors.Add(new ValidationErrorItem
                     {
-                        Code = ValidationRuleCodes.CTWS044,
-                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS044),
+                        Code = ValidationRuleCodes.Ctws044,
+                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.Ctws044),
                     });
                 }
 
@@ -270,8 +270,8 @@ public class SubmissionValidationService(
                 {
                     errors.Add(new ValidationErrorItem
                     {
-                        Code = ValidationRuleCodes.CTWS050,
-                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS050),
+                        Code = ValidationRuleCodes.Ctws050,
+                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.Ctws050),
                     });
                 }
 
@@ -281,8 +281,8 @@ public class SubmissionValidationService(
                 {
                     errors.Add(new ValidationErrorItem
                     {
-                        Code = ValidationRuleCodes.CTWS051,
-                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS051),
+                        Code = ValidationRuleCodes.Ctws051,
+                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.Ctws051),
                     });
                 }
 
@@ -292,8 +292,8 @@ public class SubmissionValidationService(
                 {
                     errors.Add(new ValidationErrorItem
                     {
-                        Code = ValidationRuleCodes.CTWS052,
-                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS052),
+                        Code = ValidationRuleCodes.Ctws052,
+                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.Ctws052),
                     });
                 }
 
@@ -309,8 +309,8 @@ public class SubmissionValidationService(
                 {
                     errors.Add(new ValidationErrorItem
                     {
-                        Code = ValidationRuleCodes.CTWS196,
-                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS196),
+                        Code = ValidationRuleCodes.Ctws196,
+                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.Ctws196),
                     });
                 }
             }
@@ -330,8 +330,8 @@ public class SubmissionValidationService(
                 {
                     errors.Add(new ValidationErrorItem
                     {
-                        Code = ValidationRuleCodes.CTWS195,
-                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS195),
+                        Code = ValidationRuleCodes.Ctws195,
+                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.Ctws195),
                     });
                 }
 
@@ -357,8 +357,8 @@ public class SubmissionValidationService(
                     {
                         errors.Add(new ValidationErrorItem
                         {
-                            Code = ValidationRuleCodes.CTWS202,
-                            Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS202),
+                            Code = ValidationRuleCodes.Ctws202,
+                            Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.Ctws202),
                         });
                     }
                 }
@@ -392,8 +392,8 @@ public class SubmissionValidationService(
                         {
                             errors.Add(new ValidationErrorItem
                             {
-                                Code = ValidationRuleCodes.CTWS200,
-                                Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS200),
+                                Code = ValidationRuleCodes.Ctws200,
+                                Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.Ctws200),
                             });
                             break;
                         }
