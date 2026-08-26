@@ -9,7 +9,6 @@ using Defra.Lis.Api.Endpoints;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Services;
 using Defra.Lis.Database;
-using Lis.Cattle;
 
 #pragma warning disable S1075 // Using http protocol is insecure. Use https instead
 #pragma warning disable S5332 // Using http protocol is insecure. Use https instead
