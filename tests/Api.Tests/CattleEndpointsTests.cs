@@ -1,14 +1,19 @@
+// <copyright file="CattleEndpointsTests.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
+
+namespace Defra.Lis.Api.Tests;
+
 using System.Net;
 using System.Net.Http.Json;
-using Lis.Cattle.Endpoints;
-using Lis.Cattle.Interfaces;
-using Lis.Cattle.Models;
+using Defra.Lis.Api.Endpoints;
+using Defra.Lis.Api.Interfaces;
+using Defra.Lis.Api.Models;
+using Defra.Lis.Entities;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
-
-namespace Lis.Cattle;
 
 public class CattleEndpointsTests
 {
@@ -32,7 +37,7 @@ public class CattleEndpointsTests
         var cph = "12/345/6789";
         var expected = new List<CattleResponse>
         {
-            new() { EarTag = "UK123456700001", Status = "submitted" }
+            new() { EarTag = "UK123456700001", Status = Statuses.Submitted },
         };
 
         mockService.Setup(s => s.GetCattleForHoldingAsync(cph))
@@ -63,7 +68,7 @@ public class CattleEndpointsTests
         var cph = "12-345-6789";
         var expected = new List<CattleResponse>
         {
-            new() { EarTag = "UK123456700001", Status = "submitted" }
+            new() { EarTag = "UK123456700001", Status = Statuses.Submitted },
         };
 
         mockService.Setup(s => s.GetCattleForHoldingAsync(cph))
@@ -100,10 +105,10 @@ public class CattleEndpointsTests
                 ClientReference = "ref1",
                 CountyParishHolding = cph,
                 SubmittedBy = "user1",
-                Status = "pending",
+                Status = Statuses.Pending,
                 CreatedAt = DateTimeOffset.UtcNow,
-                Animals = []
-            }
+                Animals = [],
+            },
         };
 
         mockService.Setup(s => s.GetBundlesForHoldingAsync(cph))
@@ -140,10 +145,10 @@ public class CattleEndpointsTests
                 ClientReference = "ref1",
                 CountyParishHolding = cph,
                 SubmittedBy = "user1",
-                Status = "pending",
+                Status = Statuses.Pending,
                 CreatedAt = DateTimeOffset.UtcNow,
-                Animals = []
-            }
+                Animals = [],
+            },
         };
 
         mockService.Setup(s => s.GetBundlesForHoldingAsync(cph))
@@ -174,7 +179,7 @@ public class CattleEndpointsTests
         var cph = "12/345/6789";
         var expected = new List<CattleResponse>
         {
-            new() { EarTag = "UK123456700001", Status = "submitted" }
+            new() { EarTag = "UK123456700001", Status = Statuses.Submitted },
         };
 
         mockService.Setup(s => s.GetCattleForHoldingAsync(cph))
@@ -200,7 +205,7 @@ public class CattleEndpointsTests
                 ClientReference = "ref1",
                 CountyParishHolding = cph,
                 SubmittedBy = "user1",
-                Status = "pending",
+                Status = Statuses.Pending,
                 CreatedAt = DateTimeOffset.UtcNow,
                 Animals =
                 [
@@ -208,18 +213,18 @@ public class CattleEndpointsTests
                     {
                         Id = Guid.NewGuid(),
                         EarTag = "UK123456700001",
-                        Status = "pending",
+                        Status = Statuses.Pending,
                         Errors =
                         [
                             new()
                             {
                                 ErrorCode = "ERR01",
-                                ErrorText = "Test Error"
+                                ErrorText = "Test Error",
                             }
-                        ]
+                        ],
                     }
-                ]
-            }
+                ],
+            },
         };
 
         mockService.Setup(s => s.GetBundlesForHoldingAsync(cph))

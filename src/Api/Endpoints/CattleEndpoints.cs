@@ -1,11 +1,15 @@
-using Lis.Cattle.Interfaces;
-using Lis.Cattle.Models;
+// <copyright file="CattleEndpoints.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
+
+namespace Defra.Lis.Api.Endpoints;
+
+using Defra.Lis.Api.Interfaces;
+using Defra.Lis.Api.Models;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
-
-namespace Lis.Cattle.Endpoints;
 
 public static class CattleEndpoints
 {
@@ -36,7 +40,7 @@ public static class CattleEndpoints
 
         return app;
     }
-    
+
     private static async Task<IResult> GetCattleForHolding(string cph, [FromServices] ICattleService cattleService)
     {
         var decodedCph = Uri.UnescapeDataString(cph);

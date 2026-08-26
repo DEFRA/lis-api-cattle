@@ -1,11 +1,15 @@
-using Lis.Cattle.Interfaces;
-using Lis.Cattle.Jobs;
+// <copyright file="CtsBundlePollingJobTests.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
+
+namespace Defra.Lis.Api.Tests;
+
+using Defra.Lis.Api.Interfaces;
+using Defra.Lis.Api.Jobs;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Quartz;
-
-namespace Lis.Cattle;
 
 public class CtsBundlePollingJobTests
 {

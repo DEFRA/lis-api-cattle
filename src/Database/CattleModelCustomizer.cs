@@ -1,8 +1,12 @@
-using Defra.Database.Postgres;
-using Lis.Cattle.Configurations;
-using Microsoft.EntityFrameworkCore.Infrastructure;
+// <copyright file="CattleModelCustomizer.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
 
-namespace Lis.Cattle;
+namespace Defra.Lis.Database;
+
+using Defra.Database.Postgres;
+using Defra.Lis.Database.Configurations;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 
 public class CattleModelCustomizer : ModelCustomizer
 {

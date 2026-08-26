@@ -2,7 +2,7 @@
 // Copyright (c) Defra. All rights reserved.
 // </copyright>
 
-namespace Lis.Cattle.Exceptions;
+namespace Defra.Lis.Api.Exceptions;
 
 public partial class ApiExceptionHandler
 {

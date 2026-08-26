@@ -1,18 +1,27 @@
+// <copyright file="CtsBundleProcessorService.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
+
+namespace Defra.Lis.Api.Services;
+
 using Defra.Database.Postgres;
-using Lis.Cattle.Interfaces;
-using Lis.Cattle.Models;
+using Defra.Lis.Api.Interfaces;
+using Defra.Lis.Api.Models;
+using Defra.Lis.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Lis.Cattle.Services;
-
-public class CtsBundleProcessorService : ICtsBundleProcessorService
+public class CtsBundleProcessorService(
+    ICtsService ctsService,
+    DbContext dbContext,
+    IOptions<CtsPollingJobOptions>? options = null,
+    ILogger<CtsBundleProcessorService>? logger = null)
+    : ICtsBundleProcessorService
 {
-    private readonly ICtsService _ctsService;
-    private readonly DbContext _dbContext;
-    private readonly CtsPollingJobOptions _options;
-    private readonly ILogger<CtsBundleProcessorService>? _logger;
+    private readonly ICtsService ctsService = ctsService ?? throw new ArgumentNullException(nameof(ctsService));
+    private readonly DbContext dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
+    private readonly CtsPollingJobOptions options = options?.Value ?? new CtsPollingJobOptions();
 
     public CtsBundleProcessorService(
         ICtsService ctsService,
@@ -23,25 +32,13 @@ public class CtsBundleProcessorService : ICtsBundleProcessorService
     {
     }
 
-    public CtsBundleProcessorService(
-        ICtsService ctsService,
-        DbContext dbContext,
-        IOptions<CtsPollingJobOptions>? options = null,
-        ILogger<CtsBundleProcessorService>? logger = null)
-    {
-        _ctsService = ctsService ?? throw new ArgumentNullException(nameof(ctsService));
-        _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
-        _options = options?.Value ?? new CtsPollingJobOptions();
-        _logger = logger;
-    }
-
     public async Task ProcessPendingBundlesAsync(CancellationToken cancellationToken = default)
     {
-        var batchSize = _options.BatchSize > 0 ? _options.BatchSize : 10;
+        var batchSize = options.BatchSize > 0 ? options.BatchSize : 10;
 
-        var targetStatuses = new[] { "submitted", "processing", "error", "pending" };
+        var targetStatuses = new[] { Statuses.Submitted, Statuses.Processing, Statuses.Error, Statuses.Pending };
 
-        var bundles = await _dbContext.Set<Submission>()
+        var bundles = await dbContext.Set<Submission>()
             .Include(s => s.Animals)
                 .ThenInclude(a => a.Errors)
             .Where(s => targetStatuses.Contains(s.Status))
@@ -51,11 +48,11 @@ public class CtsBundleProcessorService : ICtsBundleProcessorService
 
         if (bundles.Count == 0)
         {
-            _logger?.LogDebug("No pending bundles found to process.");
+            logger?.LogDebug("No pending bundles found to process.");
             return;
         }
 
-        _logger?.LogInformation("Found {Count} bundles to process with CTS.", bundles.Count);
+        logger?.LogInformation("Found {Count} bundles to process with CTS.", bundles.Count);
 
         foreach (var bundle in bundles)
         {
@@ -70,22 +67,22 @@ public class CtsBundleProcessorService : ICtsBundleProcessorService
             }
             catch (Exception ex)
             {
-                _logger?.LogError(ex, "Error processing bundle {BundleId}", bundle.Id);
+                logger?.LogError(ex, "Error processing bundle {BundleId}", bundle.Id);
             }
         }
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     private async Task ProcessBundleAsync(Submission bundle, CancellationToken cancellationToken)
     {
-        if (bundle.Status == "submitted" || bundle.Status == "pending")
+        if (bundle.Status == Statuses.Submitted || bundle.Status == Statuses.Pending)
         {
             bundle.MarkAsProcessing();
 
             foreach (var animal in bundle.Animals)
             {
-                var response = await _ctsService.SubmitAnimalRegistrationAsync(animal, cancellationToken);
+                var response = await ctsService.SubmitAnimalRegistrationAsync(animal, cancellationToken);
                 if (response.IsError)
                 {
                     animal.MarkAsError(
@@ -98,15 +95,15 @@ public class CtsBundleProcessorService : ICtsBundleProcessorService
                 }
             }
         }
-        else if (bundle.Status == "processing" || bundle.Status == "error")
+        else if (bundle.Status == Statuses.Processing || bundle.Status == Statuses.Error)
         {
             var targetAnimals = bundle.Animals
-                .Where(a => a.Status == "processing" || a.Status == "error" || a.Status == "submitted" || a.Status == "pending")
+                .Where(a => a.Status == Statuses.Processing || a.Status == Statuses.Error || a.Status == Statuses.Submitted || a.Status == Statuses.Pending)
                 .ToList();
 
             foreach (var animal in targetAnimals)
             {
-                var response = await _ctsService.CheckAnimalStatusAsync(animal.EarTag, animal.Id, cancellationToken);
+                var response = await ctsService.CheckAnimalStatusAsync(animal.EarTag, animal.Id, cancellationToken);
 
                 if (response.IsClean)
                 {

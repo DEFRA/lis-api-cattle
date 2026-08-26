@@ -1,55 +1,51 @@
+// <copyright file="SubmissionValidationQueueProcessor.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
+
+namespace Defra.Lis.Api.Messaging;
+
 using System.Text.Json;
 using Amazon.SQS;
 using Amazon.SQS.Model;
-using Lis.Cattle.Configurations;
-using Lis.Cattle.Validation;
+using Defra.Lis.Api.Configurations;
+using Defra.Lis.Api.Validation;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Lis.Cattle.Messaging;
-
-public class SubmissionValidationQueueProcessor : ISubmissionValidationQueueProcessor
+public class SubmissionValidationQueueProcessor(
+    IAmazonSQS sqsClient,
+    ISubmissionValidationService validationService,
+    IOptions<AwsMessagingOptions>? options = null,
+    ILogger<SubmissionValidationQueueProcessor>? logger = null)
+    : ISubmissionValidationQueueProcessor
 {
-    private readonly IAmazonSQS _sqsClient;
-    private readonly ISubmissionValidationService _validationService;
-    private readonly AwsMessagingOptions _options;
-    private readonly ILogger<SubmissionValidationQueueProcessor>? _logger;
-
-    public SubmissionValidationQueueProcessor(
-        IAmazonSQS sqsClient,
-        ISubmissionValidationService validationService,
-        IOptions<AwsMessagingOptions>? options = null,
-        ILogger<SubmissionValidationQueueProcessor>? logger = null)
-    {
-        _sqsClient = sqsClient ?? throw new ArgumentNullException(nameof(sqsClient));
-        _validationService = validationService ?? throw new ArgumentNullException(nameof(validationService));
-        _options = options?.Value ?? new AwsMessagingOptions();
-        _logger = logger;
-    }
+    private readonly IAmazonSQS sqsClient = sqsClient ?? throw new ArgumentNullException(nameof(sqsClient));
+    private readonly ISubmissionValidationService validationService = validationService ?? throw new ArgumentNullException(nameof(validationService));
+    private readonly AwsMessagingOptions options = options?.Value ?? new AwsMessagingOptions();
 
     public async Task<int> ProcessMessagesAsync(CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(_options.SubmissionValidationQueueUrl))
+        if (string.IsNullOrWhiteSpace(options.SubmissionValidationQueueUrl))
         {
-            _logger?.LogDebug("Submission validation queue URL is not configured. Skipping queue processing.");
+            logger?.LogDebug("Submission validation queue URL is not configured. Skipping queue processing.");
             return 0;
         }
 
         var receiveRequest = new ReceiveMessageRequest
         {
-            QueueUrl = _options.SubmissionValidationQueueUrl,
-            MaxNumberOfMessages = _options.MaxNumberOfMessages > 0 ? _options.MaxNumberOfMessages : 10,
-            WaitTimeSeconds = _options.WaitTimeSeconds >= 0 ? _options.WaitTimeSeconds : 5
+            QueueUrl = options.SubmissionValidationQueueUrl,
+            MaxNumberOfMessages = options.MaxNumberOfMessages > 0 ? options.MaxNumberOfMessages : 10,
+            WaitTimeSeconds = options.WaitTimeSeconds >= 0 ? options.WaitTimeSeconds : 5,
         };
 
         ReceiveMessageResponse receiveResponse;
         try
         {
-            receiveResponse = await _sqsClient.ReceiveMessageAsync(receiveRequest, cancellationToken);
+            receiveResponse = await sqsClient.ReceiveMessageAsync(receiveRequest, cancellationToken);
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "Failed to receive messages from SQS queue {QueueUrl}", _options.SubmissionValidationQueueUrl);
+            logger?.LogError(ex, "Failed to receive messages from SQS queue {QueueUrl}", options.SubmissionValidationQueueUrl);
             return 0;
         }
 
@@ -58,7 +54,7 @@ public class SubmissionValidationQueueProcessor : ISubmissionValidationQueueProc
             return 0;
         }
 
-        _logger?.LogInformation("Received {Count} validation messages from SQS queue", receiveResponse.Messages.Count);
+        logger?.LogInformation("Received {Count} validation messages from SQS queue", receiveResponse.Messages.Count);
 
         var processedCount = 0;
 
@@ -74,25 +70,27 @@ public class SubmissionValidationQueueProcessor : ISubmissionValidationQueueProc
                 var validationMessage = ExtractValidationMessage(message.Body);
                 if (validationMessage != null && validationMessage.SubmissionId != Guid.Empty)
                 {
-                    _logger?.LogInformation("Processing validation for submission {SubmissionId} from SQS", validationMessage.SubmissionId);
-                    await _validationService.ValidateSubmissionByIdAsync(validationMessage.SubmissionId, cancellationToken);
+                    logger?.LogInformation("Processing validation for submission {SubmissionId} from SQS", validationMessage.SubmissionId);
+                    await validationService.ValidateSubmissionByIdAsync(validationMessage.SubmissionId, cancellationToken);
                 }
                 else
                 {
-                    _logger?.LogWarning("SQS message {MessageId} did not contain valid submission data", message.MessageId);
+                    logger?.LogWarning("SQS message {MessageId} did not contain valid submission data", message.MessageId);
                 }
 
-                await _sqsClient.DeleteMessageAsync(new DeleteMessageRequest
-                {
-                    QueueUrl = _options.SubmissionValidationQueueUrl,
-                    ReceiptHandle = message.ReceiptHandle
-                }, cancellationToken);
+                await sqsClient.DeleteMessageAsync(
+                    new DeleteMessageRequest
+                    {
+                        QueueUrl = options.SubmissionValidationQueueUrl,
+                        ReceiptHandle = message.ReceiptHandle,
+                    },
+                    cancellationToken);
 
                 processedCount++;
             }
             catch (Exception ex)
             {
-                _logger?.LogError(ex, "Error processing SQS validation message {MessageId}", message.MessageId);
+                logger?.LogError(ex, "Error processing SQS validation message {MessageId}", message.MessageId);
             }
         }
 
@@ -117,14 +115,14 @@ public class SubmissionValidationQueueProcessor : ISubmissionValidationQueueProc
                 {
                     return JsonSerializer.Deserialize<SubmissionValidationMessage>(nestedMessage, new JsonSerializerOptions
                     {
-                        PropertyNameCaseInsensitive = true
+                        PropertyNameCaseInsensitive = true,
                     });
                 }
             }
 
             return JsonSerializer.Deserialize<SubmissionValidationMessage>(body, new JsonSerializerOptions
             {
-                PropertyNameCaseInsensitive = true
+                PropertyNameCaseInsensitive = true,
             });
         }
         catch

@@ -1,4 +1,8 @@
-namespace Lis.Cattle.Validation;
+// <copyright file="ValidationRuleCodes.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
+
+namespace Defra.Lis.Api.Validation;
 
 public static class ValidationRuleCodes
 {
@@ -86,7 +90,7 @@ public static class ValidationRuleCodes
         [CTWS204] = "Duplicate Ear Tag in file",
         [CTWS205] = "Check Genetic Dam Ear Tag",
         [CTWS208] = "Ear Tag not allowed to be a parent",
-        [CTWS209] = "Multiple calvings have occurred"
+        [CTWS209] = "Multiple calvings have occurred",
     };
 
     public static string GetDescription(string errorCode)

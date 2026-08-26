@@ -34,7 +34,7 @@ services:
   postgres:
     image: postgres:16-alpine
     ports:
-      - '5432:5432'
+      - '5433:5432'
     environment:
       POSTGRES_USER: lis_cattle_ddl
       POSTGRES_PASSWORD: postgres
@@ -70,7 +70,7 @@ services:
     platform: linux
     build: ./
     ports:
-      - '8080:8080'
+      - '8085:8085'
     links:
       - 'localstack:localstack'
       - 'postgres:postgres'
@@ -85,10 +85,11 @@ services:
       - 'compose/aws.env'
     environment:
       PORT: 8080
+      ASPNETCORE_URLS: http://+:8085
       ASPNETCORE_ENVIRONMENT: Development
       LOCALSTACK_ENDPOINT: http://localstack:4566
       POSTGRES_URI: http://postgres:5432
-      ConnectionStrings__PostgresConnection: "User ID=lis_cattle_ddl;Password=postgres;Host=postgres;Database=lis_cattle;"
+      ConnectionStrings__ReadWritePostgresConnection: "User ID=lis_cattle_ddl;Password=postgres;Host=postgres;Database=lis_cattle;"
       ConnectionStrings__ReadOnlyPostgresConnection: "User ID=lis_cattle_ddl;Password=postgres;Host=postgres;Database=lis_cattle;"
     networks:
       - cdp-tenant

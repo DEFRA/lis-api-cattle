@@ -1,36 +1,39 @@
-using Lis.Cattle.Interfaces;
+// <copyright file="CtsBundlePollingJob.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
+
+namespace Defra.Lis.Api.Jobs;
+
+using Defra.Lis.Api.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Quartz;
 
-namespace Lis.Cattle.Jobs;
-
 [DisallowConcurrentExecution]
-public class CtsBundlePollingJob : IJob
+public class CtsBundlePollingJob(
+    IServiceScopeFactory scopeFactory,
+    ILogger<CtsBundlePollingJob> logger)
+    : IJob
 {
-    private readonly IServiceScopeFactory _scopeFactory;
-    private readonly ILogger<CtsBundlePollingJob> _logger;
-
-    public CtsBundlePollingJob(IServiceScopeFactory scopeFactory, ILogger<CtsBundlePollingJob> logger)
-    {
-        _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    }
+    private readonly IServiceScopeFactory scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
+    private readonly ILogger<CtsBundlePollingJob> logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     public async Task Execute(IJobExecutionContext context)
     {
-        _logger.LogInformation("Starting CTS bundle polling job execution at {Time}", DateTimeOffset.UtcNow);
+        logger.LogInformation("Starting CTS bundle polling job execution at {Time}", DateTimeOffset.UtcNow);
 
         try
         {
-            using var scope = _scopeFactory.CreateScope();
+            using var scope = scopeFactory.CreateScope();
             var processor = scope.ServiceProvider.GetRequiredService<ICtsBundleProcessorService>();
             await processor.ProcessPendingBundlesAsync(context.CancellationToken);
-            _logger.LogInformation("Finished CTS bundle polling job execution successfully at {Time}", DateTimeOffset.UtcNow);
+            logger.LogInformation("Finished CTS bundle polling job execution successfully at {Time}", DateTimeOffset.UtcNow);
         }
+#pragma warning disable S2139
         catch (Exception ex)
+#pragma warning restore S2139
         {
-            _logger.LogError(ex, "CTS bundle polling job execution failed.");
+            logger.LogError(ex, "CTS bundle polling job execution failed.");
             throw;
         }
     }

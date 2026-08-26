@@ -1,12 +1,16 @@
-using Lis.Cattle.Interfaces;
-using Lis.Cattle.Models;
-using Lis.Cattle.Validation;
+// <copyright file="RegistrationEndpoints.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
+
+namespace Defra.Lis.Api.Endpoints;
+
+using Defra.Lis.Api.Interfaces;
+using Defra.Lis.Api.Models;
+using Defra.Lis.Api.Validation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
-
-namespace Lis.Cattle.Endpoints;
 
 public static class RegistrationEndpoints
 {
@@ -22,7 +26,7 @@ public static class RegistrationEndpoints
 
         group.MapPost("/{id:guid}/validate", ValidateRegistrationBundle)
              .WithName("ValidateRegistrationBundle")
-             .Produces<SubmissionValidationResult>(StatusCodes.Status200OK)
+             .Produces<SubmissionValidationResult>()
              .ProducesProblem(StatusCodes.Status404NotFound);
 
         return app;
@@ -44,7 +48,7 @@ public static class RegistrationEndpoints
             {
                 Title = "Invalid registration bundle request",
                 Detail = ex.Message,
-                Status = StatusCodes.Status400BadRequest
+                Status = StatusCodes.Status400BadRequest,
             });
         }
     }
@@ -65,7 +69,7 @@ public static class RegistrationEndpoints
             {
                 Title = "Submission not found",
                 Detail = ex.Message,
-                Status = StatusCodes.Status404NotFound
+                Status = StatusCodes.Status404NotFound,
             });
         }
     }

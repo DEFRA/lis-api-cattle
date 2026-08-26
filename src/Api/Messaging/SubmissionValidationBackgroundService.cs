@@ -1,44 +1,41 @@
-using Lis.Cattle.Configurations;
+// <copyright file="SubmissionValidationBackgroundService.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
+
+namespace Defra.Lis.Api.Messaging;
+
+using Defra.Lis.Api.Configurations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Lis.Cattle.Messaging;
-
-public class SubmissionValidationBackgroundService : BackgroundService
+public class SubmissionValidationBackgroundService(
+    IServiceProvider serviceProvider,
+    IOptions<AwsMessagingOptions>? options = null,
+    ILogger<SubmissionValidationBackgroundService>? logger = null)
+    : BackgroundService
 {
-    private readonly IServiceProvider _serviceProvider;
-    private readonly AwsMessagingOptions _options;
-    private readonly ILogger<SubmissionValidationBackgroundService>? _logger;
-
-    public SubmissionValidationBackgroundService(
-        IServiceProvider serviceProvider,
-        IOptions<AwsMessagingOptions>? options = null,
-        ILogger<SubmissionValidationBackgroundService>? logger = null)
-    {
-        _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
-        _options = options?.Value ?? new AwsMessagingOptions();
-        _logger = logger;
-    }
+    private readonly IServiceProvider serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+    private readonly AwsMessagingOptions options = options?.Value ?? new AwsMessagingOptions();
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!_options.EnableBackgroundConsumer)
+        if (!options.EnableBackgroundConsumer)
         {
-            _logger?.LogInformation("SubmissionValidationBackgroundService is disabled.");
+            logger?.LogInformation("SubmissionValidationBackgroundService is disabled.");
             return;
         }
 
-        _logger?.LogInformation("SubmissionValidationBackgroundService started.");
+        logger?.LogInformation("SubmissionValidationBackgroundService started.");
 
-        var interval = TimeSpan.FromSeconds(Math.Max(1, _options.PollingIntervalSeconds));
+        var interval = TimeSpan.FromSeconds(Math.Max(1, options.PollingIntervalSeconds));
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                using var scope = _serviceProvider.CreateScope();
+                using var scope = serviceProvider.CreateScope();
                 var processor = scope.ServiceProvider.GetRequiredService<ISubmissionValidationQueueProcessor>();
                 await processor.ProcessMessagesAsync(stoppingToken);
             }
@@ -48,7 +45,7 @@ public class SubmissionValidationBackgroundService : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger?.LogError(ex, "Unhandled error occurred in SubmissionValidationBackgroundService polling loop.");
+                logger?.LogError(ex, "Unhandled error occurred in SubmissionValidationBackgroundService polling loop.");
             }
 
             try
@@ -61,6 +58,6 @@ public class SubmissionValidationBackgroundService : BackgroundService
             }
         }
 
-        _logger?.LogInformation("SubmissionValidationBackgroundService stopped.");
+        logger?.LogInformation("SubmissionValidationBackgroundService stopped.");
     }
 }

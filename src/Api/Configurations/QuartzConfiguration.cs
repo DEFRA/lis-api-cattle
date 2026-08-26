@@ -1,10 +1,14 @@
-using Lis.Cattle.Jobs;
-using Lis.Cattle.Models;
+// <copyright file="QuartzConfiguration.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
+
+namespace Defra.Lis.Api.Configurations;
+
+using Defra.Lis.Api.Jobs;
+using Defra.Lis.Api.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Quartz;
-
-namespace Lis.Cattle.Configurations;
 
 public static class QuartzConfiguration
 {

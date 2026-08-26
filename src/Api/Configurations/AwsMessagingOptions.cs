@@ -1,4 +1,8 @@
-namespace Lis.Cattle.Configurations;
+// <copyright file="AwsMessagingOptions.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
+
+namespace Defra.Lis.Api.Configurations;
 
 public class AwsMessagingOptions
 {

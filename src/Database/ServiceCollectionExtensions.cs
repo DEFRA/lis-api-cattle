@@ -1,8 +1,12 @@
+// <copyright file="ServiceCollectionExtensions.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
+
+namespace Defra.Lis.Database;
+
 using Defra.Database.Postgres;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
-
-namespace Lis.Cattle;
 
 public static class ServiceCollectionExtensions
 {

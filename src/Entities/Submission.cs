@@ -1,14 +1,14 @@
-namespace Lis.Cattle;
+// <copyright file="Submission.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
+
+namespace Defra.Lis.Entities;
 
 public class Submission
 {
-    private readonly List<SubmissionAnimal> _animals = [];
+    private readonly List<SubmissionAnimal> animals = [];
 
-    private Submission()
-    {
-    }
-
-    public Submission(string clientReference, string countyParishHolding, string submittedBy, string status = "submitted")
+    public Submission(string clientReference, string countyParishHolding, string submittedBy, string status = Statuses.Submitted)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(clientReference);
         ArgumentException.ThrowIfNullOrWhiteSpace(countyParishHolding);
@@ -25,21 +25,21 @@ public class Submission
 
     public Guid Id { get; private set; }
 
-    public string ClientReference { get; private set; } = string.Empty;
+    public string ClientReference { get; private set; }
 
-    public string CountyParishHolding { get; private set; } = string.Empty;
+    public string CountyParishHolding { get; private set; }
 
-    public string SubmittedBy { get; private set; } = string.Empty;
+    public string SubmittedBy { get; private set; }
 
-    public string Status { get; private set; } = "submitted";
+    public string Status { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
 
-    public IReadOnlyCollection<SubmissionAnimal> Animals => _animals.AsReadOnly();
+    public IReadOnlyCollection<SubmissionAnimal> Animals => animals.AsReadOnly();
 
     public SubmissionAnimal AddAnimal(
         string earTag,
-        string status = "submitted",
+        string status = Statuses.Submitted,
         DateOnly? dateBirth = null,
         string? sex = null,
         string? breed = null,
@@ -62,7 +62,7 @@ public class Submission
             sireEarTag,
             sireName);
 
-        _animals.Add(animal);
+        animals.Add(animal);
         return animal;
     }
 
@@ -74,37 +74,37 @@ public class Submission
 
     public void MarkAsProcessing()
     {
-        Status = "processing";
+        Status = Statuses.Processing;
     }
 
     public void MarkAsComplete()
     {
-        Status = "complete";
+        Status = Statuses.Complete;
     }
 
     public void MarkAsError()
     {
-        Status = "error";
+        Status = Statuses.Error;
     }
 
     public void RefreshStatusFromAnimals()
     {
-        if (_animals.Count == 0)
+        if (animals.Count == 0)
         {
             return;
         }
 
-        if (_animals.Any(a => a.Status == "error"))
+        if (animals.Any(a => a.Status == Statuses.Error))
         {
-            Status = "error";
+            Status = Statuses.Error;
         }
-        else if (_animals.Any(a => a.Status == "processing" || a.Status == "submitted" || a.Status == "pending"))
+        else if (animals.Any(a => a.Status == Statuses.Processing || a.Status == Statuses.Submitted || a.Status == Statuses.Pending))
         {
-            Status = "processing";
+            Status = Statuses.Processing;
         }
-        else if (_animals.All(a => a.Status == "complete"))
+        else if (animals.All(a => a.Status == Statuses.Complete))
         {
-            Status = "complete";
+            Status = Statuses.Complete;
         }
     }
 }

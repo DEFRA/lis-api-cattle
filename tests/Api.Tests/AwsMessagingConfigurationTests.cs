@@ -1,14 +1,18 @@
+// <copyright file="AwsMessagingConfigurationTests.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
+
+namespace Defra.Lis.Api.Tests;
+
 using Amazon.SimpleNotificationService;
 using Amazon.SQS;
-using Lis.Cattle.Configurations;
-using Lis.Cattle.Messaging;
-using Lis.Cattle.Validation;
+using Defra.Lis.Api.Configurations;
+using Defra.Lis.Api.Messaging;
+using Defra.Lis.Api.Validation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Xunit;
-
-namespace Lis.Cattle;
 
 public class AwsMessagingConfigurationTests
 {
@@ -23,7 +27,7 @@ public class AwsMessagingConfigurationTests
             ["AWS:SubmissionValidationTopicArn"] = "arn:aws:sns:eu-west-2:000000000000:submission-validation-topic",
             ["AWS:EnableBackgroundConsumer"] = "true",
             ["SubmissionValidation:MinDamAgeInMonths"] = "15",
-            ["SubmissionValidation:MaxDamAgeInYears"] = "20"
+            ["SubmissionValidation:MaxDamAgeInYears"] = "20",
         };
 
         var configuration = new ConfigurationBuilder()
@@ -32,8 +36,8 @@ public class AwsMessagingConfigurationTests
 
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddSingleton<Interfaces.ICadsService, Services.CadsService>(sp =>
-            new Services.CadsService(new System.Net.Http.HttpClient()));
+        services.AddSingleton<Interfaces.ICadsService, Services.CadsService>(_ =>
+            new Services.CadsService(new HttpClient()));
         services.AddDbContext<Microsoft.EntityFrameworkCore.DbContext, Defra.Database.Postgres.PostgresDbContext>(options =>
             Microsoft.EntityFrameworkCore.InMemoryDbContextOptionsExtensions.UseInMemoryDatabase(options, "TestDb"));
 

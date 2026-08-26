@@ -1,32 +1,27 @@
+// <copyright file="SubmissionMessagePublisher.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
+
+namespace Defra.Lis.Api.Messaging;
+
 using System.Text.Json;
 using Amazon.SimpleNotificationService;
 using Amazon.SimpleNotificationService.Model;
 using Amazon.SQS;
 using Amazon.SQS.Model;
-using Lis.Cattle.Configurations;
+using Defra.Lis.Api.Configurations;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Lis.Cattle.Messaging;
-
-public class SubmissionMessagePublisher : ISubmissionMessagePublisher
+public class SubmissionMessagePublisher(
+    IAmazonSQS sqsClient,
+    IAmazonSimpleNotificationService? snsClient = null,
+    IOptions<AwsMessagingOptions>? options = null,
+    ILogger<SubmissionMessagePublisher>? logger = null)
+    : ISubmissionMessagePublisher
 {
-    private readonly IAmazonSQS _sqsClient;
-    private readonly IAmazonSimpleNotificationService? _snsClient;
-    private readonly AwsMessagingOptions _options;
-    private readonly ILogger<SubmissionMessagePublisher>? _logger;
-
-    public SubmissionMessagePublisher(
-        IAmazonSQS sqsClient,
-        IAmazonSimpleNotificationService? snsClient = null,
-        IOptions<AwsMessagingOptions>? options = null,
-        ILogger<SubmissionMessagePublisher>? logger = null)
-    {
-        _sqsClient = sqsClient ?? throw new ArgumentNullException(nameof(sqsClient));
-        _snsClient = snsClient;
-        _options = options?.Value ?? new AwsMessagingOptions();
-        _logger = logger;
-    }
+    private readonly IAmazonSQS sqsClient = sqsClient ?? throw new ArgumentNullException(nameof(sqsClient));
+    private readonly AwsMessagingOptions options = options?.Value ?? new AwsMessagingOptions();
 
     public async Task PublishSubmissionForValidationAsync(SubmissionValidationMessage message, CancellationToken cancellationToken = default)
     {
@@ -35,52 +30,54 @@ public class SubmissionMessagePublisher : ISubmissionMessagePublisher
         var jsonBody = JsonSerializer.Serialize(message);
 
         // 1. Send message to SQS validation queue
-        if (!string.IsNullOrWhiteSpace(_options.SubmissionValidationQueueUrl))
+        if (!string.IsNullOrWhiteSpace(options.SubmissionValidationQueueUrl))
         {
             try
             {
                 var sendMessageRequest = new SendMessageRequest
                 {
-                    QueueUrl = _options.SubmissionValidationQueueUrl,
-                    MessageBody = jsonBody
+                    QueueUrl = options.SubmissionValidationQueueUrl,
+                    MessageBody = jsonBody,
                 };
 
-                var response = await _sqsClient.SendMessageAsync(sendMessageRequest, cancellationToken);
-                _logger?.LogInformation(
+                var response = await sqsClient.SendMessageAsync(sendMessageRequest, cancellationToken);
+                logger?.LogInformation(
                     "Enqueued submission {SubmissionId} for validation to SQS queue {QueueUrl}. MessageId: {MessageId}",
                     message.SubmissionId,
-                    _options.SubmissionValidationQueueUrl,
+                    options.SubmissionValidationQueueUrl,
                     response.MessageId);
             }
+#pragma warning disable S2139
             catch (Exception ex)
+#pragma warning restore S2139
             {
-                _logger?.LogError(ex, "Failed to send validation message to SQS for submission {SubmissionId}", message.SubmissionId);
+                logger?.LogError(ex, "Failed to send validation message to SQS for submission {SubmissionId}", message.SubmissionId);
                 throw;
             }
         }
 
         // 2. Publish to SNS topic if configured
-        if (_snsClient != null && !string.IsNullOrWhiteSpace(_options.SubmissionValidationTopicArn))
+        if (snsClient != null && !string.IsNullOrWhiteSpace(options.SubmissionValidationTopicArn))
         {
             try
             {
                 var publishRequest = new PublishRequest
                 {
-                    TopicArn = _options.SubmissionValidationTopicArn,
+                    TopicArn = options.SubmissionValidationTopicArn,
                     Message = jsonBody,
-                    Subject = $"SubmissionValidation:{message.SubmissionId}"
+                    Subject = $"SubmissionValidation:{message.SubmissionId}",
                 };
 
-                var response = await _snsClient.PublishAsync(publishRequest, cancellationToken);
-                _logger?.LogInformation(
+                var response = await snsClient.PublishAsync(publishRequest, cancellationToken);
+                logger?.LogInformation(
                     "Published submission {SubmissionId} validation event to SNS topic {TopicArn}. MessageId: {MessageId}",
                     message.SubmissionId,
-                    _options.SubmissionValidationTopicArn,
+                    options.SubmissionValidationTopicArn,
                     response.MessageId);
             }
             catch (Exception ex)
             {
-                _logger?.LogWarning(ex, "Failed to publish validation event to SNS topic for submission {SubmissionId}", message.SubmissionId);
+                logger?.LogWarning(ex, "Failed to publish validation event to SNS topic for submission {SubmissionId}", message.SubmissionId);
             }
         }
     }

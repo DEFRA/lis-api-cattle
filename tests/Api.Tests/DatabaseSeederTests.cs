@@ -1,12 +1,17 @@
+// <copyright file="DatabaseSeederTests.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
+
+namespace Defra.Lis.Api.Tests;
+
 using Defra.Database.Postgres;
+using Defra.Lis.Database;
+using Defra.Lis.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Moq;
-
-namespace Lis.Cattle;
 
 public class DatabaseSeederTests
 {
@@ -43,13 +48,13 @@ public class DatabaseSeederTests
         Assert.Equal(3, cph12Submissions.Count);
 
         // Check errors seeded
-        var errorSub = cph12Submissions.Single(s => s.Status == "error");
+        var errorSub = cph12Submissions.Single(s => s.Status == Statuses.Error);
         Assert.Single(errorSub.Animals);
         Assert.Equal(2, errorSub.Animals.First().Errors.Count);
 
         // Check CPH 10/081/1234
         var cph10Sub = submissions.Single(s => s.CountyParishHolding == "10/081/1234");
-        Assert.Equal("submitted", cph10Sub.Status);
+        Assert.Equal(Statuses.Submitted, cph10Sub.Status);
         Assert.Equal("REG-MNBX4Q2A", cph10Sub.ClientReference);
     }
 
@@ -69,7 +74,7 @@ public class DatabaseSeederTests
         using var serviceProvider = services.BuildServiceProvider();
         using var context = serviceProvider.GetRequiredService<PostgresDbContext>();
 
-        var existing = new Submission("EXISTING-01", "99/999/9999", "TEST-USER", "complete");
+        var existing = new Submission("EXISTING-01", "99/999/9999", "TEST-USER", Statuses.Complete);
         await context.Set<Submission>().AddAsync(existing, TestContext.Current.CancellationToken);
         await context.SaveChangesAsync(TestContext.Current.CancellationToken);
 

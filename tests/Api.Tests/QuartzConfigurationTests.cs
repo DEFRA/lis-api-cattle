@@ -1,12 +1,15 @@
-using Lis.Cattle.Configurations;
-using Lis.Cattle.Jobs;
-using Lis.Cattle.Models;
+// <copyright file="QuartzConfigurationTests.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
+
+namespace Defra.Lis.Api.Tests;
+
+using Defra.Lis.Api.Configurations;
+using Defra.Lis.Api.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Quartz;
-
-namespace Lis.Cattle;
 
 public class QuartzConfigurationTests
 {
@@ -17,7 +20,7 @@ public class QuartzConfigurationTests
         {
             { "CtsPollingJob:Enabled", "true" },
             { "CtsPollingJob:CronSchedule", "0/15 * * * * ?" },
-            { "CtsPollingJob:BatchSize", "25" }
+            { "CtsPollingJob:BatchSize", "25" },
         };
 
         var configuration = new ConfigurationBuilder()
@@ -45,8 +48,8 @@ public class QuartzConfigurationTests
         var inMemorySettings = new Dictionary<string, string?>
         {
             { "CtsPollingJob:Enabled", "true" },
-            { "CtsPollingJob:CronSchedule", "" },
-            { "CtsPollingJob:PollingIntervalSeconds", "45" }
+            { "CtsPollingJob:CronSchedule", string.Empty },
+            { "CtsPollingJob:PollingIntervalSeconds", "45" },
         };
 
         var configuration = new ConfigurationBuilder()
@@ -72,7 +75,7 @@ public class QuartzConfigurationTests
     {
         var inMemorySettings = new Dictionary<string, string?>
         {
-            { "CtsPollingJob:Enabled", "false" }
+            { "CtsPollingJob:Enabled", "false" },
         };
 
         var configuration = new ConfigurationBuilder()

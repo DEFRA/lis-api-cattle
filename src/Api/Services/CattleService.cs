@@ -1,18 +1,23 @@
+// <copyright file="CattleService.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
+
+namespace Defra.Lis.Api.Services;
+
 using Defra.Database.Postgres;
-using Lis.Cattle.Interfaces;
-using Lis.Cattle.Messaging;
-using Lis.Cattle.Models;
+using Defra.Lis.Api.Interfaces;
+using Defra.Lis.Api.Messaging;
+using Defra.Lis.Api.Models;
+using Defra.Lis.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
-namespace Lis.Cattle.Services;
-
 public class CattleService : ICattleService
 {
-    private readonly ICadsService _cadsService;
-    private readonly DbContext _dbContext;
-    private readonly ISubmissionMessagePublisher? _submissionMessagePublisher;
-    private readonly ILogger<CattleService>? _logger;
+    private readonly ICadsService cadsService;
+    private readonly DbContext dbContext;
+    private readonly ISubmissionMessagePublisher? submissionMessagePublisher;
+    private readonly ILogger<CattleService>? logger;
 
     public CattleService(ICadsService cadsService, PostgresDbContext dbContext)
         : this(cadsService, (DbContext)dbContext, null, null)
@@ -27,8 +32,8 @@ public class CattleService : ICattleService
     public CattleService(
         ICadsService cadsService,
         PostgresDbContext dbContext,
-        ISubmissionMessagePublisher? submissionMessagePublisher = null,
-        ILogger<CattleService>? logger = null)
+        ISubmissionMessagePublisher? submissionMessagePublisher,
+        ILogger<CattleService>? logger)
         : this(cadsService, (DbContext)dbContext, submissionMessagePublisher, logger)
     {
     }
@@ -36,28 +41,28 @@ public class CattleService : ICattleService
     public CattleService(
         ICadsService cadsService,
         DbContext dbContext,
-        ISubmissionMessagePublisher? submissionMessagePublisher = null,
-        ILogger<CattleService>? logger = null)
+        ISubmissionMessagePublisher? submissionMessagePublisher,
+        ILogger<CattleService>? logger)
     {
-        _cadsService = cadsService;
-        _dbContext = dbContext;
-        _submissionMessagePublisher = submissionMessagePublisher;
-        _logger = logger;
+        this.cadsService = cadsService;
+        this.dbContext = dbContext;
+        this.submissionMessagePublisher = submissionMessagePublisher;
+        this.logger = logger;
     }
 
     public async Task<IEnumerable<CattleResponse>> GetCattleForHoldingAsync(string cph)
     {
         // 1. Fetch from CADS
-        var cadsCattle = await _cadsService.GetCattleByCphAsync(cph);
+        var cadsCattle = await cadsService.GetCattleByCphAsync(cph);
         var resultList = cadsCattle.ToList();
 
         // 2. Fetch from local database (bundle list for processing or error entries)
         // Bundles are typically submissions that are not yet "completed" or have errors.
         // Assuming status 'submitted' or presence of errors means they haven't been delivered to CADS yet.
-        var localCattle = await _dbContext.Set<SubmissionAnimal>()
+        var localCattle = await dbContext.Set<SubmissionAnimal>()
             .Include(a => a.Errors)
             .Where(a => a.Submission.CountyParishHolding == cph &&
-                        (a.Submission.Status == "submitted" || a.Errors.Any()))
+                        (a.Submission.Status == Statuses.Submitted || a.Errors.Any()))
             .Select(a => new CattleResponse
             {
                 EarTag = a.EarTag,
@@ -68,15 +73,14 @@ public class CattleService : ICattleService
                 Errors = a.Errors.Select(e => new CattleErrorResponse
                 {
                     ErrorCode = e.ErrorCode,
-                    ErrorText = e.ErrorText
-                }).ToList()
+                    ErrorText = e.ErrorText,
+                }).ToList(),
             })
             .ToListAsync();
 
         // 3. Enhance/Merge
-        // The issue says: "The result from this list will then need to be enhanced with any details 
+        // The issue says: "The result from this list will then need to be enhanced with any details
         // that are held by the cattle API from the bundle list for processing or error entries"
-
         foreach (var localItem in localCattle)
         {
             var existing = resultList.FirstOrDefault(c => c.EarTag == localItem.EarTag);
@@ -98,7 +102,7 @@ public class CattleService : ICattleService
 
     public async Task<IEnumerable<BundleResponse>> GetBundlesForHoldingAsync(string cph)
     {
-        var submissions = await _dbContext.Set<Submission>()
+        var submissions = await dbContext.Set<Submission>()
             .AsNoTracking()
             .Include(s => s.Animals)
                 .ThenInclude(a => a.Errors)
@@ -134,9 +138,9 @@ public class CattleService : ICattleService
                     AnimalId = e.AnimalId,
                     ErrorCode = e.ErrorCode,
                     ErrorText = e.ErrorText,
-                    CreatedAt = e.CreatedAt
-                }).ToList()
-            }).ToList()
+                    CreatedAt = e.CreatedAt,
+                }).ToList(),
+            }).ToList(),
         }).ToList();
     }
 
@@ -153,46 +157,45 @@ public class CattleService : ICattleService
             clientReference: request.ClientReference,
             countyParishHolding: request.Holding.Cph,
             submittedBy: submittedBy,
-            status: "pending");
+            status: Statuses.Pending);
 
-        if (request.Animals is not null)
+        foreach (var animalRequest in request.Animals)
         {
-            foreach (var animalRequest in request.Animals)
-            {
-                submission.AddAnimal(
-                    earTag: animalRequest.EarTag,
-                    status: "pending",
-                    dateBirth: animalRequest.DateOfBirth,
-                    sex: animalRequest.Sex,
-                    breed: animalRequest.Breed,
-                    damType: animalRequest.Dam?.Type,
-                    damGeneticEarTag: animalRequest.Dam?.GeneticDamEarTag,
-                    damSurrogateEarTag: animalRequest.Dam?.SurrogateDamEarTag,
-                    sireEarTag: animalRequest.Sire?.EarTag,
-                    sireName: animalRequest.Sire?.Name);
-            }
+            submission.AddAnimal(
+                earTag: animalRequest.EarTag,
+                status: Statuses.Pending,
+                dateBirth: animalRequest.DateOfBirth,
+                sex: animalRequest.Sex,
+                breed: animalRequest.Breed,
+                damType: animalRequest.Dam?.Type,
+                damGeneticEarTag: animalRequest.Dam?.GeneticDamEarTag,
+                damSurrogateEarTag: animalRequest.Dam?.SurrogateDamEarTag,
+                sireEarTag: animalRequest.Sire?.EarTag,
+                sireName: animalRequest.Sire?.Name);
         }
 
-        await _dbContext.Set<Submission>().AddAsync(submission, cancellationToken);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await dbContext.Set<Submission>().AddAsync(submission, cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
 
-        if (_submissionMessagePublisher != null)
+        if (submissionMessagePublisher != null)
         {
             try
             {
-                await _submissionMessagePublisher.PublishSubmissionForValidationAsync(new SubmissionValidationMessage
-                {
-                    SubmissionId = submission.Id,
-                    CountyParishHolding = submission.CountyParishHolding,
-                    ClientReference = submission.ClientReference,
-                    SubmittedBy = submission.SubmittedBy,
-                    AnimalCount = submission.Animals.Count,
-                    Timestamp = submission.CreatedAt
-                }, cancellationToken);
+                await submissionMessagePublisher.PublishSubmissionForValidationAsync(
+                    new SubmissionValidationMessage
+                    {
+                        SubmissionId = submission.Id,
+                        CountyParishHolding = submission.CountyParishHolding,
+                        ClientReference = submission.ClientReference,
+                        SubmittedBy = submission.SubmittedBy,
+                        AnimalCount = submission.Animals.Count,
+                        Timestamp = submission.CreatedAt,
+                    },
+                    cancellationToken);
             }
             catch (Exception ex)
             {
-                _logger?.LogWarning(ex, "Failed to publish validation message for submission {SubmissionId}", submission.Id);
+                logger?.LogWarning(ex, "Failed to publish validation message for submission {SubmissionId}", submission.Id);
             }
         }
 
@@ -218,8 +221,8 @@ public class CattleService : ICattleService
                 DamSurrogateEarTag = a.DamSurrogateEarTag,
                 SireEarTag = a.SireEarTag,
                 SireName = a.SireName,
-                Errors = []
-            }).ToList()
+                Errors = [],
+            }).ToList(),
         };
     }
 }
