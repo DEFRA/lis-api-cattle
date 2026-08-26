@@ -1,4 +1,8 @@
-namespace Lis.Cattle.Interfaces;
+// <copyright file="ICtsBundleProcessorService.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
+
+namespace Defra.Lis.Api.Interfaces;
 
 public interface ICtsBundleProcessorService
 {

@@ -1,48 +1,45 @@
+// <copyright file="SubmissionValidationService.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
+
+namespace Defra.Lis.Api.Validation;
+
 using System.Text.RegularExpressions;
-using Lis.Cattle.Configurations;
-using Lis.Cattle.Interfaces;
-using Lis.Cattle.Models;
+using Defra.Lis.Api.Configurations;
+using Defra.Lis.Api.Interfaces;
+using Defra.Lis.Api.Models;
+using Defra.Lis.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Lis.Cattle.Validation;
-
-public class SubmissionValidationService : ISubmissionValidationService
+public class SubmissionValidationService(
+    DbContext dbContext,
+    ICadsService cadsService,
+    IOptions<SubmissionValidationOptions>? options = null,
+    ILogger<SubmissionValidationService>? logger = null)
+    : ISubmissionValidationService
 {
-    private readonly DbContext _dbContext;
-    private readonly ICadsService _cadsService;
-    private readonly SubmissionValidationOptions _options;
-    private readonly ILogger<SubmissionValidationService>? _logger;
-
-    public SubmissionValidationService(
-        DbContext dbContext,
-        ICadsService cadsService,
-        IOptions<SubmissionValidationOptions>? options = null,
-        ILogger<SubmissionValidationService>? logger = null)
-    {
-        _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
-        _cadsService = cadsService ?? throw new ArgumentNullException(nameof(cadsService));
-        _options = options?.Value ?? new SubmissionValidationOptions();
-        _logger = logger;
-    }
+    private readonly DbContext dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
+    private readonly ICadsService cadsService = cadsService ?? throw new ArgumentNullException(nameof(cadsService));
+    private readonly SubmissionValidationOptions options = options?.Value ?? new SubmissionValidationOptions();
 
     public async Task<SubmissionValidationResult> ValidateSubmissionByIdAsync(Guid submissionId, CancellationToken cancellationToken = default)
     {
-        var submission = await _dbContext.Set<Submission>()
+        var submission = await dbContext.Set<Submission>()
             .Include(s => s.Animals)
                 .ThenInclude(a => a.Errors)
             .FirstOrDefaultAsync(s => s.Id == submissionId, cancellationToken);
 
         if (submission == null)
         {
-            _logger?.LogWarning("Submission with ID {SubmissionId} not found for validation", submissionId);
+            logger?.LogWarning("Submission with ID {SubmissionId} not found for validation", submissionId);
             throw new KeyNotFoundException($"Submission with ID {submissionId} not found.");
         }
 
         var result = await ValidateSubmissionAsync(submission, cancellationToken);
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
 
         return result;
     }
@@ -51,16 +48,16 @@ public class SubmissionValidationService : ISubmissionValidationService
     {
         ArgumentNullException.ThrowIfNull(submission);
 
-        _logger?.LogInformation("Starting validation for submission {SubmissionId} (CPH: {Cph})", submission.Id, submission.CountyParishHolding);
+        logger?.LogInformation("Starting validation for submission {SubmissionId} (CPH: {Cph})", submission.Id, submission.CountyParishHolding);
 
         var result = new SubmissionValidationResult
         {
             SubmissionId = submission.Id,
-            IsValid = true
+            IsValid = true,
         };
 
-        var earTagRegex = new Regex(_options.EarTagRegexPattern, RegexOptions.Compiled | RegexOptions.IgnoreCase);
-        var cphRegex = new Regex(_options.CphRegexPattern, RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        var earTagRegex = new Regex(options.EarTagRegexPattern, RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromSeconds(2));
+        var cphRegex = new Regex(options.CphRegexPattern, RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromSeconds(2));
 
         // Location / CPH format validation
         bool isCphValid = !string.IsNullOrWhiteSpace(submission.CountyParishHolding) && cphRegex.IsMatch(submission.CountyParishHolding);
@@ -71,12 +68,12 @@ public class SubmissionValidationService : ISubmissionValidationService
         {
             if (!string.IsNullOrWhiteSpace(submission.CountyParishHolding))
             {
-                cadsCattle = await _cadsService.GetCattleByCphAsync(submission.CountyParishHolding);
+                cadsCattle = await cadsService.GetCattleByCphAsync(submission.CountyParishHolding);
             }
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "Could not fetch CADS cattle for holding {Cph}", submission.CountyParishHolding);
+            logger?.LogWarning(ex, "Could not fetch CADS cattle for holding {Cph}", submission.CountyParishHolding);
         }
 
         var cadsCattleList = cadsCattle.ToList();
@@ -92,7 +89,7 @@ public class SubmissionValidationService : ISubmissionValidationService
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
 
         // Fetch existing animals from database to check against already used tags, dam calvings, etc.
-        var existingDbAnimals = await _dbContext.Set<SubmissionAnimal>()
+        var existingDbAnimals = await dbContext.Set<SubmissionAnimal>()
             .AsNoTracking()
             .Where(a => a.SubmissionId != submission.Id)
             .ToListAsync(cancellationToken);
@@ -107,7 +104,7 @@ public class SubmissionValidationService : ISubmissionValidationService
                 errors.Add(new ValidationErrorItem
                 {
                     Code = ValidationRuleCodes.CTWS079,
-                    Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS079)
+                    Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS079),
                 });
             }
 
@@ -117,7 +114,7 @@ public class SubmissionValidationService : ISubmissionValidationService
                 errors.Add(new ValidationErrorItem
                 {
                     Code = ValidationRuleCodes.CTWS003,
-                    Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS003)
+                    Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS003),
                 });
             }
             else
@@ -128,7 +125,7 @@ public class SubmissionValidationService : ISubmissionValidationService
                     errors.Add(new ValidationErrorItem
                     {
                         Code = ValidationRuleCodes.CTWS004,
-                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS004)
+                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS004),
                     });
                 }
 
@@ -138,19 +135,22 @@ public class SubmissionValidationService : ISubmissionValidationService
                     errors.Add(new ValidationErrorItem
                     {
                         Code = ValidationRuleCodes.CTWS204,
-                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS204)
+                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS204),
                     });
                 }
 
                 // CTWS192: Ear Tag has already been used (existing in DB completed submissions or CADS)
-                bool alreadyUsedInCads = cadsCattleList.Any(c => string.Equals(c.EarTag, animal.EarTag.Trim(), StringComparison.OrdinalIgnoreCase));
-                bool alreadyUsedInDb = existingDbAnimals.Any(a => string.Equals(a.EarTag, animal.EarTag.Trim(), StringComparison.OrdinalIgnoreCase) && a.Status == "complete");
+                bool alreadyUsedInCads = cadsCattleList.Any(c =>
+                    string.Equals(c.EarTag, animal.EarTag.Trim(), StringComparison.OrdinalIgnoreCase));
+                bool alreadyUsedInDb = existingDbAnimals.Any(a =>
+                    string.Equals(a.EarTag, animal.EarTag.Trim(), StringComparison.OrdinalIgnoreCase) &&
+                    a.Status == Statuses.Complete);
                 if (alreadyUsedInCads || alreadyUsedInDb)
                 {
                     errors.Add(new ValidationErrorItem
                     {
                         Code = ValidationRuleCodes.CTWS192,
-                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS192)
+                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS192),
                     });
                 }
             }
@@ -161,7 +161,7 @@ public class SubmissionValidationService : ISubmissionValidationService
                 errors.Add(new ValidationErrorItem
                 {
                     Code = ValidationRuleCodes.CTWS014,
-                    Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS014)
+                    Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS014),
                 });
             }
 
@@ -173,27 +173,35 @@ public class SubmissionValidationService : ISubmissionValidationService
                     errors.Add(new ValidationErrorItem
                     {
                         Code = ValidationRuleCodes.CTWS023,
-                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS023)
+                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS023),
                     });
                 }
                 else
                 {
                     // CTWS203: Application is late
                     var daysSinceBirth = today.DayNumber - animal.DateBirth.Value.DayNumber;
-                    if (daysSinceBirth > _options.MaxApplicationLateDays)
+                    if (daysSinceBirth > options.MaxApplicationLateDays)
                     {
                         errors.Add(new ValidationErrorItem
                         {
                             Code = ValidationRuleCodes.CTWS203,
-                            Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS203)
+                            Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS203),
                         });
                     }
                 }
             }
 
-            var damEarTag = !string.IsNullOrWhiteSpace(animal.DamGeneticEarTag)
-                ? animal.DamGeneticEarTag.Trim()
-                : (!string.IsNullOrWhiteSpace(animal.DamSurrogateEarTag) ? animal.DamSurrogateEarTag.Trim() : null);
+            string? damEarTag;
+            if (!string.IsNullOrWhiteSpace(animal.DamGeneticEarTag))
+            {
+                damEarTag = animal.DamGeneticEarTag.Trim();
+            }
+            else
+            {
+                damEarTag = !string.IsNullOrWhiteSpace(animal.DamSurrogateEarTag)
+                    ? animal.DamSurrogateEarTag.Trim()
+                    : null;
+            }
 
             // CTWS034: Genetic Dam and Animal Ear Tags match
             if (!string.IsNullOrWhiteSpace(animal.DamGeneticEarTag) &&
@@ -203,7 +211,7 @@ public class SubmissionValidationService : ISubmissionValidationService
                 errors.Add(new ValidationErrorItem
                 {
                     Code = ValidationRuleCodes.CTWS034,
-                    Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS034)
+                    Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS034),
                 });
             }
 
@@ -215,7 +223,7 @@ public class SubmissionValidationService : ISubmissionValidationService
                 errors.Add(new ValidationErrorItem
                 {
                     Code = ValidationRuleCodes.CTWS042,
-                    Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS042)
+                    Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS042),
                 });
             }
 
@@ -227,7 +235,7 @@ public class SubmissionValidationService : ISubmissionValidationService
                 errors.Add(new ValidationErrorItem
                 {
                     Code = ValidationRuleCodes.CTWS043,
-                    Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS043)
+                    Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS043),
                 });
             }
 
@@ -242,7 +250,7 @@ public class SubmissionValidationService : ISubmissionValidationService
                     errors.Add(new ValidationErrorItem
                     {
                         Code = ValidationRuleCodes.CTWS044,
-                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS044)
+                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS044),
                     });
                 }
 
@@ -253,7 +261,7 @@ public class SubmissionValidationService : ISubmissionValidationService
                     errors.Add(new ValidationErrorItem
                     {
                         Code = ValidationRuleCodes.CTWS050,
-                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS050)
+                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS050),
                     });
                 }
 
@@ -264,7 +272,7 @@ public class SubmissionValidationService : ISubmissionValidationService
                     errors.Add(new ValidationErrorItem
                     {
                         Code = ValidationRuleCodes.CTWS051,
-                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS051)
+                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS051),
                     });
                 }
 
@@ -275,7 +283,7 @@ public class SubmissionValidationService : ISubmissionValidationService
                     errors.Add(new ValidationErrorItem
                     {
                         Code = ValidationRuleCodes.CTWS052,
-                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS052)
+                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS052),
                     });
                 }
 
@@ -292,7 +300,7 @@ public class SubmissionValidationService : ISubmissionValidationService
                     errors.Add(new ValidationErrorItem
                     {
                         Code = ValidationRuleCodes.CTWS196,
-                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS196)
+                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS196),
                     });
                 }
             }
@@ -313,7 +321,7 @@ public class SubmissionValidationService : ISubmissionValidationService
                     errors.Add(new ValidationErrorItem
                     {
                         Code = ValidationRuleCodes.CTWS195,
-                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS195)
+                        Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS195),
                     });
                 }
 
@@ -323,7 +331,7 @@ public class SubmissionValidationService : ISubmissionValidationService
                     var damBirth = damRecord.DateBirth.Value;
                     var calfBirth = animal.DateBirth.Value;
 
-                    var ageInMonths = (calfBirth.Year - damBirth.Year) * 12 + (calfBirth.Month - damBirth.Month);
+                    var ageInMonths = ((calfBirth.Year - damBirth.Year) * 12) + (calfBirth.Month - damBirth.Month);
                     if (calfBirth.Day < damBirth.Day)
                     {
                         ageInMonths--;
@@ -335,12 +343,12 @@ public class SubmissionValidationService : ISubmissionValidationService
                         ageInYears--;
                     }
 
-                    if (ageInMonths < _options.MinDamAgeInMonths || ageInYears > _options.MaxDamAgeInYears)
+                    if (ageInMonths < options.MinDamAgeInMonths || ageInYears > options.MaxDamAgeInYears)
                     {
                         errors.Add(new ValidationErrorItem
                         {
                             Code = ValidationRuleCodes.CTWS202,
-                            Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS202)
+                            Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS202),
                         });
                     }
                 }
@@ -368,13 +376,14 @@ public class SubmissionValidationService : ISubmissionValidationService
                     foreach (var otherBirthDate in allCalvesDates)
                     {
                         var diffDays = Math.Abs(animal.DateBirth.Value.DayNumber - otherBirthDate.DayNumber);
+
                         // If calves born to same dam within calving interval (e.g. 240 days), except same day twins/multiples (diffDays > 0 and < MinCalvingIntervalDays)
-                        if (diffDays > 0 && diffDays < _options.MinCalvingIntervalDays)
+                        if (diffDays > 0 && diffDays < options.MinCalvingIntervalDays)
                         {
                             errors.Add(new ValidationErrorItem
                             {
                                 Code = ValidationRuleCodes.CTWS200,
-                                Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS200)
+                                Description = ValidationRuleCodes.GetDescription(ValidationRuleCodes.CTWS200),
                             });
                             break;
                         }
@@ -391,11 +400,12 @@ public class SubmissionValidationService : ISubmissionValidationService
                 {
                     animal.AddError(err.Code, err.Description);
                 }
-                animal.UpdateStatus("error");
+
+                animal.UpdateStatus(Statuses.Error);
             }
             else
             {
-                animal.UpdateStatus("complete");
+                animal.UpdateStatus(Statuses.Complete);
             }
 
             var animalResult = new SubmissionAnimalValidationResult
@@ -403,7 +413,7 @@ public class SubmissionValidationService : ISubmissionValidationService
                 AnimalId = animal.Id,
                 EarTag = animal.EarTag,
                 IsValid = errors.Count == 0,
-                Errors = errors
+                Errors = errors,
             };
 
             result.AnimalResults.Add(animalResult);
@@ -416,7 +426,7 @@ public class SubmissionValidationService : ISubmissionValidationService
         result.Status = submission.Status;
         result.ErrorCount = result.AnimalResults.Sum(a => a.Errors.Count);
 
-        _logger?.LogInformation(
+        logger?.LogInformation(
             "Validation completed for submission {SubmissionId}. Status: {Status}, Errors: {ErrorCount}",
             submission.Id,
             submission.Status,

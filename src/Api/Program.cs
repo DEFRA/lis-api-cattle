@@ -1,10 +1,18 @@
+// <copyright file="Program.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
+
 using System.Text.Json;
 using Defra.Database.Postgres;
+using Defra.Lis.Api.Configurations;
+using Defra.Lis.Api.Endpoints;
+using Defra.Lis.Api.Interfaces;
+using Defra.Lis.Api.Services;
+using Defra.Lis.Database;
 using Lis.Cattle;
-using Lis.Cattle.Configurations;
-using Lis.Cattle.Endpoints;
-using Lis.Cattle.Interfaces;
-using Lis.Cattle.Services;
+
+#pragma warning disable S1075 // Using http protocol is insecure. Use https instead
+#pragma warning disable S5332 // Using http protocol is insecure. Use https instead
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,6 +21,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
     options.SerializerOptions.DictionaryKeyPolicy = JsonNamingPolicy.CamelCase;
 });
+
 // Add services to the container.
 builder.Services.AddPostgresDatabase(builder.Configuration);
 builder.Services.AddCattleDatabaseConfigurations();
@@ -52,4 +61,4 @@ if (app.Environment.IsDevelopment())
 app.MapCattleEndpoints();
 app.MapRegistrationEndpoints();
 
-app.Run();
+await app.RunAsync();

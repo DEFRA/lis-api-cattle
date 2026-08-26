@@ -1,9 +1,15 @@
+// <copyright file="CattleDatabaseConfigurationTests.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
+
+namespace Defra.Lis.Api.Tests;
+
 using Defra.Database.Postgres;
+using Defra.Lis.Database;
+using Defra.Lis.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
-
-namespace Lis.Cattle;
 
 public class CattleDatabaseConfigurationTests
 {

@@ -1,6 +1,11 @@
-using Defra.Lis.Core.Extensions;
+// <copyright file="SubmissionAnimalErrorConfiguration.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
 
-namespace Lis.Cattle.Configurations;
+namespace Defra.Lis.Database.Configurations;
+
+using Defra.Lis.Core.Extensions;
+using Defra.Lis.Entities;
 
 public class SubmissionAnimalErrorConfiguration : IEntityTypeConfiguration<SubmissionAnimalError>
 {

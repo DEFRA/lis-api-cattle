@@ -1,4 +1,8 @@
-namespace Lis.Cattle.Models;
+// <copyright file="HoldingRequest.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
+
+namespace Defra.Lis.Api.Models;
 
 public class HoldingRequest
 {

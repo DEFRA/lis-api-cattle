@@ -1,196 +1,175 @@
-﻿#addin nuget:?package=Cake.Coverlet&version=5.1.1
-#tool dotnet:?package=GitVersion.Tool&version=6.5.1
+#nullable enable
 #tool dotnet:?package=dotnet-reportgenerator-globaltool&version=5.5.1
+#load "base.cake"
+#load "version.cake"
 
 var target = Argument("target", "Default");
-var configuration = Argument("configuration", "Release");
+var version = Argument("package_version", EnvironmentVariable("PACKAGE_VERSION") ?? "");
+var imageName = Argument("image_name", EnvironmentVariable("IMAGE_NAME") ?? "");
+var imageRef = Argument("image_ref", EnvironmentVariable("IMAGE_REF") ?? "");
+var revision = Argument("revision", EnvironmentVariable("REVISION") ?? "");
+private readonly string SOLUTION_FILE = GetSolutionFile();
+private const string CONFIGURATION = "release";
+private const DotNetVerbosity VERBOSITY = DotNetVerbosity.Minimal;
 
-var sonarToken = EnvironmentVariable("SONAR_TOKEN");
-var sonarVersion = EnvironmentVariable("SONAR_VERSION");
-var SonarScannerPath = Argument("sonarscannerpath", "./.sonar/scanner/dotnet-sonarscanner");
-var DotNetCoveragePath = Argument("dotnetcoveragepath", "./.sonar/coverage/dotnet-coverage");
-const string SonarCoverageFile = "coverage.xml";
+string RequiredValue(string value, string name)
+{
+    if (string.IsNullOrWhiteSpace(value))
+    {
+        throw new Exception($"{name} is required to build the container image.");
+    }
 
-const string TEST_COVERAGE_OUTPUT_DIR = "coverage";
-const string SolutionFileName = "Cattle.slnx";
+    return value;
+}
+
+Action buildContainerImage = () =>
+{
+    var resolvedImageName = RequiredValue(imageName, "IMAGE_NAME");
+    var resolvedImageRef = string.IsNullOrWhiteSpace(imageRef)
+        ? $"{resolvedImageName}:{version}"
+        : imageRef;
+    var resolvedRevision = RequiredValue(revision, "REVISION");
+    var repository = EnvironmentVariable("GITHUB_REPOSITORY") ?? resolvedImageName;
+    var serverUrl = EnvironmentVariable("GITHUB_SERVER_URL") ?? "https://github.com";
+    var runId = EnvironmentVariable("GITHUB_RUN_ID") ?? "local";
+
+    Information($"Building production container image {resolvedImageRef}");
+    RunCommand(
+        "docker",
+        "buildx build . " +
+        "--file ./Dockerfile " +
+        "--target production " +
+        "--no-cache --provenance=false --sbom=false --load " +
+        $"--tag \"{resolvedImageRef}\" " +
+        $"--label \"defra.cdp.git.repo.url={serverUrl}/{repository}\" " +
+        $"--label \"defra.cdp.git.repo.name={repository}\" " +
+        $"--label \"defra.cdp.service.name={resolvedImageName}\" " +
+        $"--label \"defra.cdp.build.run_id={runId}\" " +
+        "--label \"defra.cdp.run_mode=service\" " +
+        $"--label \"git.hash={resolvedRevision}\" " +
+        $"--label \"org.opencontainers.image.version={version}\"");
+};
 
 Task("Clean")
-    .Does(() => {
- 
-   if (BuildSystem.GitHubActions.IsRunningOnGitHubActions)
+    .Does(() => 
     {
-      Information("Nothing to clean on Github Pipelines.");
-    }
-    else
-    {
-        DotNetClean(SolutionFileName);
-    }
-});
+        var settings = new DotNetCleanSettings
+        {
+            Verbosity = VERBOSITY,
+            Configuration = CONFIGURATION
+        };
+        DotNetClean(SOLUTION_FILE, settings);
+    });
 
-Task("Restore")
+Task("Version")
     .IsDependentOn("Clean")
+    .Description("Calculates the npm package version")
+    .Does(() =>
+    {
+        if (string.IsNullOrWhiteSpace(version))
+        {
+            version = CalculateVersion();
+        }
+
+        Information($"Version {version}");
+    });
+
+Task("Install")
+    .IsDependentOn("Version")
     .Description("Restoring the solution dependencies")
     .Does(() => {
-    
-    Information("Restoring the solution dependencies");
-      var settings =  new DotNetRestoreSettings
+        Information("Restoring the solution dependencies");
+        var settings = new DotNetRestoreSettings
         {
-          Verbosity = DotNetVerbosity.Minimal,
-          Sources = new [] { 
-             "https://api.nuget.org/v3/index.json",
-          }
+            Verbosity = VERBOSITY,
+            Sources = new [] 
+            { 
+                "https://api.nuget.org/v3/index.json",
+            }
         };
-   GetFiles("./**/**/*.csproj").ToList().ForEach(project => {
-       Information($"Restoring {project.ToString()}");
-       DotNetRestore(project.ToString(), settings);
-     });
-});
+        DotNetRestore(SOLUTION_FILE, settings);
+    });
+
+Task("Format")
+    .IsDependentOn("Install")
+    .Description("Executing dotnet format")
+    .Does(() => {
+        var settings = new DotNetFormatSettings
+        {
+            VerifyNoChanges = false
+        };
+
+        DotNetFormat(SOLUTION_FILE, settings);
+    });
 
 Task("Build")
-    .IsDependentOn("Restore")
+    .IsDependentOn("Format")
+    .IsDependentOn("Version")
     .Does(() => {
-     var buildSettings = new DotNetBuildSettings {
-                        Configuration = configuration,
-                       };
-     GetFiles("./**/**/*.csproj").ToList().ForEach(project => {
-         Information($"Building {project.ToString()}");
-         DotNetBuild(project.ToString(),buildSettings);
+        var settings = new DotNetBuildSettings {
+            Verbosity = VERBOSITY,
+            Configuration = CONFIGURATION,
+            ArgumentCustomization = args => args
+                .Append($"/p:Version={version}")
+                .Append("/p:WarningsAsErrors=true")
+            };
+        DotNetBuild(SOLUTION_FILE, settings);
      });
-});
 
 Task("Test")
     .IsDependentOn("Build")
     .Does(() => {
-       
-       var testSettings = new DotNetTestSettings  {
-                 Configuration = configuration,
-                 NoBuild = true,
-       };
-        var coverageOutput = Directory(TEST_COVERAGE_OUTPUT_DIR);             
-     
-       GetFiles("./tests/**/*.csproj").ToList().ForEach(project => {
-          Information($"Testing Project : {project.ToString()}");
+        var testSettings = new DotNetTestSettings  {
+            Verbosity = VERBOSITY,
+            Configuration = CONFIGURATION,
+        };
+        var coverageOutput = DirectoryPath.FromString("./coverage");
+        
+        var testProjects = GetFiles("./tests/**/*.csproj");
+        if (!testProjects.Any())
+        {
+            testProjects = GetFiles("./tests/**/*.csproj");
+        }
+
+        testProjects.ToList().ForEach(project => {
+            Information($"Testing Project : {project.ToString()}");
             
-          var codeCoverageOutputName = $"{project.GetFilenameWithoutExtension()}.cobertura.xml";
-          var coverletSettings = new CoverletSettings {
-              CollectCoverage = true,
-               CoverletOutputFormat = CoverletOutputFormat.cobertura,
-               CoverletOutputDirectory =  coverageOutput,
-               CoverletOutputName =codeCoverageOutputName,
-               ArgumentCustomization = args => args.Append($"--logger trx")
-          };
-                  
-          Information($"Running Tests : { project.ToString()}");
-          DotNetTest(project.ToString(), testSettings, coverletSettings );        
+            Information($"Running Tests : { project.ToString()}");
+            var projectCoverageDirectory = DirectoryPath.FromString(
+                project.GetFilenameWithoutExtension().ToString());
+            testSettings.ResultsDirectory = coverageOutput.Combine(projectCoverageDirectory);
+            testSettings.ArgumentCustomization = args => args
+                .AppendQuoted("--collect:XPlat Code Coverage")
+                .Append("--logger trx");
+            DotNetTest(project.ToString(), testSettings);
         });
-         Information($"Directory Path : { coverageOutput.ToString()}");
-                  
-              var glob = new GlobPattern($"./{ coverageOutput}/*.cobertura.xml");
+        
+        Information($"Directory Path : { coverageOutput.ToString()}");
+        var glob = new GlobPattern($"./{coverageOutput}/**/coverage.cobertura.xml");
                  
-              Information($"globpattern : { glob.ToString()}");
-              var outputDirectory = Directory("./coverage/reports");
-             
-             Information($"output Directory : { outputDirectory}");
-              var reportSettings = new ReportGeneratorSettings
-              {
-                 ArgumentCustomization = args => args.Append($"-reportTypes:HtmlInline_AzurePipelines_Dark;Cobertura")
-              };
-                 
-              ReportGenerator(glob, outputDirectory, reportSettings);
-});
+        Information($"globpattern : { glob.ToString()}");
+        var outputDirectory = Directory($"./coverage/reports");
+        
+        Information($"output Directory : { outputDirectory}");
+        var reportSettings = new ReportGeneratorSettings
+        {
+            ArgumentCustomization = args => args.Append($"-reportTypes:HtmlInline_AzurePipelines_Dark;Cobertura")
+        };
+        
+        ReportGenerator(glob, outputDirectory, reportSettings);
+    });
 
-Task("Publish")
+Task("Pack")
     .IsDependentOn("Test")
-    .Does(() => {
-       var outputDirectory = Directory("./artifacts");
-       var settings = new DotNetPublishSettings
-       {
-          Configuration = configuration,
-          OutputDirectory = outputDirectory
-       };
-       DotNetPublish("./src/Api/Api.csproj", settings);
-});
-Task("Sonar-Install")
-    .Description("Installs the SonarCloud scanner and dotnet-coverage tools")
-    .Does(() => {
-        EnsureDirectoryExists("./.sonar/scanner");
-        EnsureDirectoryExists("./.sonar/coverage");
+    .Description("Validates the application and builds its production container image")
+    .Does(buildContainerImage);
 
-        StartProcess("dotnet", new ProcessSettings {
-            Arguments = "tool update dotnet-sonarscanner --tool-path ./.sonar/scanner"
-        });
+Task("PackOnly")
+    .IsDependentOn("Version")
+    .Description("Builds the production container image from previously validated source")
+    .Does(buildContainerImage);
 
-        StartProcess("dotnet", new ProcessSettings {
-            Arguments = "tool update dotnet-coverage --tool-path ./.sonar/coverage"
-        });
-    });
-
-Task("Sonar-Begin")
-    .IsDependentOn("Sonar-Install")
-    .Description("Starts SonarCloud analysis")
-    .Does(() => {
-        if (string.IsNullOrWhiteSpace(sonarToken))
-        {
-            throw new Exception("SONAR_TOKEN environment variable is required to run SonarCloud analysis.");
-        }
-
-        StartProcess(SonarScannerPath, new ProcessSettings {
-            Arguments = string.Join(" ", new [] {
-                "begin",
-                "/k:\"DEFRA_identity-service-helper\"",
-                "/o:\"defra\"",
-                $"/d:sonar.token=\"{sonarToken}\"",
-                "/d:sonar.host.url=\"https://sonarcloud.io\"",
-                $"/v:\"{sonarVersion}\"",
-                "/d:sonar.cs.vscoveragexml.reportsPaths=coverage.xml",
-                "/d:sonar.exclusions=\"changelog/**,.github/**\"",
-                "/d:sonar.dotnet.excludeTestProjects=true"
-            })
-        });
-    });
-
-Task("Sonar-Build")
-    .IsDependentOn("Sonar-Begin")
-    .Description("Builds the solution for SonarCloud analysis")
-    .Does(() => {
-        DotNetBuild(SolutionFileName, new DotNetBuildSettings {
-            Configuration = configuration,
-            NoIncremental = true
-        });
-    });
-
-Task("Sonar-Test")
-    .IsDependentOn("Sonar-Build")
-    .Description("Runs tests and collects coverage for SonarCloud")
-    .Does(() => {
-        StartProcess(DotNetCoveragePath, new ProcessSettings {
-            Arguments = $"collect \"dotnet test --configuration {configuration} --no-build\" -f xml -o \"{SonarCoverageFile}\""
-        });
-    });
-
-Task("Sonar-End")
-    .IsDependentOn("Sonar-Test")
-    .Description("Completes SonarCloud analysis")
-    .Does(() => {
-        if (string.IsNullOrWhiteSpace(sonarToken))
-        {
-            throw new Exception("SONAR_TOKEN environment variable is required to run SonarCloud analysis.");
-        }
-
-        StartProcess(SonarScannerPath, new ProcessSettings {
-            Arguments = $"end /d:sonar.token=\"{sonarToken}\""
-        });
-    });
-
-Task("Sonar")
-    .IsDependentOn("Sonar-End")
-    .Description("Runs the full SonarCloud analysis pipeline");
-    
 Task("Default")
-       .IsDependentOn("Clean")
-       .IsDependentOn("Restore")
-       .IsDependentOn("Build")
-       .IsDependentOn("Test")
-       .IsDependentOn("Publish");
+    .IsDependentOn("Pack");
 
 RunTarget(target);

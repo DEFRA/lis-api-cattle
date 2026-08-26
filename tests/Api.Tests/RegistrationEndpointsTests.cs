@@ -1,12 +1,17 @@
-using Lis.Cattle.Endpoints;
-using Lis.Cattle.Interfaces;
-using Lis.Cattle.Models;
+// <copyright file="RegistrationEndpointsTests.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
+
+namespace Defra.Lis.Api.Tests;
+
+using Defra.Lis.Api.Endpoints;
+using Defra.Lis.Api.Interfaces;
+using Defra.Lis.Api.Models;
+using Defra.Lis.Entities;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
-
-namespace Lis.Cattle;
 
 public class RegistrationEndpointsTests
 {
@@ -33,7 +38,7 @@ public class RegistrationEndpointsTests
             ClientReference = "REG-MNBX4Q2A",
             Holding = new HoldingRequest
             {
-                Cph = "10/081/1234"
+                Cph = "10/081/1234",
             },
             Animals =
             [
@@ -47,15 +52,15 @@ public class RegistrationEndpointsTests
                     {
                         Type = "surrogate",
                         GeneticDamEarTag = "UK 12 3456 000002",
-                        SurrogateDamEarTag = "UK 12 3456 000003"
+                        SurrogateDamEarTag = "UK 12 3456 000003",
                     },
                     Sire = new SireRegistrationRequest
                     {
                         EarTag = "UK 12 3456 000010",
-                        Name = "Example sire"
-                    }
-                }
-            ]
+                        Name = "Example sire",
+                    },
+                },
+            ],
         };
 
         var expected = new BundleResponse
@@ -64,7 +69,7 @@ public class RegistrationEndpointsTests
             ClientReference = request.ClientReference,
             CountyParishHolding = request.Holding.Cph,
             SubmittedBy = "BE4FE",
-            Status = "pending",
+            Status = Statuses.Pending,
             CreatedAt = DateTimeOffset.UtcNow,
             Animals =
             [
@@ -72,7 +77,7 @@ public class RegistrationEndpointsTests
                 {
                     Id = Guid.NewGuid(),
                     EarTag = "UK 12 3456 100003",
-                    Status = "pending",
+                    Status = Statuses.Pending,
                     DateBirth = new DateOnly(2026, 2, 1),
                     Sex = "female",
                     Breed = "Aberdeen Angus",
@@ -80,9 +85,9 @@ public class RegistrationEndpointsTests
                     DamGeneticEarTag = "UK 12 3456 000002",
                     DamSurrogateEarTag = "UK 12 3456 000003",
                     SireEarTag = "UK 12 3456 000010",
-                    SireName = "Example sire"
-                }
-            ]
+                    SireName = "Example sire",
+                },
+            ],
         };
 
         mockService.Setup(s => s.CreateRegistrationBundleAsync(request, It.IsAny<CancellationToken>()))
@@ -94,9 +99,9 @@ public class RegistrationEndpointsTests
         // Assert
         Assert.NotNull(result);
         Assert.Equal("REG-MNBX4Q2A", result.ClientReference);
-        Assert.Equal("pending", result.Status);
+        Assert.Equal(Statuses.Pending, result.Status);
         Assert.Single(result.Animals);
-        Assert.Equal("pending", result.Animals[0].Status);
+        Assert.Equal(Statuses.Pending, result.Animals[0].Status);
         Assert.Equal("UK 12 3456 100003", result.Animals[0].EarTag);
     }
 
@@ -104,13 +109,13 @@ public class RegistrationEndpointsTests
     public async Task ValidateRegistrationBundle_CallsValidationServiceAndReturnsResult()
     {
         // Arrange
-        var mockValidationService = new Mock<Lis.Cattle.Validation.ISubmissionValidationService>();
+        var mockValidationService = new Mock<Validation.ISubmissionValidationService>();
         var submissionId = Guid.NewGuid();
-        var expectedResult = new Lis.Cattle.Validation.SubmissionValidationResult
+        var expectedResult = new Validation.SubmissionValidationResult
         {
             SubmissionId = submissionId,
             IsValid = true,
-            Status = "complete"
+            Status = Statuses.Complete,
         };
 
         mockValidationService.Setup(v => v.ValidateSubmissionByIdAsync(submissionId, It.IsAny<CancellationToken>()))
@@ -122,7 +127,7 @@ public class RegistrationEndpointsTests
         // Assert
         Assert.NotNull(result);
         Assert.True(result.IsValid);
-        Assert.Equal("complete", result.Status);
+        Assert.Equal(Statuses.Complete, result.Status);
         mockValidationService.Verify(v => v.ValidateSubmissionByIdAsync(submissionId, It.IsAny<CancellationToken>()), Times.Once);
     }
 }

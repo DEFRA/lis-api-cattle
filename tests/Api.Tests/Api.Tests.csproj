@@ -7,7 +7,7 @@
   <ItemGroup>
     <PackageReference Include="Defra.Lis.Postgres" VersionOverride="0.0.3" />
     <PackageReference Include="Moq" VersionOverride="4.20.72" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore" VersionOverride="10.0.9" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" VersionOverride="10.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" VersionOverride="10.0.11" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" VersionOverride="10.0.11" />
   </ItemGroup>
 </Project>

@@ -1,12 +1,16 @@
+// <copyright file="AwsMessagingConfiguration.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
+
+namespace Defra.Lis.Api.Configurations;
+
 using Amazon;
 using Amazon.SimpleNotificationService;
 using Amazon.SQS;
-using Lis.Cattle.Messaging;
-using Lis.Cattle.Validation;
+using Defra.Lis.Api.Messaging;
+using Defra.Lis.Api.Validation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-
-namespace Lis.Cattle.Configurations;
 
 public static class AwsMessagingConfiguration
 {

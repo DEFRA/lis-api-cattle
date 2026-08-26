@@ -1,17 +1,17 @@
-namespace Lis.Cattle;
+// <copyright file="SubmissionAnimal.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
+
+namespace Defra.Lis.Entities;
 
 public class SubmissionAnimal
 {
-    private readonly List<SubmissionAnimalError> _errors = [];
-
-    private SubmissionAnimal()
-    {
-    }
+    private readonly List<SubmissionAnimalError> errors = [];
 
     public SubmissionAnimal(
         Guid submissionId,
         string earTag,
-        string status = "submitted",
+        string status = Statuses.Submitted,
         DateOnly? dateBirth = null,
         string? sex = null,
         string? breed = null,
@@ -22,7 +22,9 @@ public class SubmissionAnimal
         string? sireName = null)
     {
         if (submissionId == Guid.Empty)
+        {
             throw new ArgumentException("Submission ID must be valid.", nameof(submissionId));
+        }
 
         ArgumentException.ThrowIfNullOrWhiteSpace(status);
 
@@ -66,12 +68,12 @@ public class SubmissionAnimal
 
     public string? SireName { get; private set; }
 
-    public IReadOnlyCollection<SubmissionAnimalError> Errors => _errors.AsReadOnly();
+    public IReadOnlyCollection<SubmissionAnimalError> Errors => errors.AsReadOnly();
 
     public SubmissionAnimalError AddError(string errorCode, string errorText)
     {
         var error = new SubmissionAnimalError(Id, errorCode, errorText);
-        _errors.Add(error);
+        errors.Add(error);
         return error;
     }
 
@@ -83,23 +85,23 @@ public class SubmissionAnimal
 
     public void MarkAsProcessing()
     {
-        Status = "processing";
+        Status = Statuses.Processing;
     }
 
     public void MarkAsComplete()
     {
-        Status = "complete";
-        _errors.Clear();
+        Status = Statuses.Complete;
+        errors.Clear();
     }
 
     public void MarkAsError(string errorCode, string errorText)
     {
-        Status = "error";
+        Status = Statuses.Error;
         AddError(errorCode, errorText);
     }
 
     public void ClearErrors()
     {
-        _errors.Clear();
+        errors.Clear();
     }
 }

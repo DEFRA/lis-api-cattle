@@ -1,15 +1,17 @@
-namespace Lis.Cattle;
+// <copyright file="SubmissionAnimalError.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
+
+namespace Defra.Lis.Entities;
 
 public class SubmissionAnimalError
 {
-    private SubmissionAnimalError()
-    {
-    }
-
     public SubmissionAnimalError(Guid animalId, string errorCode, string errorText)
     {
         if (animalId == Guid.Empty)
+        {
             throw new ArgumentException("Animal ID must be valid.", nameof(animalId));
+        }
 
         ArgumentException.ThrowIfNullOrWhiteSpace(errorCode);
         ArgumentException.ThrowIfNullOrWhiteSpace(errorText);

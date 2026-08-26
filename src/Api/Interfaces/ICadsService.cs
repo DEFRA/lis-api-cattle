@@ -1,6 +1,10 @@
-using Lis.Cattle.Models;
+// <copyright file="ICadsService.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
 
-namespace Lis.Cattle.Interfaces;
+namespace Defra.Lis.Api.Interfaces;
+
+using Defra.Lis.Api.Models;
 
 public interface ICadsService
 {

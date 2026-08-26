@@ -1,20 +1,24 @@
+// <copyright file="CadsServiceTests.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
+
+namespace Defra.Lis.Api.Tests;
+
 using System.Net;
 using System.Text.Json;
-using Lis.Cattle.Models;
-using Lis.Cattle.Services;
+using Defra.Lis.Api.Models;
+using Defra.Lis.Api.Services;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Moq.Protected;
 
-namespace Lis.Cattle;
-
 public class CadsServiceTests
 {
-    private readonly Mock<ILogger<CadsService>> _mockLogger;
+    private readonly Mock<ILogger<CadsService>> mockLogger;
 
     public CadsServiceTests()
     {
-        _mockLogger = new Mock<ILogger<CadsService>>();
+        mockLogger = new Mock<ILogger<CadsService>>();
     }
 
     [Fact]
@@ -24,7 +28,7 @@ public class CadsServiceTests
         var cph = "12/345/6789";
         var cattle = new List<CattleResponse>
         {
-            new() { EarTag = "UK123456700001", Breed = "Hereford", Sex = "female", Status = "active" }
+            new() { EarTag = "UK123456700001", Breed = "Hereford", Sex = "female", Status = "active" },
         };
 
         var handlerMock = new Mock<HttpMessageHandler>();
@@ -32,20 +36,22 @@ public class CadsServiceTests
             .Protected()
             .Setup<Task<HttpResponseMessage>>(
                 "SendAsync",
-                ItExpr.Is<HttpRequestMessage>(req => req.RequestUri != null && req.RequestUri.ToString().Contains($"cattle?cph={Uri.EscapeDataString(cph)}")),
+                ItExpr.Is<HttpRequestMessage>(req =>
+                    req.RequestUri != null &&
+                    req.RequestUri.ToString().Contains($"cattle?cph={Uri.EscapeDataString(cph)}")),
                 ItExpr.IsAny<CancellationToken>())
             .ReturnsAsync(new HttpResponseMessage
             {
                 StatusCode = HttpStatusCode.OK,
-                Content = new StringContent(JsonSerializer.Serialize(cattle), System.Text.Encoding.UTF8, "application/json")
+                Content = new StringContent(
+                    JsonSerializer.Serialize(cattle),
+                    System.Text.Encoding.UTF8,
+                    "application/json"),
             });
 
-        var httpClient = new HttpClient(handlerMock.Object)
-        {
-            BaseAddress = new Uri("http://cads-api/")
-        };
+        var httpClient = new HttpClient(handlerMock.Object) { BaseAddress = new Uri("http://cads-api/"), };
 
-        var service = new CadsService(httpClient, _mockLogger.Object);
+        var service = new CadsService(httpClient, mockLogger.Object);
 
         // Act
         var result = await service.GetCattleByCphAsync(cph);
@@ -71,15 +77,15 @@ public class CadsServiceTests
                 ItExpr.IsAny<CancellationToken>())
             .ReturnsAsync(new HttpResponseMessage
             {
-                StatusCode = HttpStatusCode.NotFound
+                StatusCode = HttpStatusCode.NotFound,
             });
 
         var httpClient = new HttpClient(handlerMock.Object)
         {
-            BaseAddress = new Uri("http://cads-api/")
+            BaseAddress = new Uri("http://cads-api/"),
         };
 
-        var service = new CadsService(httpClient, _mockLogger.Object);
+        var service = new CadsService(httpClient, mockLogger.Object);
 
         // Act
         var result = await service.GetCattleByCphAsync(cph);
@@ -105,10 +111,10 @@ public class CadsServiceTests
 
         var httpClient = new HttpClient(handlerMock.Object)
         {
-            BaseAddress = new Uri("http://cads-api/")
+            BaseAddress = new Uri("http://cads-api/"),
         };
 
-        var service = new CadsService(httpClient, _mockLogger.Object);
+        var service = new CadsService(httpClient, mockLogger.Object);
 
         // Act
         var result = await service.GetCattleByCphAsync(cph);

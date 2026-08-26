@@ -2,13 +2,13 @@
 // Copyright (c) Defra. All rights reserved.
 // </copyright>
 
+namespace Defra.Lis.Api.Exceptions;
+
 using Defra.Lis.Core.Exceptions;
 using Defra.Lis.Core.Middleware.Headers;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Serilog.Context;
-
-namespace Lis.Cattle.Exceptions;
 
 public sealed partial class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : IExceptionHandler
 {

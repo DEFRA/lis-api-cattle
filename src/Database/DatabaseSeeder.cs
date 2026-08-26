@@ -1,13 +1,20 @@
+// <copyright file="DatabaseSeeder.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
+
+namespace Defra.Lis.Database;
+
 using Defra.Database.Postgres;
+using Defra.Lis.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace Lis.Cattle;
-
 public static class DatabaseSeeder
 {
+    private const string Female = "female";
+
     public static async Task SeedDevelopmentDatabaseAsync(this IHost host, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(host);
@@ -61,33 +68,33 @@ public static class DatabaseSeeder
         var submissions = new List<Submission>();
 
         // Submission 1: Completed batch for holding 12/345/6789
-        var sub1 = new Submission("DEV-SUB-001", "12/345/6789", "DEV-USER", "complete");
-        var animal1 = sub1.AddAnimal(
+        var sub1 = new Submission("DEV-SUB-001", "12/345/6789", "DEV-USER", Statuses.Complete);
+        sub1.AddAnimal(
             earTag: "UK 12 3456 000001",
-            status: "complete",
+            status: Statuses.Complete,
             dateBirth: new DateOnly(2025, 3, 15),
-            sex: "female",
+            sex: Female,
             breed: "Limousin",
             damType: "natural",
             damGeneticEarTag: "UK 12 3456 000099",
             sireEarTag: "UK 12 3456 000088",
             sireName: "Highland Bull");
 
-        var animal2 = sub1.AddAnimal(
+        sub1.AddAnimal(
             earTag: "UK 12 3456 000002",
-            status: "complete",
+            status: Statuses.Complete,
             dateBirth: new DateOnly(2025, 4, 10),
             sex: "male",
             breed: "Hereford");
         submissions.Add(sub1);
 
         // Submission 2: Submitted / In-progress batch for holding 12/345/6789
-        var sub2 = new Submission("DEV-SUB-002", "12/345/6789", "DEV-USER", "submitted");
-        var animal3 = sub2.AddAnimal(
+        var sub2 = new Submission("DEV-SUB-002", "12/345/6789", "DEV-USER");
+        sub2.AddAnimal(
             earTag: "UK 12 3456 000003",
-            status: "submitted",
+            status: Statuses.Submitted,
             dateBirth: new DateOnly(2026, 1, 15),
-            sex: "female",
+            sex: Female,
             breed: "Aberdeen Angus",
             damType: "surrogate",
             damGeneticEarTag: "UK 12 3456 000090",
@@ -97,24 +104,24 @@ public static class DatabaseSeeder
         submissions.Add(sub2);
 
         // Submission 3: Submission with errors for holding 12/345/6789
-        var sub3 = new Submission("DEV-SUB-003", "12/345/6789", "DEV-USER", "error");
+        var sub3 = new Submission("DEV-SUB-003", "12/345/6789", "DEV-USER", Statuses.Error);
         var animal4 = sub3.AddAnimal(
             earTag: "UK 12 3456 000004",
-            status: "error",
+            status: Statuses.Error,
             dateBirth: new DateOnly(2026, 2, 1),
-            sex: "female",
+            sex: Female,
             breed: "British Blue");
         animal4.AddError("ERR_DAM_NOT_FOUND", "Genetic dam ear tag is not registered in CTS.");
         animal4.AddError("ERR_INVALID_DOB", "Date of birth cannot be later than current date.");
         submissions.Add(sub3);
 
         // Submission 4: Submitted registration for holding 10/081/1234
-        var sub4 = new Submission("REG-MNBX4Q2A", "10/081/1234", "BE4FE", "submitted");
+        var sub4 = new Submission("REG-MNBX4Q2A", "10/081/1234", "BE4FE");
         sub4.AddAnimal(
             earTag: "UK 12 3456 100003",
-            status: "submitted",
+            status: Statuses.Submitted,
             dateBirth: new DateOnly(2026, 2, 1),
-            sex: "female",
+            sex: Female,
             breed: "Aberdeen Angus",
             damType: "surrogate",
             damGeneticEarTag: "UK 12 3456 000002",

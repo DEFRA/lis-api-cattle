@@ -1,28 +1,32 @@
+// <copyright file="SubmissionValidationQueueProcessorTests.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
+
+namespace Defra.Lis.Api.Tests;
+
 using System.Text.Json;
 using Amazon.SQS;
 using Amazon.SQS.Model;
-using Lis.Cattle.Configurations;
-using Lis.Cattle.Messaging;
-using Lis.Cattle.Validation;
+using Defra.Lis.Api.Configurations;
+using Defra.Lis.Api.Messaging;
+using Defra.Lis.Api.Validation;
 using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
 
-namespace Lis.Cattle;
-
 public class SubmissionValidationQueueProcessorTests
 {
-    private readonly Mock<IAmazonSQS> _mockSqs;
-    private readonly Mock<ISubmissionValidationService> _mockValidationService;
-    private readonly AwsMessagingOptions _options;
+    private readonly Mock<IAmazonSQS> mockSqs;
+    private readonly Mock<ISubmissionValidationService> mockValidationService;
+    private readonly AwsMessagingOptions options;
 
     public SubmissionValidationQueueProcessorTests()
     {
-        _mockSqs = new Mock<IAmazonSQS>();
-        _mockValidationService = new Mock<ISubmissionValidationService>();
-        _options = new AwsMessagingOptions
+        mockSqs = new Mock<IAmazonSQS>();
+        mockValidationService = new Mock<ISubmissionValidationService>();
+        options = new AwsMessagingOptions
         {
-            SubmissionValidationQueueUrl = "http://localhost:4566/000000000000/submission-validation-queue"
+            SubmissionValidationQueueUrl = "http://localhost:4566/000000000000/submission-validation-queue",
         };
     }
 
@@ -34,12 +38,12 @@ public class SubmissionValidationQueueProcessorTests
         {
             SubmissionId = submissionId,
             CountyParishHolding = "12/345/6789",
-            ClientReference = "REF123"
+            ClientReference = "REF123",
         };
 
         var rawMessageBody = JsonSerializer.Serialize(message);
 
-        _mockSqs.Setup(s => s.ReceiveMessageAsync(It.IsAny<ReceiveMessageRequest>(), It.IsAny<CancellationToken>()))
+        mockSqs.Setup(s => s.ReceiveMessageAsync(It.IsAny<ReceiveMessageRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ReceiveMessageResponse
             {
                 Messages =
@@ -48,27 +52,30 @@ public class SubmissionValidationQueueProcessorTests
                     {
                         MessageId = "msg-1",
                         ReceiptHandle = "handle-1",
-                        Body = rawMessageBody
-                    }
-                ]
+                        Body = rawMessageBody,
+                    },
+                ],
             });
 
-        _mockValidationService.Setup(v => v.ValidateSubmissionByIdAsync(submissionId, It.IsAny<CancellationToken>()))
+        mockValidationService.Setup(v => v.ValidateSubmissionByIdAsync(submissionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new SubmissionValidationResult { SubmissionId = submissionId, IsValid = true });
 
         var processor = new SubmissionValidationQueueProcessor(
-            _mockSqs.Object,
-            _mockValidationService.Object,
-            Options.Create(_options));
+            mockSqs.Object,
+            mockValidationService.Object,
+            Options.Create(options));
 
         var processedCount = await processor.ProcessMessagesAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(1, processedCount);
 
-        _mockValidationService.Verify(v => v.ValidateSubmissionByIdAsync(submissionId, It.IsAny<CancellationToken>()), Times.Once);
-        _mockSqs.Verify(s => s.DeleteMessageAsync(
-            It.Is<DeleteMessageRequest>(d => d.ReceiptHandle == "handle-1" && d.QueueUrl == _options.SubmissionValidationQueueUrl),
-            It.IsAny<CancellationToken>()), Times.Once);
+        mockValidationService.Verify(v => v.ValidateSubmissionByIdAsync(submissionId, It.IsAny<CancellationToken>()), Times.Once);
+        mockSqs.Verify(
+            s => s.DeleteMessageAsync(
+                It.Is<DeleteMessageRequest>(d =>
+                    d.ReceiptHandle == "handle-1" && d.QueueUrl == options.SubmissionValidationQueueUrl),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
@@ -79,7 +86,7 @@ public class SubmissionValidationQueueProcessorTests
         {
             SubmissionId = submissionId,
             CountyParishHolding = "12/345/6789",
-            ClientReference = "REF123"
+            ClientReference = "REF123",
         };
 
         var nestedMessageJson = JsonSerializer.Serialize(message);
@@ -88,10 +95,10 @@ public class SubmissionValidationQueueProcessorTests
             Type = "Notification",
             MessageId = "sns-uuid",
             TopicArn = "arn:aws:sns:eu-west-2:000000000000:submission-validation-topic",
-            Message = nestedMessageJson
+            Message = nestedMessageJson,
         });
 
-        _mockSqs.Setup(s => s.ReceiveMessageAsync(It.IsAny<ReceiveMessageRequest>(), It.IsAny<CancellationToken>()))
+        mockSqs.Setup(s => s.ReceiveMessageAsync(It.IsAny<ReceiveMessageRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ReceiveMessageResponse
             {
                 Messages =
@@ -100,42 +107,42 @@ public class SubmissionValidationQueueProcessorTests
                     {
                         MessageId = "msg-sns-1",
                         ReceiptHandle = "handle-sns-1",
-                        Body = snsEnvelope
-                    }
-                ]
+                        Body = snsEnvelope,
+                    },
+                ],
             });
 
-        _mockValidationService.Setup(v => v.ValidateSubmissionByIdAsync(submissionId, It.IsAny<CancellationToken>()))
+        mockValidationService.Setup(v => v.ValidateSubmissionByIdAsync(submissionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new SubmissionValidationResult { SubmissionId = submissionId, IsValid = true });
 
         var processor = new SubmissionValidationQueueProcessor(
-            _mockSqs.Object,
-            _mockValidationService.Object,
-            Options.Create(_options));
+            mockSqs.Object,
+            mockValidationService.Object,
+            Options.Create(options));
 
         var processedCount = await processor.ProcessMessagesAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(1, processedCount);
-        _mockValidationService.Verify(v => v.ValidateSubmissionByIdAsync(submissionId, It.IsAny<CancellationToken>()), Times.Once);
+        mockValidationService.Verify(v => v.ValidateSubmissionByIdAsync(submissionId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
     public async Task ProcessMessagesAsync_WhenQueueEmpty_ReturnsZero()
     {
-        _mockSqs.Setup(s => s.ReceiveMessageAsync(It.IsAny<ReceiveMessageRequest>(), It.IsAny<CancellationToken>()))
+        mockSqs.Setup(s => s.ReceiveMessageAsync(It.IsAny<ReceiveMessageRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ReceiveMessageResponse
             {
-                Messages = []
+                Messages = [],
             });
 
         var processor = new SubmissionValidationQueueProcessor(
-            _mockSqs.Object,
-            _mockValidationService.Object,
-            Options.Create(_options));
+            mockSqs.Object,
+            mockValidationService.Object,
+            Options.Create(options));
 
         var processedCount = await processor.ProcessMessagesAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(0, processedCount);
-        _mockValidationService.Verify(v => v.ValidateSubmissionByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        mockValidationService.Verify(v => v.ValidateSubmissionByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }
