@@ -5,6 +5,7 @@
 namespace Defra.Lis.Api.Validation;
 
 using System.Text.RegularExpressions;
+using Defra.Database.Postgres;
 using Defra.Lis.Api.Configurations;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models;
@@ -23,6 +24,15 @@ public class SubmissionValidationService(
     private readonly DbContext dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
     private readonly ICadsService cadsService = cadsService ?? throw new ArgumentNullException(nameof(cadsService));
     private readonly SubmissionValidationOptions options = options?.Value ?? new SubmissionValidationOptions();
+
+    public SubmissionValidationService(
+        PostgresDbContext dbContext,
+        ICadsService cadsService,
+        IOptions<SubmissionValidationOptions>? options = null,
+        ILogger<SubmissionValidationService>? logger = null)
+        : this((DbContext)dbContext, cadsService, options, logger)
+    {
+    }
 
     public async Task<SubmissionValidationResult> ValidateSubmissionByIdAsync(Guid submissionId, CancellationToken cancellationToken = default)
     {

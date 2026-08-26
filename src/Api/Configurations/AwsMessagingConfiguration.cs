@@ -7,10 +7,13 @@ namespace Defra.Lis.Api.Configurations;
 using Amazon;
 using Amazon.SimpleNotificationService;
 using Amazon.SQS;
+using Defra.Database.Postgres;
 using Defra.Lis.Api.Messaging;
 using Defra.Lis.Api.Validation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 public static class AwsMessagingConfiguration
 {
@@ -54,7 +57,12 @@ public static class AwsMessagingConfiguration
         });
 
         services.AddScoped<ISubmissionMessagePublisher, SubmissionMessagePublisher>();
-        services.AddScoped<ISubmissionValidationService, SubmissionValidationService>();
+        services.AddScoped<ISubmissionValidationService>(serviceProvider =>
+            new SubmissionValidationService(
+                serviceProvider.GetRequiredService<PostgresDbContext>(),
+                serviceProvider.GetRequiredService<Defra.Lis.Api.Interfaces.ICadsService>(),
+                serviceProvider.GetRequiredService<IOptions<SubmissionValidationOptions>>(),
+                serviceProvider.GetRequiredService<ILogger<SubmissionValidationService>>()));
         services.AddScoped<ISubmissionValidationQueueProcessor, SubmissionValidationQueueProcessor>();
 
         if (awsOptions.EnableBackgroundConsumer)

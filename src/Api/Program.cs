@@ -22,6 +22,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 });
 
 // Add services to the container.
+builder.Services.AddHealthChecks();
 builder.Services.AddPostgresDatabase(builder.Configuration);
 builder.Services.AddCattleDatabaseConfigurations();
 
@@ -49,7 +50,7 @@ builder.Services.AddAwsMessagingServices(builder.Configuration);
 builder.Services.AddQuartzServices(builder.Configuration);
 
 var app = builder.Build();
-
+app.UseHealthChecks("/health");
 app.UsePostgresDatabase();
 
 if (app.Environment.IsDevelopment())
