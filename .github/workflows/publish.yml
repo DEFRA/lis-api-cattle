@@ -64,16 +64,87 @@ jobs:
           fi
 
           echo "version=$PACKAGE_VERSION" >> "$GITHUB_OUTPUT"
-          
-      - name: Publish Database Schema
-        uses: DEFRA/cdp-build-action/publish-db-migrations@main
+
+  package-database:
+    name: 'Package Database'
+    needs: validate-release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout tagged commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          path: ./changelog
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Fetch main branch
+        run: git fetch --force origin main:refs/remotes/origin/main
+
+      - name: Check for database changes
+        id: database-changes
+        env:
+          MIGRATIONS_PATH: changelog
+          VERSION: ${{ needs.validate-release.outputs.version }}
+        shell: bash
+        run: |
+          # Stable releases always receive a versioned schema package. For a
+          # prerelease, publish only when the branch differs from main.
+          if [[ "$VERSION" != *-* ]]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          elif git diff --quiet origin/main...HEAD -- "$MIGRATIONS_PATH"; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No database migration changes to publish for '$VERSION'." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure AWS credentials
+        if: steps.database-changes.outputs.changed == 'true'
+        uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/github-${{ github.event.repository.name }}-build-role
+
+      - name: Verify AWS identity
+        if: steps.database-changes.outputs.changed == 'true'
+        run: aws sts get-caller-identity
+        shell: bash
+
+      - name: Upload the database migration to S3
+        if: steps.database-changes.outputs.changed == 'true'
+        env:
+          BUCKET: cdp-management-database-migrations
+          MIGRATIONS_PATH: changelog
+          SERVICE_NAME: ${{ github.event.repository.name }}
+          VERSION: ${{ needs.validate-release.outputs.version }}
+        shell: bash
+        run: |
+          mkdir -p output
+          tar -czf output/migrations.tgz "$MIGRATIONS_PATH"
+
+          sha256=$(sha256sum output/migrations.tgz | awk '{print $1}')
+          changeset_files=$(find "$MIGRATIONS_PATH" -type f -printf '%P\n' | jq -R . | jq -s .)
+
+          jq -n \
+            --argjson files "$changeset_files" \
+            --arg version "$VERSION" \
+            --arg sha256 "$sha256" \
+            --arg date "$(date -Is)" \
+            --arg commit "$GITHUB_SHA" \
+            --arg path "$MIGRATIONS_PATH" \
+            --arg format "db-migration-metadata:1.0.0" \
+            '{format: $format, files: $files, version: $version, sha256: $sha256, date: $date, path: $path, commit: $commit}' \
+            > output/migrations.metadata.json
+
+          destination="s3://$BUCKET/$SERVICE_NAME/$VERSION"
+          aws s3 cp output/migrations.tgz "$destination/migrations.tgz"
+          aws s3 cp output/migrations.metadata.json "$destination/migrations.metadata.json"
+          echo "Published database schema migration version \`$VERSION\`." >> "$GITHUB_STEP_SUMMARY"
+
   publish-image:
     name: 'Publish Tested Container Image'
-    needs: validate-release
+    needs: [validate-release, package-database]
     runs-on: ubuntu-latest
     steps:
       - name: Validate publication configuration
