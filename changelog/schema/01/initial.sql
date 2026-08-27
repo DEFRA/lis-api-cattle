@@ -15,7 +15,7 @@ create table public.submissions
 );
 
 alter table public.submissions
-    owner to lis_cattle_ddl;
+    owner to lis_api_cattle_ddl;
 
 create index submission_client_reference_index
     on public.submissions (client_reference);
@@ -46,7 +46,7 @@ create table public.submission_animals
 );
 
 alter table public.submission_animals
-    owner to lis_cattle_ddl;
+    owner to lis_api_cattle_ddl;
 
 create table public.submission_animal_errors
 (
@@ -65,5 +65,5 @@ create table public.submission_animal_errors
 );
 
 alter table public.submission_animal_errors
-    owner to lis_cattle_ddl;
+    owner to lis_api_cattle_ddl;
 
