@@ -81,17 +81,54 @@ jobs:
         env:
           IMAGE: ${{ steps.image.outputs.ref }}
         run: |
-          container=$(docker run \
-            --detach \
-            --env ASPNETCORE_URLS=http://+:3000 \
-            --publish 3101:3000 \
-            "$IMAGE")
+          network="$(uuidgen)"
+          database=''
+          container=''
 
           cleanup() {
-            docker logs "$container" || true
-            docker rm --force "$container" || true
+            if [[ -n "$container" ]]; then
+              docker logs "$container" || true
+              docker rm --force "$container" || true
+            fi
+            if [[ -n "$database" ]]; then
+              docker logs "$database" || true
+              docker rm --force "$database" || true
+            fi
+            docker network rm "$network" || true
           }
           trap cleanup EXIT
+
+          docker network create "$network"
+          database=$(docker run \
+            --detach \
+            --network "$network" \
+            --network-alias postgres \
+            --env POSTGRES_DB=smoke \
+            --env POSTGRES_USER=smoke \
+            --env POSTGRES_PASSWORD=smoke \
+            postgres:16-alpine)
+
+          for attempt in {1..30}; do
+            if docker exec "$database" pg_isready --username smoke --dbname smoke >/dev/null; then
+              break
+            fi
+            if [[ "$attempt" -eq 30 ]]; then
+              echo 'PostgreSQL did not become ready within 30 seconds.' >&2
+              exit 1
+            fi
+            sleep 1
+          done
+
+          container=$(docker run \
+            --detach \
+            --network "$network" \
+            --env ASPNETCORE_URLS=http://+:3000 \
+            --env 'ConnectionStrings__ReadWritePostgresConnection=Host=postgres;Port=5432;Database=smoke;Username=smoke;Password=smoke' \
+            --env 'ConnectionStrings__ReadOnlyPostgresConnection=Host=postgres;Port=5432;Database=smoke;Username=smoke;Password=smoke' \
+            --env AWS__EnableBackgroundConsumer=false \
+            --env CtsPollingJob__Enabled=false \
+            --publish 3101:3000 \
+            "$IMAGE")
 
           for attempt in {1..30}; do
             if curl --fail --silent --show-error http://localhost:3101/health >/dev/null; then
