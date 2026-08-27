@@ -2,6 +2,7 @@
 #nullable enable
 using System.Net;
 using System.Net.Sockets;
+using System.Text.RegularExpressions;
 
 var networkName = $"net-{Guid.NewGuid().ToString()}";
 var db_uid = Argument("db_uid", EnvironmentVariable("db_uid") ?? "postgres");
@@ -10,7 +11,32 @@ var db_name = Argument("db_name", EnvironmentVariable("db_name") ?? "dbname");
 
 var liquibase_ver = "5.0.1";
 int assignedPort = 0;
-bool containerStarted = false; 
+bool containerStarted = false;
+string? liquibaseUsername = null;
+
+
+Task("Read-Liquibase-Username")
+    .Does(() =>
+    {
+        var propertiesFile = "./changelog/liquibase.properties";
+	
+        if (!FileExists(propertiesFile))
+        {
+            throw new CakeException($"Properties file not found: {propertiesFile}");
+        }
+        
+        var lines = System.IO.File.ReadAllText(propertiesFile);
+        var match = Regex.Match(lines, @"^\s*liquibase\.command\.username\s*[:|=]\s*(.*)\s*$", RegexOptions.Multiline);
+        if(match.Success)
+        {
+            liquibaseUsername = match.Groups[1].Value;
+            Information($"Found liquibase.command.username: {liquibaseUsername}");
+        }
+        else
+        {
+            throw new CakeException("Property 'liquibase.command.username' not found in liquibase.properties");
+        }
+    });
 
 Task("Find-Available-Port")
     .Does(() =>
@@ -33,6 +59,7 @@ Task("Create-Network")
     });
     
 Task("Start-Postgres")
+    .IsDependentOn("Read-Liquibase-Username")
     .IsDependentOn("Create-Network")
     .Does(() =>
     {
@@ -43,7 +70,7 @@ Task("Start-Postgres")
             Detach = true,
             Publish = new [] { $"{assignedPort}:5432" },
             Env = new[] {
-                $"POSTGRES_USER={db_uid}",
+                $"POSTGRES_USER={liquibaseUsername}",
                 $"POSTGRES_PASSWORD={db_pwd}",
                 $"POSTGRES_DB={db_name}"
             },
