@@ -64,7 +64,13 @@ jobs:
           fi
 
           echo "version=$PACKAGE_VERSION" >> "$GITHUB_OUTPUT"
-
+          
+      - name: Publish Database Schema
+        uses: DEFRA/cdp-build-action/publish-db-migrations@main
+        with:
+          path: ./changelog
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          
   publish-image:
     name: 'Publish Tested Container Image'
     needs: validate-release
