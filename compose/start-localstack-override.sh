@@ -24,7 +24,7 @@ queue_url=$(awslocal sqs create-queue  \
 echo "SQS Queue created: $queue_url"
 
 sub_queue_url=$(awslocal sqs create-queue  \
-  --queue-name submission-validation-queue \
+  --queue-name submission_validation_queue \
   --endpoint-url=http://localhost:4567 \
   --output text \
   --query 'QueueUrl')
@@ -60,7 +60,7 @@ topic_arn=$(awslocal sns create-topic \
 echo "SNS Topic created: $topic_arn"
 
 sub_topic_arn=$(awslocal sns create-topic \
-  --name submission-validation-topic \
+  --name submission_validation_topic \
   --endpoint-url=http://localhost:4567 \
   --output text \
   --query 'TopicArn')

@@ -9,10 +9,31 @@ using Defra.Lis.Database;
 using Defra.Lis.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 public class CattleDatabaseConfigurationTests
 {
+    [Fact]
+    public void AppSettings_PostgresConfiguration_BindsCorrectlyWithIamAuthAndHosts()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddJsonFile("appsettings.json")
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddPostgresDatabase(configuration);
+
+        using var serviceProvider = services.BuildServiceProvider();
+        var postgresConfig = serviceProvider.GetRequiredService<PostgresConfiguration>();
+
+        Assert.True(postgresConfig.UseIamAuthentication);
+        Assert.Equal("identity-service-helper.cluster-cpiiyum4wb06.eu-west-2.rds.amazonaws.com", postgresConfig.ReadWriteHost);
+        Assert.Equal("identity-service-helper.cluster-ro-cpiiyum4wb06.eu-west-2.rds.amazonaws.com", postgresConfig.ReadOnlyHost);
+        Assert.Equal(5432, postgresConfig.Port);
+    }
+
     [Fact]
     public void PostgresDbContext_WithCattleDatabaseConfigurations_IncludesSubmissionEntitiesInModel()
     {

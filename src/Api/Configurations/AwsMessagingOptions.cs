@@ -14,9 +14,9 @@ public class AwsMessagingOptions
 
     public bool UseLocalStack { get; set; } = true;
 
-    public string SubmissionValidationQueueUrl { get; set; } = "http://localhost:4566/000000000000/submission-validation-queue";
+    public string SubmissionValidationQueueUrl { get; set; } = "http://localhost:4566/000000000000/submission_validation_queue";
 
-    public string? SubmissionValidationTopicArn { get; set; } = "arn:aws:sns:eu-west-2:000000000000:submission-validation-topic";
+    public string? SubmissionValidationTopicArn { get; set; } = "arn:aws:sns:eu-west-2:000000000000:submission_validation_topic";
 
     public bool EnableBackgroundConsumer { get; set; } = true;
 

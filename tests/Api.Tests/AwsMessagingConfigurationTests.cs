@@ -23,8 +23,8 @@ public class AwsMessagingConfigurationTests
         {
             ["AWS:Region"] = "eu-west-2",
             ["AWS:ServiceUrl"] = "http://localhost:4566",
-            ["AWS:SubmissionValidationQueueUrl"] = "http://localhost:4566/000000000000/submission-validation-queue",
-            ["AWS:SubmissionValidationTopicArn"] = "arn:aws:sns:eu-west-2:000000000000:submission-validation-topic",
+            ["AWS:SubmissionValidationQueueUrl"] = "http://localhost:4566/000000000000/submission_validation_queue",
+            ["AWS:SubmissionValidationTopicArn"] = "arn:aws:sns:eu-west-2:000000000000:submission_validation_topic",
             ["AWS:EnableBackgroundConsumer"] = "true",
             ["SubmissionValidation:MinDamAgeInMonths"] = "15",
             ["SubmissionValidation:MaxDamAgeInYears"] = "20",
