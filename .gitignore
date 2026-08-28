@@ -276,3 +276,8 @@ coverage/
 # Agents
 .ai/
 .junie/
+
+# liquibase
+/liquibase/**
+/liquibase_libs/**
+liquibase.json
