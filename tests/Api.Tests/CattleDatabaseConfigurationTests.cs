@@ -35,6 +35,24 @@ public class CattleDatabaseConfigurationTests
     }
 
     [Fact]
+    public void AppSettingsDevelopment_PostgresConfiguration_DisablesIamAuth()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddJsonFile("appsettings.json")
+            .AddJsonFile("appsettings.Development.json")
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddPostgresDatabase(configuration);
+
+        using var serviceProvider = services.BuildServiceProvider();
+        var postgresConfig = serviceProvider.GetRequiredService<PostgresConfiguration>();
+
+        Assert.False(postgresConfig.UseIamAuthentication);
+    }
+
+    [Fact]
     public void PostgresDbContext_WithCattleDatabaseConfigurations_IncludesSubmissionEntitiesInModel()
     {
         var services = new ServiceCollection();
