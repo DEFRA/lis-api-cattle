@@ -28,7 +28,7 @@ public class CattleDatabaseConfigurationTests
         using var serviceProvider = services.BuildServiceProvider();
         var postgresConfig = serviceProvider.GetRequiredService<PostgresConfiguration>();
 
-        Assert.False(postgresConfig.UseIamAuthentication);
+        Assert.True(postgresConfig.UseIamAuthentication);
         Assert.Equal("identity-service-helper.cluster-cpiiyum4wb06.eu-west-2.rds.amazonaws.com", postgresConfig.ReadWriteHost);
         Assert.Equal("identity-service-helper.cluster-ro-cpiiyum4wb06.eu-west-2.rds.amazonaws.com", postgresConfig.ReadOnlyHost);
         Assert.Equal(5432, postgresConfig.Port);
@@ -50,6 +50,27 @@ public class CattleDatabaseConfigurationTests
         var postgresConfig = serviceProvider.GetRequiredService<PostgresConfiguration>();
 
         Assert.False(postgresConfig.UseIamAuthentication);
+        Assert.Equal("User ID=lis_api_cattle_ddl;Password=postgres;Host=localhost;Port=5433;Database=lis_cattle;", postgresConfig.ConnectionString);
+        Assert.Equal("User ID=lis_api_cattle_ddl;Password=postgres;Host=localhost;Port=5433;Database=lis_cattle;", postgresConfig.ReadOnlyConnectionString);
+    }
+
+    [Fact]
+    public void PostgresDbContext_WithDevelopmentConfiguration_ResolvesDbContextSuccessfully()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddJsonFile("appsettings.json")
+            .AddJsonFile("appsettings.Development.json")
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddPostgresDatabase(configuration);
+        services.AddCattleDatabaseConfigurations();
+
+        using var serviceProvider = services.BuildServiceProvider();
+        var context = serviceProvider.GetRequiredService<PostgresDbContext>();
+
+        Assert.NotNull(context);
     }
 
     [Fact]
