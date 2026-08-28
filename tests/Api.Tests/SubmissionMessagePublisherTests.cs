@@ -26,8 +26,8 @@ public class SubmissionMessagePublisherTests
         mockSns = new Mock<IAmazonSimpleNotificationService>();
         options = new AwsMessagingOptions
         {
-            SubmissionValidationQueueUrl = "http://localhost:4566/000000000000/submission-validation-queue",
-            SubmissionValidationTopicArn = "arn:aws:sns:eu-west-2:000000000000:submission-validation-topic",
+            SubmissionValidationQueueUrl = "http://localhost:4566/000000000000/submission_validation_queue",
+            SubmissionValidationTopicArn = "arn:aws:sns:eu-west-2:000000000000:submission_validation_topic",
         };
     }
 

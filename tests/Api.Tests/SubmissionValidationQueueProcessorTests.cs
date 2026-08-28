@@ -26,7 +26,7 @@ public class SubmissionValidationQueueProcessorTests
         mockValidationService = new Mock<ISubmissionValidationService>();
         options = new AwsMessagingOptions
         {
-            SubmissionValidationQueueUrl = "http://localhost:4566/000000000000/submission-validation-queue",
+            SubmissionValidationQueueUrl = "http://localhost:4566/000000000000/submission_validation_queue",
         };
     }
 
@@ -94,7 +94,7 @@ public class SubmissionValidationQueueProcessorTests
         {
             Type = "Notification",
             MessageId = "sns-uuid",
-            TopicArn = "arn:aws:sns:eu-west-2:000000000000:submission-validation-topic",
+            TopicArn = "arn:aws:sns:eu-west-2:000000000000:submission_validation_topic",
             Message = nestedMessageJson,
         });
 
