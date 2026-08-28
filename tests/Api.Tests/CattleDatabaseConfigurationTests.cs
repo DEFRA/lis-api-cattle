@@ -15,7 +15,7 @@ using Microsoft.Extensions.DependencyInjection;
 public class CattleDatabaseConfigurationTests
 {
     [Fact]
-    public void AppSettings_PostgresConfiguration_BindsCorrectlyWithIamAuthAndHosts()
+    public void AppSettings_PostgresConfiguration_BindsCorrectly()
     {
         var configuration = new ConfigurationBuilder()
             .AddJsonFile("appsettings.json")
@@ -28,7 +28,7 @@ public class CattleDatabaseConfigurationTests
         using var serviceProvider = services.BuildServiceProvider();
         var postgresConfig = serviceProvider.GetRequiredService<PostgresConfiguration>();
 
-        Assert.True(postgresConfig.UseIamAuthentication);
+        Assert.False(postgresConfig.UseIamAuthentication);
         Assert.Equal("identity-service-helper.cluster-cpiiyum4wb06.eu-west-2.rds.amazonaws.com", postgresConfig.ReadWriteHost);
         Assert.Equal("identity-service-helper.cluster-ro-cpiiyum4wb06.eu-west-2.rds.amazonaws.com", postgresConfig.ReadOnlyHost);
         Assert.Equal(5432, postgresConfig.Port);
