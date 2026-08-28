@@ -28,7 +28,7 @@ public class CattleDatabaseConfigurationTests
         using var serviceProvider = services.BuildServiceProvider();
         var postgresConfig = serviceProvider.GetRequiredService<PostgresConfiguration>();
 
-        Assert.False(postgresConfig.UseIamAuthentication);
+        Assert.True(postgresConfig.UseIamAuthentication);
         Assert.Equal("identity-service-helper.cluster-cpiiyum4wb06.eu-west-2.rds.amazonaws.com", postgresConfig.ReadWriteHost);
         Assert.Equal("identity-service-helper.cluster-ro-cpiiyum4wb06.eu-west-2.rds.amazonaws.com", postgresConfig.ReadOnlyHost);
         Assert.Equal(5432, postgresConfig.Port);
