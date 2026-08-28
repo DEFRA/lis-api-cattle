@@ -132,6 +132,7 @@ jobs:
             --detach \
             --network "$network" \
             --env ASPNETCORE_URLS=http://+:3000 \
+            --env PostgresConfiguration__UseIamAuthentication=false \
             --env 'ConnectionStrings__ReadWritePostgresConnection=Host=postgres;Port=5432;Database=smoke;Username=smoke;Password=smoke' \
             --env 'ConnectionStrings__ReadOnlyPostgresConnection=Host=postgres;Port=5432;Database=smoke;Username=smoke;Password=smoke' \
             --env AWS__EnableBackgroundConsumer=false \
