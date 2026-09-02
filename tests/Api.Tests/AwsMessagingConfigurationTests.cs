@@ -52,4 +52,23 @@ public class AwsMessagingConfigurationTests
         Assert.NotNull(provider.GetService<ISubmissionValidationQueueProcessor>());
         Assert.Contains(services, s => s.ServiceType == typeof(IHostedService) && s.ImplementationType == typeof(SubmissionValidationBackgroundService));
     }
+
+    [Fact]
+    public void AppSettings_AwsMessagingConfiguration_BindsCorrectly()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddJsonFile("appsettings.json")
+            .Build();
+
+        var awsOptions = configuration.GetSection(AwsMessagingOptions.SectionName).Get<AwsMessagingOptions>();
+
+        Assert.NotNull(awsOptions);
+        Assert.Equal("eu-west-2", awsOptions.Region);
+        Assert.Equal("http://localhost:4566", awsOptions.ServiceUrl);
+        Assert.True(awsOptions.UseLocalStack);
+        Assert.Equal("http://localhost:4566/000000000000/submission_validation_queue", awsOptions.SubmissionValidationQueueUrl);
+        Assert.Equal("arn:aws:sns:eu-west-2:000000000000:submission_validation_topic", awsOptions.SubmissionValidationTopicArn);
+        Assert.True(awsOptions.EnableBackgroundConsumer);
+        Assert.Equal(10, awsOptions.PollingIntervalSeconds);
+    }
 }
