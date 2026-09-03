@@ -88,6 +88,10 @@ services:
       ASPNETCORE_URLS: http://+:8085
       ASPNETCORE_ENVIRONMENT: Development
       LOCALSTACK_ENDPOINT: http://localstack:4566
+      AWS__ServiceUrl: http://localstack:4566
+      AWS__UseLocalStack: "true"
+      AWS__SubmissionValidationQueueUrl: http://localstack:4566/000000000000/submission_validation_queue
+      AWS__SubmissionValidationTopicArn: arn:aws:sns:eu-west-2:000000000000:submission_validation_topic
       POSTGRES_URI: http://postgres:5432
       PostgresConfiguration__UseIamAuthentication: "false"
       ConnectionStrings__ReadWritePostgresConnection: "User ID=lis_cattle_ddl;Password=postgres;Host=postgres;Database=lis_cattle;"

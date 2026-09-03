@@ -32,7 +32,7 @@ public static class AwsMessagingConfiguration
                 config.RegionEndpoint = RegionEndpoint.GetBySystemName(awsOptions.Region);
             }
 
-            if (!string.IsNullOrWhiteSpace(awsOptions.ServiceUrl))
+            if (awsOptions.UseLocalStack && !string.IsNullOrWhiteSpace(awsOptions.ServiceUrl))
             {
                 config.ServiceURL = awsOptions.ServiceUrl;
             }
@@ -48,7 +48,7 @@ public static class AwsMessagingConfiguration
                 config.RegionEndpoint = RegionEndpoint.GetBySystemName(awsOptions.Region);
             }
 
-            if (!string.IsNullOrWhiteSpace(awsOptions.ServiceUrl))
+            if (awsOptions.UseLocalStack && !string.IsNullOrWhiteSpace(awsOptions.ServiceUrl))
             {
                 config.ServiceURL = awsOptions.ServiceUrl;
             }
