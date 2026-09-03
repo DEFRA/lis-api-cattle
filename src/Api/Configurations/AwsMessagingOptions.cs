@@ -10,13 +10,13 @@ public class AwsMessagingOptions
 
     public string Region { get; set; } = "eu-west-2";
 
-    public string? ServiceUrl { get; set; } = "http://localhost:4566";
+    public string? ServiceUrl { get; set; }
 
-    public bool UseLocalStack { get; set; } = true;
+    public bool UseLocalStack { get; set; }
 
-    public string SubmissionValidationQueueUrl { get; set; } = "http://localhost:4566/000000000000/submission_validation_queue";
+    public string SubmissionValidationQueueUrl { get; set; } = string.Empty;
 
-    public string? SubmissionValidationTopicArn { get; set; } = "arn:aws:sns:eu-west-2:000000000000:submission_validation_topic";
+    public string? SubmissionValidationTopicArn { get; set; }
 
     public bool EnableBackgroundConsumer { get; set; } = true;
 
