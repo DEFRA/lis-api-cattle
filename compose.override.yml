@@ -23,31 +23,31 @@ services:
       start_period: 5s
       retries: 3
     networks:
-      - identity-services
+      - lis_cattle
 
   redis:
     image: redis:7.2.3-alpine3.18
     ports:
-      - '6380:6380'
+      - '6380:6379'
     restart: always
     networks:
-      - identity-services
+      - lis_cattle
 
   postgres:
     image: postgres:16-alpine
     ports:
       - '5432:5432'
     environment:
-      POSTGRES_USER: identity_service_helper_ddl
+      POSTGRES_USER: lis_api_cattle_ddl
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: identity_service_helper
+      POSTGRES_DB: lis_cattle
     networks:
-      - identity-services
+      - lis_cattle
     volumes:
       - postgres-data:/data
     restart: always
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U identity_service_helper_ddl -d identity_service_helper" ]
+      test: [ "CMD-SHELL", "pg_isready -U lis_api_cattle_ddl -d lis_cattle" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -63,12 +63,12 @@ services:
       - ./changelog:/liquibase/changelog
     command: >
       "/liquibase/liquibase lpm add postgresql || true &&
-      /liquibase/liquibase --url=jdbc:postgresql://postgres:5432/identity_service_helper --username=identity_service_helper_ddl --password=postgres --searchPath=/liquibase/changelog --changeLogFile=db.changelog.xml --liquibaseSchemaName=public update --context-filter=default"
+      /liquibase/liquibase --url=jdbc:postgresql://postgres:5432/lis_cattle --username=lis_api_cattle_ddl --password=postgres --searchPath=/liquibase/changelog --changeLogFile=db.changelog.xml --liquibaseSchemaName=public update --context-filter=default"
     networks:
-      - identity-services
+      - lis_cattle
       
-  identity-service-helper:
-    container_name: identity-service-helper
+  lis_cattle:
+    container_name: lis_cattle
     platform: linux
     build: ./
     ports:
@@ -86,23 +86,25 @@ services:
     env_file:
       - path: 'compose/aws.env'
         required: true
-      - path: 'compose/identity-service-helper.env'
-        required: false
     environment:
       PORT: 8080
+      ASPNETCORE_URLS: http://+:8080
       ASPNETCORE_ENVIRONMENT: Development
       LOCALSTACK_ENDPOINT: http://localstack:4567
-      AWS__ServiceURL: http://localstack:4567
-      QueueOptions__IntakeQueueOptions__Url: http://localstack:4567/000000000000/identity_service_helper_intake
+      AWS__ServiceUrl: http://localstack:4567
+      AWS__UseLocalStack: "true"
+      AWS__SubmissionValidationQueueUrl: "http://localstack:4567/000000000000/submission_validation_queue"
+      AWS__SubmissionValidationTopicArn: "arn:aws:sns:eu-west-2:000000000000:submission_validation_topic"
       POSTGRES_URI: http://postgres:5432
-      ConnectionStrings__PostgresConnection: "User ID=identity_service_helper_ddl;Password=postgres;Host=postgres;Database=identity_service_helper;"
-      ConnectionStrings__ReadOnlyPostgresConnection: "User ID=identity_service_helper_ddl;Password=postgres;Host=postgres;Database=identity_service_helper;"
+      PostgresConfiguration__UseIamAuthentication: "false"
+      ConnectionStrings__ReadWritePostgresConnection: "User ID=lis_api_cattle_ddl;Password=postgres;Host=postgres;Database=lis_cattle;"
+      ConnectionStrings__ReadOnlyPostgresConnection: "User ID=lis_api_cattle_ddl;Password=postgres;Host=postgres;Database=lis_cattle;"
     networks:
-      - identity-services
+      - lis_cattle
 
 volumes:
   postgres-data:
 
 networks:
-  identity-services:
+  lis_cattle:
     driver: bridge
