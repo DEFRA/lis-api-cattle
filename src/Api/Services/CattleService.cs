@@ -60,7 +60,6 @@ public class CattleService : ICattleService
         // Bundles are typically submissions that are not yet "completed" or have errors.
         // Assuming status 'submitted' or presence of errors means they haven't been delivered to CADS yet.
         var localCattle = await dbContext.Set<SubmissionAnimal>()
-            .Include(a => a.Errors)
             .Where(a => a.Submission.CountyParishHolding == cph &&
                         (a.Submission.Status == Statuses.Submitted || a.Errors.Any()))
             .Select(a => new CattleResponse
