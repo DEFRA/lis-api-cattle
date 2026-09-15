@@ -38,14 +38,14 @@ builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddHeaderPropagation(options => options.Headers.Add(TraceHeaders.CdpRequestId));
 
 // Upstream connections (CADS animals and KRDS holdings, both faked by lis-fake-service for now).
+// Validated when first used rather than on start-up so the service can boot (and answer /health)
+// before the upstream secrets are configured.
 builder.Services.AddOptions<CadsApiOptions>()
     .Bind(builder.Configuration.GetSection(CadsApiOptions.SectionName))
-    .ValidateDataAnnotations()
-    .ValidateOnStart();
+    .ValidateDataAnnotations();
 builder.Services.AddOptions<KrdsApiOptions>()
     .Bind(builder.Configuration.GetSection(KrdsApiOptions.SectionName))
-    .ValidateDataAnnotations()
-    .ValidateOnStart();
+    .ValidateDataAnnotations();
 
 // The REST client must be registered before the strategy factories so it carries header propagation.
 builder.Services.AddStrategyFramework();

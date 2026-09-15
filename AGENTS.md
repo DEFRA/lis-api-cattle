@@ -131,7 +131,7 @@ Until the real services exist both point at [lis-fake-service](https://github.co
 | `KrdsApi__BaseUrl` | Base URL of the keeper-data-api (fake: `http://localhost:3000/`) | `appsettings.Development.json` |
 | `KrdsApi__ClientId` / `KrdsApi__ClientSecret` | Basic credentials for KRDS (fake defaults `local-dev-krds-client` / `local-dev-krds-secret`) | dev settings; CDP secrets elsewhere |
 
-All settings are validated on start-up. The inbound `x-cdp-request-id` header is propagated to
+All settings are validated when an upstream call is first made (not on start-up, so `/health` works before the secrets are set). The inbound `x-cdp-request-id` header is propagated to
 every upstream call (Correlation ID standard). Never log the credentials or upstream payloads.
 
 Endpoints exposed for the BE4FE: `GET /holdings/{county}/{parish}/{holding}` and
