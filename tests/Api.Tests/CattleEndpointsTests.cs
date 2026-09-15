@@ -40,7 +40,7 @@ public class CattleEndpointsTests
             new() { EarTag = "UK123456700001", Status = Statuses.Submitted },
         };
 
-        mockService.Setup(s => s.GetCattleForHoldingAsync(cph))
+        mockService.Setup(s => s.GetCattleForHoldingAsync(cph, It.IsAny<CattleFilter>(), It.IsAny<CancellationToken>()))
                    .ReturnsAsync(expected);
 
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
@@ -71,7 +71,7 @@ public class CattleEndpointsTests
             new() { EarTag = "UK123456700001", Status = Statuses.Submitted },
         };
 
-        mockService.Setup(s => s.GetCattleForHoldingAsync(cph))
+        mockService.Setup(s => s.GetCattleForHoldingAsync(cph, It.IsAny<CattleFilter>(), It.IsAny<CancellationToken>()))
                    .ReturnsAsync(expected);
 
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
@@ -90,6 +90,100 @@ public class CattleEndpointsTests
         Assert.NotNull(result);
         Assert.Single(result);
         Assert.Equal("UK123456700001", result[0].EarTag);
+    }
+
+    [Fact]
+    public async Task GetCattleForHolding_BindsSearchFiltersFromQueryString()
+    {
+        var mockService = new Mock<ICattleService>();
+        var cph = "22/001/0001";
+        CattleFilter? capturedFilter = null;
+
+        mockService.Setup(s => s.GetCattleForHoldingAsync(cph, It.IsAny<CattleFilter>(), It.IsAny<CancellationToken>()))
+                   .Callback<string, CattleFilter?, CancellationToken>((_, filter, _) => capturedFilter = filter)
+                   .ReturnsAsync([]);
+
+        var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
+        builder.WebHost.UseTestServer();
+        builder.Services.AddRouting();
+        builder.Services.AddSingleton(mockService.Object);
+        var app = builder.Build();
+        app.MapCattleEndpoints();
+        await app.StartAsync(TestContext.Current.CancellationToken);
+
+        var client = app.GetTestClient();
+        var response = await client.GetAsync($"/holdings/{cph}/cattle?earTag=UK2000&breed=AA&sex=female", TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotNull(capturedFilter);
+        Assert.Equal("UK2000", capturedFilter.EarTag);
+        Assert.Equal("AA", capturedFilter.Breed);
+        Assert.Equal("female", capturedFilter.Sex);
+    }
+
+    [Fact]
+    public async Task GetHolding_MatchesRouteAndReturnsHoldingDetails()
+    {
+        var mockKrds = new Mock<IKrdsService>();
+        var expected = new HoldingResponse
+        {
+            Cph = "22/001/0001",
+            Name = "Oakfield Farm",
+            HoldingType = "AH",
+            Address = ["Oakfield Farm", "Church Lane", "Shrewsbury", "SY4 1AB"],
+            KeeperName = "Oakfield Farmer",
+            HerdMarks = ["UK 324537"],
+            AllowedSpecies = ["Cattle"],
+        };
+
+        mockKrds.Setup(s => s.GetHoldingAsync("22", "001", "0001", It.IsAny<CancellationToken>()))
+                .ReturnsAsync(expected);
+
+        var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
+        builder.WebHost.UseTestServer();
+        builder.Services.AddRouting();
+        builder.Services.AddSingleton(mockKrds.Object);
+        var app = builder.Build();
+        app.MapCattleEndpoints();
+        await app.StartAsync(TestContext.Current.CancellationToken);
+
+        var client = app.GetTestClient();
+        var response = await client.GetAsync("/holdings/22/001/0001", TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<HoldingResponse>(TestContext.Current.CancellationToken);
+        Assert.NotNull(result);
+        Assert.Equal("22/001/0001", result.Cph);
+        Assert.Equal("Oakfield Farm", result.Name);
+        Assert.Equal("Oakfield Farmer", result.KeeperName);
+        Assert.Equal(["UK 324537"], result.HerdMarks);
+    }
+
+    [Fact]
+    public async Task GetHolding_ReturnsProblemDetails404_WhenHoldingIsUnknown()
+    {
+        var mockKrds = new Mock<IKrdsService>();
+        mockKrds.Setup(s => s.GetHoldingAsync("22", "050", "0050", It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new Defra.Lis.Core.Exceptions.NotFoundException("Holding '22/050/0050' was not found."));
+
+        var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
+        builder.WebHost.UseTestServer();
+        builder.Services.AddRouting();
+        builder.Services.AddLogging();
+        builder.Services.AddProblemDetails();
+        builder.Services.AddExceptionHandler<Defra.Lis.Api.Exceptions.ApiExceptionHandler>();
+        builder.Services.AddSingleton(mockKrds.Object);
+        var app = builder.Build();
+        app.UseExceptionHandler();
+        app.MapCattleEndpoints();
+        await app.StartAsync(TestContext.Current.CancellationToken);
+
+        var client = app.GetTestClient();
+        var response = await client.GetAsync("/holdings/22/050/0050", TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("22/050/0050", body);
     }
 
     [Fact]
@@ -182,10 +276,10 @@ public class CattleEndpointsTests
             new() { EarTag = "UK123456700001", Status = Statuses.Submitted },
         };
 
-        mockService.Setup(s => s.GetCattleForHoldingAsync(cph))
+        mockService.Setup(s => s.GetCattleForHoldingAsync(cph, It.IsAny<CattleFilter>(), It.IsAny<CancellationToken>()))
                    .ReturnsAsync(expected);
 
-        var result = await mockService.Object.GetCattleForHoldingAsync(cph);
+        var result = await mockService.Object.GetCattleForHoldingAsync(cph, null, CancellationToken.None);
 
         Assert.NotNull(result);
         Assert.Single(result);

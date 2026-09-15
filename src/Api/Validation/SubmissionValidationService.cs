@@ -78,7 +78,7 @@ public class SubmissionValidationService(
         {
             if (!string.IsNullOrWhiteSpace(submission.CountyParishHolding))
             {
-                cadsCattle = await cadsService.GetCattleByCphAsync(submission.CountyParishHolding);
+                cadsCattle = await cadsService.GetCattleByCphAsync(submission.CountyParishHolding, cancellationToken);
             }
         }
         catch (Exception ex)

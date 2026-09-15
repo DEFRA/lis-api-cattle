@@ -18,15 +18,23 @@ public static class CattleEndpoints
         var group = app.MapGroup("/holdings")
                        .WithTags("Cattle");
 
-        group.MapGet("/{cph1}/{cph2}/{cph3}/cattle", (string cph1, string cph2, string cph3, [FromServices] ICattleService cattleService) =>
-                 GetCattleForHolding($"{cph1}/{cph2}/{cph3}", cattleService))
-             .WithName("GetCattleForHoldingMultiSegment")
-             .Produces<IEnumerable<CattleResponse>>(StatusCodes.Status200OK);
+        group.MapGet("/{county}/{parish}/{holding}", GetHolding)
+             .WithName("GetHolding")
+             .Produces<HoldingResponse>(StatusCodes.Status200OK)
+             .ProducesProblem(StatusCodes.Status400BadRequest)
+             .ProducesProblem(StatusCodes.Status404NotFound);
 
-        group.MapGet("/{cph}/cattle", (string cph, [FromServices] ICattleService cattleService) =>
-                 GetCattleForHolding(cph, cattleService))
+        group.MapGet("/{cph1}/{cph2}/{cph3}/cattle", (string cph1, string cph2, string cph3, [AsParameters] CattleFilter filter, [FromServices] ICattleService cattleService, CancellationToken cancellationToken) =>
+                 GetCattleForHolding($"{cph1}/{cph2}/{cph3}", filter, cattleService, cancellationToken))
+             .WithName("GetCattleForHoldingMultiSegment")
+             .Produces<IEnumerable<CattleResponse>>(StatusCodes.Status200OK)
+             .ProducesProblem(StatusCodes.Status404NotFound);
+
+        group.MapGet("/{cph}/cattle", (string cph, [AsParameters] CattleFilter filter, [FromServices] ICattleService cattleService, CancellationToken cancellationToken) =>
+                 GetCattleForHolding(cph, filter, cattleService, cancellationToken))
              .WithName("GetCattleForHolding")
-             .Produces<IEnumerable<CattleResponse>>(StatusCodes.Status200OK);
+             .Produces<IEnumerable<CattleResponse>>(StatusCodes.Status200OK)
+             .ProducesProblem(StatusCodes.Status404NotFound);
 
         group.MapGet("/{cph1}/{cph2}/{cph3}/bundles", (string cph1, string cph2, string cph3, [FromServices] ICattleService cattleService) =>
                  GetBundlesForHolding($"{cph1}/{cph2}/{cph3}", cattleService))
@@ -41,10 +49,25 @@ public static class CattleEndpoints
         return app;
     }
 
-    private static async Task<IResult> GetCattleForHolding(string cph, [FromServices] ICattleService cattleService)
+    private static async Task<IResult> GetHolding(
+        string county,
+        string parish,
+        string holding,
+        [FromServices] IKrdsService krdsService,
+        CancellationToken cancellationToken)
+    {
+        var response = await krdsService.GetHoldingAsync(county, parish, holding, cancellationToken);
+        return Results.Ok(response);
+    }
+
+    private static async Task<IResult> GetCattleForHolding(
+        string cph,
+        CattleFilter filter,
+        [FromServices] ICattleService cattleService,
+        CancellationToken cancellationToken)
     {
         var decodedCph = Uri.UnescapeDataString(cph);
-        var cattle = await cattleService.GetCattleForHoldingAsync(decodedCph);
+        var cattle = await cattleService.GetCattleForHoldingAsync(decodedCph, filter, cancellationToken);
         return Results.Ok(cattle);
     }
 

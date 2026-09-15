@@ -12,6 +12,7 @@ using Defra.Lis.Api.Validation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Moq;
 using Xunit;
 
 public class AwsMessagingConfigurationTests
@@ -37,8 +38,7 @@ public class AwsMessagingConfigurationTests
 
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddSingleton<Interfaces.ICadsService, Services.CadsService>(_ =>
-            new Services.CadsService(new HttpClient()));
+        services.AddSingleton(new Mock<Interfaces.ICadsService>().Object);
         services.AddDbContext<Microsoft.EntityFrameworkCore.DbContext, Defra.Database.Postgres.PostgresDbContext>(options =>
             Microsoft.EntityFrameworkCore.InMemoryDbContextOptionsExtensions.UseInMemoryDatabase(options, "TestDb"));
 
@@ -73,8 +73,7 @@ public class AwsMessagingConfigurationTests
 
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddSingleton<Interfaces.ICadsService, Services.CadsService>(_ =>
-            new Services.CadsService(new HttpClient()));
+        services.AddSingleton(new Mock<Interfaces.ICadsService>().Object);
         services.AddDbContext<Microsoft.EntityFrameworkCore.DbContext, Defra.Database.Postgres.PostgresDbContext>(options =>
             Microsoft.EntityFrameworkCore.InMemoryDbContextOptionsExtensions.UseInMemoryDatabase(options, "TestDb2"));
 

@@ -10,9 +10,15 @@ public class CattleResponse
 
     public DateOnly? DateBirth { get; set; }
 
+    public DateOnly? DateOnCph { get; set; }
+
     public string? Sex { get; set; }
 
     public string? Breed { get; set; }
+
+    public string? BreedCode { get; set; }
+
+    public string? BreedName { get; set; }
 
     public string Status { get; set; } = string.Empty;
 

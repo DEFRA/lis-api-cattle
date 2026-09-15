@@ -273,7 +273,7 @@ public class SubmissionValidationServiceTests
     {
         var (_, service) = CreateService(nameof(ValidateSubmissionAsync_EarTagAlreadyUsedInCADS_TriggersCTWS192));
 
-        mockCadsService.Setup(c => c.GetCattleByCphAsync("12/345/6789"))
+        mockCadsService.Setup(c => c.GetCattleByCphAsync("12/345/6789", It.IsAny<CancellationToken>()))
             .ReturnsAsync([
                 new CattleResponse
                 {
@@ -299,7 +299,7 @@ public class SubmissionValidationServiceTests
         var calfBirthDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-10));
         var damBirthDate = calfBirthDate.AddMonths(-12); // Dam is 12 months old (< 15 months)
 
-        mockCadsService.Setup(c => c.GetCattleByCphAsync("12/345/6789"))
+        mockCadsService.Setup(c => c.GetCattleByCphAsync("12/345/6789", It.IsAny<CancellationToken>()))
             .ReturnsAsync([
                 new CattleResponse
                 {
@@ -329,7 +329,7 @@ public class SubmissionValidationServiceTests
         var calfBirthDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-10));
         var damBirthDate = calfBirthDate.AddYears(-22); // Dam is 22 years old (> 20 years)
 
-        mockCadsService.Setup(c => c.GetCattleByCphAsync("12/345/6789"))
+        mockCadsService.Setup(c => c.GetCattleByCphAsync("12/345/6789", It.IsAny<CancellationToken>()))
             .ReturnsAsync([
                 new CattleResponse
                 {
