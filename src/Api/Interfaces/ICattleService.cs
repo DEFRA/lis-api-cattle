@@ -8,7 +8,7 @@ using Defra.Lis.Api.Models;
 
 public interface ICattleService
 {
-    Task<IEnumerable<CattleResponse>> GetCattleForHoldingAsync(string cph);
+    Task<IEnumerable<CattleResponse>> GetCattleForHoldingAsync(string cph, CattleFilter? filter = null, CancellationToken cancellationToken = default);
 
     Task<IEnumerable<BundleResponse>> GetBundlesForHoldingAsync(string cph);
 

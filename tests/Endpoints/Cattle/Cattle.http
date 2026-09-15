@@ -1,3 +1,16 @@
+### Get Holding details (using environment variable)
+GET {{host}}/holdings/{{cph}}
+Accept: application/json
+x-cdp-request-id: {{$guid}}
+
+> ../Asserts/Should_be_200_OK.js
+
+### Get Holding details (Oakfield Farm fixture in lis-fake-service)
+GET {{host}}/holdings/22/001/0001
+Accept: application/json
+
+> ../Asserts/Should_be_200_OK.js
+
 ### Get Cattle for Holding (using environment variable)
 GET {{host}}/holdings/{{cph}}/cattle
 Accept: application/json
@@ -6,6 +19,12 @@ Accept: application/json
 
 ### Get Cattle for Holding (explicit CPH)
 GET {{host}}/holdings/12/345/6789/cattle
+Accept: application/json
+
+> ../Asserts/Should_be_200_OK.js
+
+### Search Cattle on Holding (ear tag, breed code or name, sex)
+GET {{host}}/holdings/22/001/0001/cattle?earTag=UK2000&breed=AA&sex=female
 Accept: application/json
 
 > ../Asserts/Should_be_200_OK.js

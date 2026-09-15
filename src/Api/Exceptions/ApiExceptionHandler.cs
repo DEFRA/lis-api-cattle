@@ -4,6 +4,7 @@
 
 namespace Defra.Lis.Api.Exceptions;
 
+using Defra.Lis.Api.Configurations;
 using Defra.Lis.Core.Exceptions;
 using Defra.Lis.Core.Middleware.Headers;
 using Microsoft.AspNetCore.Diagnostics;
@@ -29,7 +30,9 @@ public sealed partial class ApiExceptionHandler(ILogger<ApiExceptionHandler> log
 
         // Put useful values into the Serilog LogContext (works with Enrich.FromLogContext()).
         var correlationId = httpContext.Request.Headers[RequestHeaderNames.CorrelationId].ToString();
+        var cdpRequestId = httpContext.Request.Headers[TraceHeaders.CdpRequestId].ToString();
         using (LogContext.PushProperty("CorrelationId", correlationId))
+        using (LogContext.PushProperty("CdpRequestId", cdpRequestId))
         using (LogContext.PushProperty("TraceId", httpContext.TraceIdentifier))
         using (LogContext.PushProperty("Path", httpContext.Request.Path.Value))
         using (LogContext.PushProperty("StatusCode", statusCode))

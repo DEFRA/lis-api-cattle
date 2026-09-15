@@ -40,7 +40,7 @@ public class CattleServiceTests
 
         var cadsData = new List<CattleResponse> { new() { EarTag = earTag1, Status = "active", Breed = "Angus" } };
 
-        mockCadsService.Setup(s => s.GetCattleByCphAsync(cph))
+        mockCadsService.Setup(s => s.GetCattleByCphAsync(cph, It.IsAny<CancellationToken>()))
             .ReturnsAsync(cadsData);
 
         var submission = new Submission("ref1", cph, "user1");
@@ -52,7 +52,7 @@ public class CattleServiceTests
         await context.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         // Act
-        var result = (await service.GetCattleForHoldingAsync(cph)).ToList();
+        var result = (await service.GetCattleForHoldingAsync(cph, null, TestContext.Current.CancellationToken)).ToList();
 
         // Assert
         Assert.Equal(2, result.Count);
@@ -64,6 +64,41 @@ public class CattleServiceTests
 
         var r2 = result.First(r => r.EarTag == earTag2);
         Assert.Equal("new_animal", r2.Status); // Added from local
+    }
+
+    [Fact]
+    public async Task GetCattleForHoldingAsync_AppliesFilterAfterMergingLocalRecords()
+    {
+        // Arrange
+        var cph = "12/345/6789";
+        var cadsData = new List<CattleResponse>
+        {
+            new() { EarTag = "UK123456700001", Status = "Alive", Sex = "Female", BreedCode = "AA", BreedName = "Aberdeen Angus" },
+            new() { EarTag = "UK123456700002", Status = "Alive", Sex = "Male", BreedCode = "AA", BreedName = "Aberdeen Angus" },
+        };
+
+        mockCadsService.Setup(s => s.GetCattleByCphAsync(cph, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(cadsData);
+
+        var submission = new Submission("ref1", cph, "user1");
+        submission.AddAnimal("UK123456700003", Statuses.Submitted, sex: "Female", breed: "AA");
+
+        context.Set<Submission>().Add(submission);
+        await context.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        // Act
+        var females = (await service.GetCattleForHoldingAsync(cph, new CattleFilter(Sex: "female"), TestContext.Current.CancellationToken))
+            .Select(c => c.EarTag)
+            .ToList();
+        var byTag = (await service.GetCattleForHoldingAsync(cph, new CattleFilter(EarTag: "700002"), TestContext.Current.CancellationToken))
+            .Select(c => c.EarTag)
+            .ToList();
+        var unfiltered = (await service.GetCattleForHoldingAsync(cph, new CattleFilter(), TestContext.Current.CancellationToken)).ToList();
+
+        // Assert
+        Assert.Equal(["UK123456700001", "UK123456700003"], females);
+        Assert.Equal(["UK123456700002"], byTag);
+        Assert.Equal(3, unfiltered.Count);
     }
 
     [Fact]

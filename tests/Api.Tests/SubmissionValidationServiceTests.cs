@@ -273,7 +273,7 @@ public class SubmissionValidationServiceTests
     {
         var (_, service) = CreateService(nameof(ValidateSubmissionAsync_EarTagAlreadyUsedInCADS_TriggersCTWS192));
 
-        mockCadsService.Setup(c => c.GetCattleByCphAsync("12/345/6789"))
+        mockCadsService.Setup(c => c.GetCattleByCphAsync("12/345/6789", It.IsAny<CancellationToken>()))
             .ReturnsAsync([
                 new CattleResponse
                 {
@@ -299,7 +299,7 @@ public class SubmissionValidationServiceTests
         var calfBirthDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-10));
         var damBirthDate = calfBirthDate.AddMonths(-12); // Dam is 12 months old (< 15 months)
 
-        mockCadsService.Setup(c => c.GetCattleByCphAsync("12/345/6789"))
+        mockCadsService.Setup(c => c.GetCattleByCphAsync("12/345/6789", It.IsAny<CancellationToken>()))
             .ReturnsAsync([
                 new CattleResponse
                 {
@@ -329,7 +329,7 @@ public class SubmissionValidationServiceTests
         var calfBirthDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-10));
         var damBirthDate = calfBirthDate.AddYears(-22); // Dam is 22 years old (> 20 years)
 
-        mockCadsService.Setup(c => c.GetCattleByCphAsync("12/345/6789"))
+        mockCadsService.Setup(c => c.GetCattleByCphAsync("12/345/6789", It.IsAny<CancellationToken>()))
             .ReturnsAsync([
                 new CattleResponse
                 {
@@ -368,6 +368,138 @@ public class SubmissionValidationServiceTests
         Assert.False(result.IsValid);
         Assert.Contains(calf1.Errors, e => e.ErrorCode == ValidationRuleCodes.Ctws200);
         Assert.Contains(calf2.Errors, e => e.ErrorCode == ValidationRuleCodes.Ctws200);
+    }
+
+    [Fact]
+    public async Task ValidateSubmissionAsync_BlankBreed_TriggersCTWS014()
+    {
+        var (_, service) = CreateService(nameof(ValidateSubmissionAsync_BlankBreed_TriggersCTWS014));
+
+        var submission = new Submission("REF1", "12/345/6789", "USER1");
+        var animal = submission.AddAnimal("UK123456789012", dateBirth: DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-5)), breed: " ");
+
+        var result = await service.ValidateSubmissionAsync(submission, TestContext.Current.CancellationToken);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.Ctws014);
+    }
+
+    [Fact]
+    public async Task ValidateSubmissionAsync_DamRecordedAsMale_TriggersCTWS195()
+    {
+        var (_, service) = CreateService(nameof(ValidateSubmissionAsync_DamRecordedAsMale_TriggersCTWS195));
+
+        mockCadsService.Setup(c => c.GetCattleByCphAsync("12/345/6789", It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new CattleResponse { EarTag = "UK999999888888", Sex = "Male" }]);
+
+        var submission = new Submission("REF1", "12/345/6789", "USER1");
+        var animal = submission.AddAnimal(
+            "UK123456789012",
+            dateBirth: DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-5)),
+            damSurrogateEarTag: "uk999999888888 ");
+
+        var result = await service.ValidateSubmissionAsync(submission, TestContext.Current.CancellationToken);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.Ctws195);
+        Assert.DoesNotContain(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.Ctws202);
+    }
+
+    [Fact]
+    public async Task ValidateSubmissionAsync_SireHeldAsFemaleInAnotherSubmission_TriggersCTWS196()
+    {
+        var (dbContext, service) = CreateService(nameof(ValidateSubmissionAsync_SireHeldAsFemaleInAnotherSubmission_TriggersCTWS196));
+
+        var earlier = new Submission("REF0", "12/345/6789", "USER1");
+        earlier.AddAnimal("UK111111222222", Statuses.Complete, sex: "F");
+        dbContext.Set<Submission>().Add(earlier);
+        await dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var submission = new Submission("REF1", "12/345/6789", "USER1");
+        var animal = submission.AddAnimal(
+            "UK123456789012",
+            dateBirth: DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-5)),
+            sireEarTag: "UK111111222222");
+
+        var result = await service.ValidateSubmissionAsync(submission, TestContext.Current.CancellationToken);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.Ctws196);
+    }
+
+    [Fact]
+    public async Task ValidateSubmissionAsync_EarTagCompletedInAnotherSubmission_TriggersCTWS192()
+    {
+        var (dbContext, service) = CreateService(nameof(ValidateSubmissionAsync_EarTagCompletedInAnotherSubmission_TriggersCTWS192));
+
+        var earlier = new Submission("REF0", "12/345/6789", "USER1");
+        earlier.AddAnimal("UK123456789012", Statuses.Complete);
+        var pendingOnly = new Submission("REF2", "12/345/6789", "USER1");
+        pendingOnly.AddAnimal("UK123456789013", Statuses.Pending);
+        dbContext.Set<Submission>().AddRange(earlier, pendingOnly);
+        await dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var submission = new Submission("REF1", "12/345/6789", "USER1");
+        var used = submission.AddAnimal("uk123456789012", dateBirth: DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-5)));
+        var free = submission.AddAnimal("UK123456789013", dateBirth: DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-5)));
+
+        await service.ValidateSubmissionAsync(submission, TestContext.Current.CancellationToken);
+
+        Assert.Contains(used.Errors, e => e.ErrorCode == ValidationRuleCodes.Ctws192);
+        Assert.DoesNotContain(free.Errors, e => e.ErrorCode == ValidationRuleCodes.Ctws192);
+    }
+
+    [Fact]
+    public async Task ValidateSubmissionAsync_DamCalvedWithinIntervalInAnotherSubmission_TriggersCTWS200()
+    {
+        var (dbContext, service) = CreateService(nameof(ValidateSubmissionAsync_DamCalvedWithinIntervalInAnotherSubmission_TriggersCTWS200));
+
+        var earlier = new Submission("REF0", "12/345/6789", "USER1");
+        earlier.AddAnimal("UK123456789001", Statuses.Complete, dateBirth: DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-100)), damSurrogateEarTag: "UK999999888888");
+        dbContext.Set<Submission>().Add(earlier);
+        await dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var submission = new Submission("REF1", "12/345/6789", "USER1");
+        var calf = submission.AddAnimal("UK123456789002", dateBirth: DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-10)), damGeneticEarTag: "UK999999888888");
+
+        var result = await service.ValidateSubmissionAsync(submission, TestContext.Current.CancellationToken);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(calf.Errors, e => e.ErrorCode == ValidationRuleCodes.Ctws200);
+    }
+
+    [Fact]
+    public async Task ValidateSubmissionAsync_SameDayTwins_DoNotTriggerCTWS200()
+    {
+        var (_, service) = CreateService(nameof(ValidateSubmissionAsync_SameDayTwins_DoNotTriggerCTWS200));
+
+        var birth = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-10));
+        var submission = new Submission("REF1", "12/345/6789", "USER1");
+        var twin1 = submission.AddAnimal("UK123456789001", dateBirth: birth, damGeneticEarTag: "UK999999888888");
+        var twin2 = submission.AddAnimal("UK123456789002", dateBirth: birth, damGeneticEarTag: "UK999999888888");
+
+        var result = await service.ValidateSubmissionAsync(submission, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsValid);
+        Assert.Empty(twin1.Errors);
+        Assert.Empty(twin2.Errors);
+    }
+
+    [Fact]
+    public async Task ValidateSubmissionAsync_CadsUnavailable_StillValidatesUsingLocalData()
+    {
+        var (_, service) = CreateService(nameof(ValidateSubmissionAsync_CadsUnavailable_StillValidatesUsingLocalData));
+
+        mockCadsService.Setup(c => c.GetCattleByCphAsync("12/345/6789", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("CADS unavailable"));
+
+        var submission = new Submission("REF1", "12/345/6789", "USER1");
+        var animal = submission.AddAnimal("UK123456789012", dateBirth: DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-5)));
+
+        var result = await service.ValidateSubmissionAsync(submission, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsValid);
+        Assert.Equal(Statuses.Complete, animal.Status);
     }
 
     [Fact]

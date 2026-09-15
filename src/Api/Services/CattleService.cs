@@ -50,17 +50,16 @@ public class CattleService : ICattleService
         this.logger = logger;
     }
 
-    public async Task<IEnumerable<CattleResponse>> GetCattleForHoldingAsync(string cph)
+    public async Task<IEnumerable<CattleResponse>> GetCattleForHoldingAsync(string cph, CattleFilter? filter = null, CancellationToken cancellationToken = default)
     {
         // 1. Fetch from CADS
-        var cadsCattle = await cadsService.GetCattleByCphAsync(cph);
+        var cadsCattle = await cadsService.GetCattleByCphAsync(cph, cancellationToken);
         var resultList = cadsCattle.ToList();
 
         // 2. Fetch from local database (bundle list for processing or error entries)
         // Bundles are typically submissions that are not yet "completed" or have errors.
         // Assuming status 'submitted' or presence of errors means they haven't been delivered to CADS yet.
         var localCattle = await dbContext.Set<SubmissionAnimal>()
-            .Include(a => a.Errors)
             .Where(a => a.Submission.CountyParishHolding == cph &&
                         (a.Submission.Status == Statuses.Submitted || a.Errors.Any()))
             .Select(a => new CattleResponse
@@ -76,7 +75,7 @@ public class CattleService : ICattleService
                     ErrorText = e.ErrorText,
                 }).ToList(),
             })
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
 
         // 3. Enhance/Merge
         // The issue says: "The result from this list will then need to be enhanced with any details
@@ -95,6 +94,12 @@ public class CattleService : ICattleService
                 // Add new local record that isn't in CADS yet
                 resultList.Add(localItem);
             }
+        }
+
+        // 4. Apply optional search filters after the merge so local records are searchable too
+        if (filter is { IsEmpty: false })
+        {
+            return resultList.Where(filter.Matches).ToList();
         }
 
         return resultList;

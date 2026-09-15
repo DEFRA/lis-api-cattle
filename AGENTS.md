@@ -115,6 +115,31 @@ lis-api-cattle/
 
 ---
 
+## Upstream connections (CADS and KRDS)
+
+Holding details and animals-on-holding are read from upstream services through REST strategies
+(`Defra.Livestock.Sdk.Api.Strategies`): `src/Api/Services/KrdsService.cs` calls the keeper-data-api
+V2 holdings endpoint and `src/Api/Services/CadsService.cs` calls the CADS bovine animals endpoint.
+Until the real services exist both point at [lis-fake-service](https://github.com/DEFRA/lis-fake-service)
+(`npm run dev`, port 3000), which requires HTTP Basic credentials per upstream.
+
+| Setting | Purpose | Local default |
+| --- | --- | --- |
+| `CadsApi__BaseUrl` | Base URL of the CADS API (fake: `http://localhost:3000/`) | `appsettings.Development.json` |
+| `CadsApi__ClientId` / `CadsApi__ClientSecret` | Basic credentials for CADS (fake defaults `local-dev-cads-client` / `local-dev-cads-secret`) | dev settings; CDP secrets elsewhere |
+| `CadsApi__PageSize` | Page size used when reading animals (all pages are read) | 100 |
+| `KrdsApi__BaseUrl` | Base URL of the keeper-data-api (fake: `http://localhost:3000/`) | `appsettings.Development.json` |
+| `KrdsApi__ClientId` / `KrdsApi__ClientSecret` | Basic credentials for KRDS (fake defaults `local-dev-krds-client` / `local-dev-krds-secret`) | dev settings; CDP secrets elsewhere |
+
+All settings are validated when an upstream call is first made (not on start-up, so `/health` works before the secrets are set). The inbound `x-cdp-request-id` header is propagated to
+every upstream call (Correlation ID standard). Never log the credentials or upstream payloads.
+
+Endpoints exposed for the BE4FE: `GET /holdings/{county}/{parish}/{holding}` and
+`GET /holdings/{county}/{parish}/{holding}/cattle?earTag=&breed=&sex=` (live animals only; see
+`tests/Endpoints/Cattle/Cattle.http`).
+
+---
+
 ## Development & Build Commands
 
 - **Build Solution**:
