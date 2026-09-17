@@ -1,0 +1,864 @@
+{
+    "openapi": "3.1.1",
+    "info": {
+        "title": "Defra.Lis.Api | v1",
+        "version": "1.0.0"
+    },
+    "servers": [
+        {
+            "url": "http://localhost:8085/"
+        }
+    ],
+    "paths": {
+        "/holdings/{county}/{parish}/{holding}": {
+            "get": {
+                "tags": [
+                    "Cattle"
+                ],
+                "operationId": "GetHolding",
+                "parameters": [
+                    {
+                        "name": "county",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "parish",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "holding",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HoldingResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/holdings/{cph1}/{cph2}/{cph3}/cattle": {
+            "get": {
+                "tags": [
+                    "Cattle"
+                ],
+                "operationId": "GetCattleForHoldingMultiSegment",
+                "parameters": [
+                    {
+                        "name": "cph1",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "cph2",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "cph3",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "EarTag",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "Breed",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "Sex",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/CattleResponse"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/holdings/{cph}/cattle": {
+            "get": {
+                "tags": [
+                    "Cattle"
+                ],
+                "operationId": "GetCattleForHolding",
+                "parameters": [
+                    {
+                        "name": "cph",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "EarTag",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "Breed",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "Sex",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/CattleResponse"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/holdings/{cph1}/{cph2}/{cph3}/bundles": {
+            "get": {
+                "tags": [
+                    "Cattle"
+                ],
+                "operationId": "GetBundlesForHoldingMultiSegment",
+                "parameters": [
+                    {
+                        "name": "cph1",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "cph2",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "cph3",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/BundleResponse"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/holdings/{cph}/bundles": {
+            "get": {
+                "tags": [
+                    "Cattle"
+                ],
+                "operationId": "GetBundlesForHolding",
+                "parameters": [
+                    {
+                        "name": "cph",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/BundleResponse"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/registrations": {
+            "post": {
+                "tags": [
+                    "Registrations"
+                ],
+                "operationId": "CreateRegistrationBundle",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RegistrationBundleRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BundleResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/registrations/{id}/validate": {
+            "post": {
+                "tags": [
+                    "Registrations"
+                ],
+                "operationId": "ValidateRegistrationBundle",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SubmissionValidationResult"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "AnimalRegistrationRequest": {
+                "type": "object",
+                "properties": {
+                    "earTag": {
+                        "type": "string"
+                    },
+                    "dateOfBirth": {
+                        "type": [
+                            "null",
+                            "string"
+                        ],
+                        "format": "date"
+                    },
+                    "sex": {
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    "breed": {
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    "dam": {
+                        "oneOf": [
+                            {
+                                "type": "null"
+                            },
+                            {
+                                "$ref": "#/components/schemas/DamRegistrationRequest"
+                            }
+                        ]
+                    },
+                    "sire": {
+                        "oneOf": [
+                            {
+                                "type": "null"
+                            },
+                            {
+                                "$ref": "#/components/schemas/SireRegistrationRequest"
+                            }
+                        ]
+                    }
+                }
+            },
+            "BundleAnimalErrorResponse": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "animalId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "errorCode": {
+                        "type": "string"
+                    },
+                    "errorText": {
+                        "type": "string"
+                    },
+                    "createdAt": {
+                        "type": [
+                            "null",
+                            "string"
+                        ],
+                        "format": "date-time"
+                    }
+                }
+            },
+            "BundleAnimalResponse": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "submissionId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "earTag": {
+                        "type": "string"
+                    },
+                    "dateBirth": {
+                        "type": [
+                            "null",
+                            "string"
+                        ],
+                        "format": "date"
+                    },
+                    "sex": {
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    "breed": {
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    "damType": {
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    "damGeneticEarTag": {
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    "damSurrogateEarTag": {
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    "sireEarTag": {
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    "sireName": {
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    "errors": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/BundleAnimalErrorResponse"
+                        }
+                    }
+                }
+            },
+            "BundleResponse": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "clientReference": {
+                        "type": "string"
+                    },
+                    "countyParishHolding": {
+                        "type": "string"
+                    },
+                    "submittedBy": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "animals": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/BundleAnimalResponse"
+                        }
+                    }
+                }
+            },
+            "CattleErrorResponse": {
+                "type": "object",
+                "properties": {
+                    "errorCode": {
+                        "type": "string"
+                    },
+                    "errorText": {
+                        "type": "string"
+                    }
+                }
+            },
+            "CattleResponse": {
+                "type": "object",
+                "properties": {
+                    "earTag": {
+                        "type": "string"
+                    },
+                    "dateBirth": {
+                        "type": [
+                            "null",
+                            "string"
+                        ],
+                        "format": "date"
+                    },
+                    "dateOnCph": {
+                        "type": [
+                            "null",
+                            "string"
+                        ],
+                        "format": "date"
+                    },
+                    "sex": {
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    "breed": {
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    "breedCode": {
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    "breedName": {
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "errors": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/CattleErrorResponse"
+                        }
+                    }
+                }
+            },
+            "DamRegistrationRequest": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    "geneticDamEarTag": {
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    "surrogateDamEarTag": {
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    }
+                }
+            },
+            "HoldingRequest": {
+                "type": "object",
+                "properties": {
+                    "cph": {
+                        "type": "string"
+                    }
+                }
+            },
+            "HoldingResponse": {
+                "type": "object",
+                "properties": {
+                    "cph": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    "holdingType": {
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    "address": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "keeperName": {
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    "herdMarks": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "allowedSpecies": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "ProblemDetails": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    "title": {
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    "status": {
+                        "pattern": "^-?(?:0|[1-9]\\d*)$",
+                        "type": [
+                            "null",
+                            "integer",
+                            "string"
+                        ],
+                        "format": "int32"
+                    },
+                    "detail": {
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    "instance": {
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    }
+                }
+            },
+            "RegistrationBundleRequest": {
+                "type": "object",
+                "properties": {
+                    "clientReference": {
+                        "type": "string"
+                    },
+                    "holding": {
+                        "oneOf": [
+                            {
+                                "type": "null"
+                            },
+                            {
+                                "$ref": "#/components/schemas/HoldingRequest"
+                            }
+                        ]
+                    },
+                    "submittedBy": {
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    "animals": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/AnimalRegistrationRequest"
+                        }
+                    }
+                }
+            },
+            "SireRegistrationRequest": {
+                "type": "object",
+                "properties": {
+                    "earTag": {
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    "name": {
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    }
+                }
+            },
+            "SubmissionAnimalValidationResult": {
+                "type": "object",
+                "properties": {
+                    "animalId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "earTag": {
+                        "type": "string"
+                    },
+                    "isValid": {
+                        "type": "boolean"
+                    },
+                    "errors": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ValidationErrorItem"
+                        }
+                    }
+                }
+            },
+            "SubmissionValidationResult": {
+                "type": "object",
+                "properties": {
+                    "submissionId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "isValid": {
+                        "type": "boolean"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "errorCount": {
+                        "pattern": "^-?(?:0|[1-9]\\d*)$",
+                        "type": [
+                            "integer",
+                            "string"
+                        ],
+                        "format": "int32"
+                    },
+                    "animalResults": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/SubmissionAnimalValidationResult"
+                        }
+                    }
+                }
+            },
+            "ValidationErrorItem": {
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    }
+                }
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "Cattle"
+        },
+        {
+            "name": "Registrations"
+        }
+    ]
+}
