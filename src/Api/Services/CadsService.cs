@@ -76,7 +76,7 @@ public sealed partial class CadsService(
                 .WithActionDescription("Get animals on holding")
                 .WithBaseUrl(settings.BaseUrl)
                 .WithResourceUrl(AnimalsResource)
-                .WithHeader(BasicAuthorization.HeaderName, BasicAuthorization.HeaderValue(settings.ClientId, settings.ClientSecret))
+                .WithBasicAuth(settings.ClientId, settings.ClientSecret)
                 .WithJsonSerializerOptions(UpstreamJson.Options)
                 .WithGet()
                 .WithQueryParameter("CPH", cph)
