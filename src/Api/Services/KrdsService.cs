@@ -47,7 +47,7 @@ public sealed partial class KrdsService(
                 .WithActionDescription("Get holding details")
                 .WithBaseUrl(settings.BaseUrl)
                 .WithResourceUrl($"krds/api/v2/holdings/{county}/{parish}/{holding}")
-                .WithHeader(BasicAuthorization.HeaderName, BasicAuthorization.HeaderValue(settings.ClientId, settings.ClientSecret))
+                .WithBasicAuth(settings.ClientId, settings.ClientSecret)
                 .WithJsonSerializerOptions(UpstreamJson.Options)
                 .WithGet()
                 .ExecuteAndTransform<KrdsHolding, HoldingResponse>(krdsHolding => ToHoldingResponse(cph, krdsHolding));
