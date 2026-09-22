@@ -26,7 +26,7 @@ public sealed partial class CadsService(
     : ICadsService
 {
     private const string ApiDescription = "CADS bovine animals API";
-    private const string AnimalsResource = "cads/api/v1/bovine/animals";
+    private const string AnimalsResource = "api/v1/bovine/animals";
     private const int MaxPages = 100;
 
     public async Task<IEnumerable<CattleResponse>> GetCattleByCphAsync(string cph, CancellationToken cancellationToken = default)
