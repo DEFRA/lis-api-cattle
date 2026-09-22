@@ -61,7 +61,7 @@ public class KrdsServiceTests
 
     private static readonly KrdsApiOptions Options = new()
     {
-        BaseUrl = "http://fake-service.test",
+        BaseUrl = "http://fake-service.test/krds",
         ClientId = TestClient,
         ClientSecret = TestPassphrase,
     };

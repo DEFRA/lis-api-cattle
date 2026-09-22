@@ -21,7 +21,7 @@ public class CadsServiceTests
 
     private static readonly CadsApiOptions Options = new()
     {
-        BaseUrl = "http://fake-service.test/",
+        BaseUrl = "http://fake-service.test/cads/",
         ClientId = TestClient,
         ClientSecret = TestPassphrase,
         PageSize = 2,
