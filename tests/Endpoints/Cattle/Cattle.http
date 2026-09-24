@@ -29,6 +29,19 @@ Accept: application/json
 
 > ../Asserts/Should_be_200_OK.js
 
+### Get Cattle details (Oakfield animal fixture in lis-fake-service)
+GET {{host}}/cattle/UK200000000001
+Accept: application/json
+x-cdp-request-id: {{$guid}}
+
+> ../Asserts/Should_be_200_OK.js
+
+### Get Cattle details (unknown ear tag)
+GET {{host}}/cattle/UK999999999999
+Accept: application/json
+
+> ../Asserts/Should_be_404.js
+
 ### Get Bundles for Holding (using environment variable)
 GET {{host}}/holdings/{{cph}}/bundles
 Accept: application/json

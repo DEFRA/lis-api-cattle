@@ -13,4 +13,10 @@ public interface ICadsService
     /// </summary>
     /// <exception cref="Defra.Lis.Core.Exceptions.NotFoundException">The holding is not known to CADS.</exception>
     Task<IEnumerable<CattleResponse>> GetCattleByCphAsync(string cph, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets everything CADS holds about a single animal.
+    /// </summary>
+    /// <exception cref="Defra.Lis.Core.Exceptions.NotFoundException">The animal is not known to CADS.</exception>
+    Task<CattleDetailsResponse> GetAnimalDetailsAsync(string earTag, CancellationToken cancellationToken = default);
 }

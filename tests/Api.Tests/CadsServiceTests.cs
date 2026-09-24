@@ -16,6 +16,7 @@ using Microsoft.Extensions.Options;
 public class CadsServiceTests
 {
     private const string Cph = "22/001/0001";
+    private const string EarTag = "UK200000000001";
     private const string TestClient = "cads-client";
     private const string TestPassphrase = "cads-passphrase";
 
@@ -118,6 +119,162 @@ public class CadsServiceTests
         await Assert.ThrowsAsync<ArgumentException>(() => service.GetCattleByCphAsync(" ", TestContext.Current.CancellationToken));
         Assert.Empty(handler.Requests);
     }
+
+    [Fact]
+    public async Task GetAnimalDetailsAsync_CallsAnimalDetailEndpointWithBasicAuth()
+    {
+        handler.RespondWith(HttpStatusCode.OK, Detail("UK200000000001", Parent("GeneticDam", "UK200000000098")));
+        var service = CreateService();
+
+        await service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken);
+
+        Assert.Single(handler.Requests);
+        var request = handler.Requests[0];
+        Assert.Equal(HttpMethod.Get, request.Method);
+        Assert.Equal("http://fake-service.test/cads/api/v1/bovine/animals/UK200000000001", request.RequestUri!.ToString());
+        Assert.Equal("Basic", request.Headers.Authorization!.Scheme);
+        Assert.Equal(Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{TestClient}:{TestPassphrase}")), request.Headers.Authorization.Parameter);
+    }
+
+    [Fact]
+    public async Task GetAnimalDetailsAsync_UnwrapsEnvelopeAndMapsAnimalDetail()
+    {
+        handler.RespondWith(HttpStatusCode.OK, Detail(EarTag, Parent("GeneticDam", "UK200000000098")));
+        var service = CreateService();
+
+        var details = await service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken);
+
+        Assert.Equal(EarTag, details.EarTag);
+        Assert.Equal("Cattle", details.Species);
+        Assert.Equal("Male", details.Sex);
+        Assert.Equal(new DateOnly(2023, 2, 1), details.DateBirth);
+        Assert.Equal(new DateOnly(2023, 2, 5), details.DateRegistered);
+        Assert.Equal(new DateOnly(2023, 2, 15), details.DateOnCph);
+        Assert.Equal("AA", details.BreedCode);
+        Assert.Equal("Aberdeen Angus", details.BreedName);
+        Assert.Equal("Aberdeen Angus", details.Breed);
+        Assert.Equal("Alive", details.State);
+        Assert.Equal("None", details.RestrictionStatus);
+    }
+
+    [Fact]
+    public async Task GetAnimalDetailsAsync_ReportsAGeneticDamWhenThatIsTheOnlyDam()
+    {
+        handler.RespondWith(HttpStatusCode.OK, Detail(EarTag, Parent("GeneticDam", "UK200000000098"), Parent("Sire", "UK200000000099")));
+        var service = CreateService();
+
+        var details = await service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken);
+
+        Assert.Equal("genetic", details.DamType);
+        Assert.Equal("UK200000000098", details.GeneticDamEarTag);
+        Assert.Null(details.SurrogateDamEarTag);
+        Assert.Equal("UK200000000099", details.SireEarTag);
+        Assert.Null(details.SireName);
+    }
+
+    [Fact]
+    public async Task GetAnimalDetailsAsync_ReportsASurrogateDamEvenWhenAGeneticDamIsAlsoRecorded()
+    {
+        handler.RespondWith(HttpStatusCode.OK, Detail(EarTag, Parent("GeneticDam", "UK200000000090"), Parent("SurrogateDam", "UK200000000091")));
+        var service = CreateService();
+
+        var details = await service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken);
+
+        Assert.Equal("surrogate", details.DamType);
+        Assert.Equal("UK200000000090", details.GeneticDamEarTag);
+        Assert.Equal("UK200000000091", details.SurrogateDamEarTag);
+    }
+
+    [Fact]
+    public async Task GetAnimalDetailsAsync_LeavesDamAndSireUnsetWhenNoParentageIsRecorded()
+    {
+        handler.RespondWith(HttpStatusCode.OK, Detail(EarTag));
+        var service = CreateService();
+
+        var details = await service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken);
+
+        Assert.Null(details.DamType);
+        Assert.Null(details.GeneticDamEarTag);
+        Assert.Null(details.SurrogateDamEarTag);
+        Assert.Null(details.SireEarTag);
+    }
+
+    [Fact]
+    public async Task GetAnimalDetailsAsync_EscapesTheEarTagInTheResourceUrl()
+    {
+        handler.RespondWith(HttpStatusCode.OK, Detail("UK2 0000 00001"));
+        var service = CreateService();
+
+        await service.GetAnimalDetailsAsync("UK2 0000 00001", TestContext.Current.CancellationToken);
+
+        // AbsoluteUri, not ToString(), which renders %20 back as a space.
+        Assert.Equal("http://fake-service.test/cads/api/v1/bovine/animals/UK2%200000%2000001", handler.Requests[0].RequestUri!.AbsoluteUri);
+    }
+
+    [Fact]
+    public async Task GetAnimalDetailsAsync_ThrowsNotFound_WhenCadsReturns404()
+    {
+        handler.RespondWith(HttpStatusCode.NotFound, """{"title":"Not Found","status":404}""");
+        var service = CreateService();
+
+        await Assert.ThrowsAsync<NotFoundException>(() => service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task GetAnimalDetailsAsync_ThrowsNotFound_WhenTheEnvelopeCarriesNoAnimal()
+    {
+        handler.RespondWith(HttpStatusCode.OK, """{"resourceType":"AnimalDetail","identifier":"UK200000000001","animalDetail":null}""");
+        var service = CreateService();
+
+        await Assert.ThrowsAsync<NotFoundException>(() => service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task GetAnimalDetailsAsync_PropagatesOtherUpstreamFailures()
+    {
+        handler.RespondWith(HttpStatusCode.Unauthorized, """{"title":"Unauthorized","status":401}""");
+        var service = CreateService();
+
+        await Assert.ThrowsAsync<RestResponseException>(() => service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task GetAnimalDetailsAsync_RejectsBlankEarTag()
+    {
+        var service = CreateService();
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.GetAnimalDetailsAsync(" ", TestContext.Current.CancellationToken));
+        Assert.Empty(handler.Requests);
+    }
+
+    private static string Parent(string relationship, string earTag) => $$"""
+        {
+          "relationship": "{{relationship}}",
+          "animalIdentifier": { "schema": "uk.gov.defra.ear-tag.conventional", "identifier": "{{earTag}}" }
+        }
+        """;
+
+    private static string Detail(string earTag, params string[] parentage) => $$"""
+        {
+          "resourceType": "AnimalDetail",
+          "identifier": "{{earTag}}",
+          "eventDateTime": "2026-09-24T10:00:00.000Z",
+          "source": { "system": "CTS", "schema": "animal_details", "schemaVersion": "1.0" },
+          "animalDetail": {
+            "resourceType": "Animal",
+            "identifier": { "schema": "uk.gov.defra.ear-tag.conventional", "identifier": "{{earTag}}" },
+            "species": "Cattle",
+            "sex": "Male",
+            "birthDate": "2023-02-01",
+            "registrationDate": "2023-02-05",
+            "dateOnCph": "2023-02-15",
+            "breedCode": { "schema": "cts.breed", "breedName": "Aberdeen Angus", "identifier": "AA" },
+            "parentage": [{{string.Join(",", parentage)}}],
+            "state": "Alive",
+            "restrictionStatus": "None"
+          }
+        }
+        """;
 
     private static string Animal(string earTag, string status) => $$"""
         {

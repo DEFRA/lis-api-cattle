@@ -17,7 +17,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 /// <summary>
-/// Reads animals on a holding from the CADS bovine API through a REST strategy.
+/// Reads animals on a holding, and the details of a single animal, from the CADS bovine API
+/// through a REST strategy.
 /// </summary>
 public sealed partial class CadsService(
     IRestStrategyFactory<CadsService> strategyFactory,
@@ -28,6 +29,8 @@ public sealed partial class CadsService(
     private const string ApiDescription = "CADS bovine animals API";
     private const string AnimalsResource = "api/v1/bovine/animals";
     private const int MaxPages = 100;
+    private const string GeneticDamType = "genetic";
+    private const string SurrogateDamType = "surrogate";
 
     public async Task<IEnumerable<CattleResponse>> GetCattleByCphAsync(string cph, CancellationToken cancellationToken = default)
     {
@@ -50,6 +53,45 @@ public sealed partial class CadsService(
         return results;
     }
 
+    public async Task<CattleDetailsResponse> GetAnimalDetailsAsync(string earTag, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(earTag);
+
+        var settings = options.Value;
+        CadsAnimalDetailResponse response;
+
+        try
+        {
+            response = await strategyFactory
+                .BuildRestStrategy()
+                .WithLogger(logger)
+                .WithCancellationToken(cancellationToken)
+                .WithApiDescription(ApiDescription)
+                .WithActionDescription("Get animal details")
+                .WithBaseUrl(settings.BaseUrl)
+                .WithResourceUrl($"{AnimalsResource}/{Uri.EscapeDataString(earTag)}")
+                .WithBasicAuth(settings.ClientId, settings.ClientSecret)
+                .WithJsonSerializerOptions(UpstreamJson.Options)
+                .WithGet()
+                .Execute<CadsAnimalDetailResponse>();
+        }
+        catch (RestResponseException ex) when (UpstreamErrors.IsNotFound(ex))
+        {
+            LogAnimalNotKnownToCads(earTag);
+            throw new NotFoundException($"Animal '{earTag}' was not found.");
+        }
+
+        if (response.AnimalDetail is null)
+        {
+            LogAnimalNotKnownToCads(earTag);
+            throw new NotFoundException($"Animal '{earTag}' was not found.");
+        }
+
+        LogRetrievedAnimalDetails(earTag);
+
+        return ToCattleDetailsResponse(earTag, response.AnimalDetail);
+    }
+
     private static CattleResponse ToCattleResponse(CadsAnimal animal) => new()
     {
         EarTag = animal.Identifier?.Identifier ?? string.Empty,
@@ -61,6 +103,48 @@ public sealed partial class CadsService(
         BreedName = animal.BreedCode?.BreedName,
         Status = animal.Status ?? string.Empty,
     };
+
+    private static CattleDetailsResponse ToCattleDetailsResponse(string earTag, CadsAnimalDetail detail)
+    {
+        var parentage = detail.Parentage ?? [];
+        var geneticDam = EarTagOf(parentage, CadsParentage.GeneticDam);
+        var surrogateDam = EarTagOf(parentage, CadsParentage.SurrogateDam);
+
+        return new CattleDetailsResponse
+        {
+            EarTag = detail.Identifier?.Identifier ?? earTag,
+            Species = detail.Species,
+            Sex = detail.Sex,
+            DateBirth = detail.BirthDate,
+            DateRegistered = detail.RegistrationDate,
+            DateOnCph = detail.DateOnCph,
+            Breed = detail.BreedCode?.BreedName,
+            BreedCode = detail.BreedCode?.Identifier,
+            BreedName = detail.BreedCode?.BreedName,
+            State = detail.State,
+            RestrictionStatus = detail.RestrictionStatus,
+            DamType = DamTypeOf(geneticDam, surrogateDam),
+            GeneticDamEarTag = geneticDam,
+            SurrogateDamEarTag = surrogateDam,
+            SireEarTag = EarTagOf(parentage, CadsParentage.Sire),
+
+            // CADS does not carry a sire name; the field exists for the consuming services' contract.
+            SireName = null,
+        };
+    }
+
+    private static string? EarTagOf(IReadOnlyList<CadsParentage> parentage, string relationship) =>
+        parentage.FirstOrDefault(parent => parent.Is(relationship))?.AnimalIdentifier?.Identifier;
+
+    private static string? DamTypeOf(string? geneticDam, string? surrogateDam)
+    {
+        if (!string.IsNullOrWhiteSpace(surrogateDam))
+        {
+            return SurrogateDamType;
+        }
+
+        return string.IsNullOrWhiteSpace(geneticDam) ? null : GeneticDamType;
+    }
 
     private async Task<CadsPaginatedResult<CadsAnimal>> GetAnimalsPageAsync(string cph, int page, CancellationToken cancellationToken)
     {

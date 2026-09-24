@@ -117,9 +117,11 @@ lis-api-cattle/
 
 ## Upstream connections (CADS and KRDS)
 
-Holding details and animals-on-holding are read from upstream services through REST strategies
-(`Defra.Livestock.Sdk.Api.Strategies`): `src/Api/Services/KrdsService.cs` calls the keeper-data-api
-V2 holdings endpoint and `src/Api/Services/CadsService.cs` calls the CADS bovine animals endpoint.
+Holding details, animals-on-holding and single-animal details are read from upstream services
+through REST strategies (`Defra.Livestock.Sdk.Api.Strategies`): `src/Api/Services/KrdsService.cs`
+calls the keeper-data-api V2 holdings endpoint and `src/Api/Services/CadsService.cs` calls the CADS
+bovine animals endpoints (`api/v1/bovine/animals` for a holding, `api/v1/bovine/animals/{identifier}`
+for one animal).
 Until the real services exist both point at [lis-fake-service](https://github.com/DEFRA/lis-fake-service)
 (`npm run dev`, port 3000), which requires HTTP Basic credentials per upstream.
 
@@ -131,15 +133,23 @@ Until the real services exist both point at [lis-fake-service](https://github.co
 | `KrdsApi__BaseUrl` | Base URL of the keeper-data-api, including any path prefix (fake: `http://localhost:3000/krds/`) | `appsettings.Development.json` |
 | `KrdsApi__ClientId` / `KrdsApi__ClientSecret` | Basic credentials for KRDS (fake defaults `local-dev-krds-client` / `local-dev-krds-secret`) | dev settings; CDP secrets elsewhere |
 
-The services send only the API-relative paths (`api/v1/bovine/animals`, `api/v2/holdings/...`), so any
+The services send only the API-relative paths (`api/v1/bovine/animals`, `api/v1/bovine/animals/{identifier}`,
+`api/v2/holdings/...`), so any
 route qualifier such as the fake service's `/cads` and `/krds` prefixes must be part of the base URL, never the code.
 
 All settings are validated when an upstream call is first made (not on start-up, so `/health` works before the secrets are set). The inbound `x-cdp-request-id` header is propagated to
 every upstream call (Correlation ID standard). Never log the credentials or upstream payloads.
 
-Endpoints exposed for the BE4FE: `GET /holdings/{county}/{parish}/{holding}` and
-`GET /holdings/{county}/{parish}/{holding}/cattle?earTag=&breed=&sex=` (live animals only; see
-`tests/Endpoints/Cattle/Cattle.http`).
+Endpoints exposed for the BE4FE: `GET /holdings/{county}/{parish}/{holding}`,
+`GET /holdings/{county}/{parish}/{holding}/cattle?earTag=&breed=&sex=` (live animals only) and
+`GET /cattle/{earTag}` (details for one animal, 404 when CADS does not know it). See
+`tests/Endpoints/Cattle/Cattle.http`.
+
+`GET /cattle/{earTag}` flattens the parentage list CADS returns into `damType` (`surrogate` when a
+surrogate dam is recorded, otherwise `genetic` when a genetic dam is), `geneticDamEarTag`,
+`surrogateDamEarTag` and `sireEarTag`. `sireName` is always null: CADS does not carry one. The
+response is CADS-only, so an animal that exists solely in a local submission bundle is a 404 here
+even though it appears in the holding's cattle list.
 
 ---
 
