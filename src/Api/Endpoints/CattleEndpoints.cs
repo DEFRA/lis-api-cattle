@@ -46,6 +46,14 @@ public static class CattleEndpoints
              .WithName("GetBundlesForHolding")
              .Produces<IEnumerable<BundleResponse>>(StatusCodes.Status200OK);
 
+        var cattle = app.MapGroup("/cattle")
+                        .WithTags("Cattle");
+
+        cattle.MapGet("/{earTag}", GetCattleDetails)
+              .WithName("GetCattleDetails")
+              .Produces<CattleDetailsResponse>(StatusCodes.Status200OK)
+              .ProducesProblem(StatusCodes.Status404NotFound);
+
         return app;
     }
 
@@ -69,6 +77,16 @@ public static class CattleEndpoints
         var decodedCph = Uri.UnescapeDataString(cph);
         var cattle = await cattleService.GetCattleForHoldingAsync(decodedCph, filter, cancellationToken);
         return Results.Ok(cattle);
+    }
+
+    private static async Task<IResult> GetCattleDetails(
+        string earTag,
+        [FromServices] ICattleService cattleService,
+        CancellationToken cancellationToken)
+    {
+        var decodedEarTag = Uri.UnescapeDataString(earTag);
+        var details = await cattleService.GetCattleDetailsAsync(decodedEarTag, cancellationToken);
+        return Results.Ok(details);
     }
 
     private static async Task<IResult> GetBundlesForHolding(string cph, [FromServices] ICattleService cattleService)

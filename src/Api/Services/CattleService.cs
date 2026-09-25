@@ -105,6 +105,13 @@ public class CattleService : ICattleService
         return resultList;
     }
 
+    public Task<CattleDetailsResponse> GetCattleDetailsAsync(string earTag, CancellationToken cancellationToken = default)
+    {
+        // Details come from CADS alone. An animal that exists only in a local submission bundle is
+        // listed against its holding but has no CADS record yet, so it is reported as not found.
+        return cadsService.GetAnimalDetailsAsync(earTag, cancellationToken);
+    }
+
     public async Task<IEnumerable<BundleResponse>> GetBundlesForHoldingAsync(string cph)
     {
         var submissions = await dbContext.Set<Submission>()

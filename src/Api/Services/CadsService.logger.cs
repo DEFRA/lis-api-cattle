@@ -13,4 +13,10 @@ public partial class CadsService
 
     [LoggerMessage(LogLevel.Warning, "Holding {Cph} is not known to CADS")]
     partial void LogHoldingNotKnownToCads(string cph);
+
+    [LoggerMessage(LogLevel.Information, "Retrieved details for animal {EarTag} from CADS")]
+    partial void LogRetrievedAnimalDetails(string earTag);
+
+    [LoggerMessage(LogLevel.Warning, "Animal {EarTag} is not known to CADS")]
+    partial void LogAnimalNotKnownToCads(string earTag);
 }

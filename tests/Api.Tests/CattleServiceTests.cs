@@ -31,6 +31,36 @@ public class CattleServiceTests
     }
 
     [Fact]
+    public async Task GetCattleDetailsAsync_ReturnsTheCadsAnimalDetails()
+    {
+        var expected = new CattleDetailsResponse { EarTag = "UK200000000001", State = "Alive" };
+        mockCadsService.Setup(s => s.GetAnimalDetailsAsync("UK200000000001", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expected);
+
+        var result = await service.GetCattleDetailsAsync("UK200000000001", TestContext.Current.CancellationToken);
+
+        Assert.Same(expected, result);
+        mockCadsService.Verify(s => s.GetAnimalDetailsAsync("UK200000000001", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetCattleDetailsAsync_DoesNotFallBackToLocalSubmissions()
+    {
+        // Details are CADS-only: an animal that exists only in a local bundle is not found here,
+        // even though GetCattleForHoldingAsync lists it against its holding.
+        var submission = new Submission("ref1", "12/345/6789", "user1");
+        submission.AddAnimal("UK123456700002", Statuses.Submitted);
+        context.Set<Submission>().Add(submission);
+        await context.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        mockCadsService.Setup(s => s.GetAnimalDetailsAsync("UK123456700002", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new Defra.Lis.Core.Exceptions.NotFoundException("Animal 'UK123456700002' was not found."));
+
+        await Assert.ThrowsAsync<Defra.Lis.Core.Exceptions.NotFoundException>(
+            () => service.GetCattleDetailsAsync("UK123456700002", TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task GetCattleForHoldingAsync_ReturnsMergedData()
     {
         // Arrange

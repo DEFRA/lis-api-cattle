@@ -10,6 +10,8 @@ public interface ICattleService
 {
     Task<IEnumerable<CattleResponse>> GetCattleForHoldingAsync(string cph, CattleFilter? filter = null, CancellationToken cancellationToken = default);
 
+    Task<CattleDetailsResponse> GetCattleDetailsAsync(string earTag, CancellationToken cancellationToken = default);
+
     Task<IEnumerable<BundleResponse>> GetBundlesForHoldingAsync(string cph);
 
     Task<BundleResponse> CreateRegistrationBundleAsync(RegistrationBundleRequest request, CancellationToken cancellationToken = default);
