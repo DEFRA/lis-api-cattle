@@ -26,6 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.validate.outputs.version }}
+      is-latest: ${{ steps.latest.outputs.is-latest }}
 
     steps:
       - name: Checkout tagged commit
@@ -64,6 +65,20 @@ jobs:
           fi
 
           echo "version=$PACKAGE_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check whether this is the newest stable version
+        id: latest
+        env:
+          PACKAGE_VERSION: ${{ steps.validate.outputs.version }}
+        run: |
+          newest=$(git tag --list | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
+
+          if [[ "$PACKAGE_VERSION" == "$newest" ]]; then
+            echo "is-latest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "'$PACKAGE_VERSION' is not the newest stable version ('$newest'); latest will not be moved."
+            echo "is-latest=false" >> "$GITHUB_OUTPUT"
+          fi
 
   package-database:
     name: 'Package Database'
@@ -226,3 +241,28 @@ jobs:
           docker tag "$SOURCE_IMAGE" "$revision_image"
           docker push "$version_image"
           docker push "$revision_image"
+
+      - name: Log in to Docker Hub
+        if: ${{ !contains(needs.validate-release.outputs.version, '-') }}
+        uses: DEFRA/cdp-build-action/docker-login@8b34fbe295593b91bd29b6f91a37a5044acd478a # main
+        with:
+          iam-role-name: github-${{ env.IMAGE_NAME }}-build-role
+          aws-account-id: ${{ env.AWS_ACCOUNT_ID }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Push image to Docker Hub
+        if: ${{ !contains(needs.validate-release.outputs.version, '-') }}
+        env:
+          SOURCE_IMAGE: ${{ steps.image.outputs.source }}
+          VERSION: ${{ needs.validate-release.outputs.version }}
+          IS_LATEST: ${{ needs.validate-release.outputs.is-latest }}
+        run: |
+          version_image="defradigital/$IMAGE_NAME:$VERSION"
+          docker tag "$SOURCE_IMAGE" "$version_image"
+          docker push "$version_image"
+
+          if [[ "$IS_LATEST" == "true" ]]; then
+            latest_image="defradigital/$IMAGE_NAME:latest"
+            docker tag "$SOURCE_IMAGE" "$latest_image"
+            docker push "$latest_image"
+          fi
