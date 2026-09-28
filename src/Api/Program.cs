@@ -63,6 +63,7 @@ builder.Services.AddApiVersioning(options =>
 
 // Propagate the CDP correlation header to every outbound call (Correlation ID standard).
 builder.Services.AddHeaderPropagation(options => options.Headers.Add(TraceHeaders.CdpRequestId));
+builder.Services.AddApiVersioning();
 
 // Upstream connections (CADS animals, KRDS holdings and user accounts, both faked by lis-fake-service for now).
 // Validated when first used rather than on start-up so the service can boot (and answer /health)
