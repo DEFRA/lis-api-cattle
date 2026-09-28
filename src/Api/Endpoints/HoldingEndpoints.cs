@@ -1,4 +1,4 @@
-// <copyright file="CattleEndpoints.cs" company="Defra">
+// <copyright file="HoldingEndpoints.cs" company="Defra">
 // Copyright (c) Defra. All rights reserved.
 // </copyright>
 
@@ -6,12 +6,13 @@ namespace Defra.Lis.Api.Endpoints;
 
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models;
+using Defra.Lis.Api.Models.Responses;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 
-public static class CattleEndpoints
+public static class HoldingEndpoints
 {
     public static IEndpointRouteBuilder MapCattleEndpoints(this IEndpointRouteBuilder app)
     {

@@ -15,17 +15,22 @@ public static class RouteNames
     public const string ApiVersionRoot = "/v{version:apiVersion}";
 
     /// <summary>
-    /// The route segment for holdings endpoints.
+    /// The route segment for cattle endpoint.
     /// </summary>
-    public const string Holdings = "holdings";
+    public const string Cattle = "cattle";
 
     /// <summary>
-    /// The route segment for health check endpoints.
+    /// The route segment for health check endpoint.
     /// </summary>
     public const string Health = "health";
 
     /// <summary>
-    /// The route segment for registrations endpoints.
+    /// The route segment for holdings endpoint.
+    /// </summary>
+    public const string Holdings = "holdings";
+
+    /// <summary>
+    /// The route segment for registrations endpoint.
     /// </summary>
     public const string Registrations = "registrations";
 }

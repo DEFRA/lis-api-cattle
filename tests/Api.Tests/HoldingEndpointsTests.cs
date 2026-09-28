@@ -8,6 +8,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Asp.Versioning;
 using Defra.Lis.Api.Endpoints.Cattle;
+using Defra.Lis.Api.Endpoints.Holding;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models;
 using Defra.Lis.Api.Models.Responses;
@@ -17,7 +18,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 
-public class CattleEndpointsTests
+public class HoldingEndpointsTests
 {
     [Theory]
     [InlineData("/holdings/12-345-6789/cattle")]
