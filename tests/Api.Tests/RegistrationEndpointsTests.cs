@@ -5,10 +5,8 @@
 namespace Defra.Lis.Api.Tests;
 
 using Asp.Versioning;
-using Defra.Lis.Api.Endpoints;
 using Defra.Lis.Api.Endpoints.Registration;
 using Defra.Lis.Api.Interfaces;
-using Defra.Lis.Api.Models;
 using Defra.Lis.Api.Models.Requests;
 using Defra.Lis.Api.Models.Responses;
 using Defra.Lis.Entities;

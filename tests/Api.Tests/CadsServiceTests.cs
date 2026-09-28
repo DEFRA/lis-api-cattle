@@ -11,7 +11,6 @@ using Defra.Lis.Api.Tests.Upstream;
 using Defra.Lis.Core.Exceptions;
 using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Exceptions;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 
 public class CadsServiceTests
 {

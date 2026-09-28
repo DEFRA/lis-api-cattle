@@ -7,7 +7,6 @@ namespace Defra.Lis.Api.Tests;
 using System.Net;
 using System.Net.Http.Json;
 using Asp.Versioning;
-using Defra.Lis.Api.Endpoints;
 using Defra.Lis.Api.Endpoints.Cattle;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models;
