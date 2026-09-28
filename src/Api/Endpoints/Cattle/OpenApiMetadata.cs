@@ -13,16 +13,16 @@ public static class OpenApiMetadata
     public const string Tag = nameof(RouteNames.Cattle);
 
     /// <summary>Contains metadata for the get-holding endpoint.</summary>
-    public static class GetHoldingRoute
+    public static class GetCattleDetailsRoute
     {
         /// <summary>Gets the endpoint route name.</summary>
-        public const string Name = "GetHolding";
+        public const string Name = "GetCattleDetails";
 
         /// <summary>Gets the endpoint summary.</summary>
-        public const string Summary = "Get the holding details";
+        public const string Summary = "Get the cattle details";
 
         /// <summary>Gets the endpoint description.</summary>
         public const string Description =
-            "Retrieves the details of the holding for the given county, parish and holding number";
+            "Retrieves the details of the cattle for the given county, parish and holding number";
     }
 }

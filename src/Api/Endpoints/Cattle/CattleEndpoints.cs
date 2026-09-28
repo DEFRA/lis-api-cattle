@@ -29,7 +29,9 @@ public static class CattleEndpoints
             .WithTags(OpenApiMetadata.Tag);
 
         group.MapGet("/{earTag}", GetCattleDetails)
-            .WithName("GetCattleDetails")
+            .WithName(OpenApiMetadata.GetCattleDetailsRoute.Name)
+            .WithSummary(OpenApiMetadata.GetCattleDetailsRoute.Summary)
+            .WithDescription(OpenApiMetadata.GetCattleDetailsRoute.Description)
             .Produces<CattleDetailsResponse>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status404NotFound);
 

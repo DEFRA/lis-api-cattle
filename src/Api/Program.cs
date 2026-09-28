@@ -8,6 +8,7 @@ using Asp.Versioning;
 using Defra.Database.Postgres;
 using Defra.Lis.Api.Configurations;
 using Defra.Lis.Api.Endpoints.Cattle;
+using Defra.Lis.Api.Endpoints.Holding;
 using Defra.Lis.Api.Endpoints.Registration;
 using Defra.Lis.Api.Endpoints.Users;
 using Defra.Lis.Api.Exceptions;
@@ -130,6 +131,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.MapCattleEndpoints();
+app.MapHoldingEndpoints();
 app.MapRegistrationEndpoints();
 app.MapUserEndpoints();
 
