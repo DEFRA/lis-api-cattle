@@ -14,7 +14,7 @@ public interface IKrdsService
     /// </summary>
     /// <exception cref="ArgumentException">A CPH segment does not match the expected format.</exception>
     /// <exception cref="Defra.Lis.Core.Exceptions.NotFoundException">The CPH is not known.</exception>
-    /// <returns><placeholder>A <see cref="Task"/> representing the asynchronous operation.</placeholder></returns>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     Task<HoldingResponse> GetHoldingAsync(string county, string parish, string holding, CancellationToken cancellationToken = default);
 
     /// <summary>

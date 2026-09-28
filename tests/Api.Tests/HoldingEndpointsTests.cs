@@ -1,4 +1,4 @@
-// <copyright file="CattleEndpointsTests.cs" company="Defra">
+// <copyright file="HoldingEndpointsTests.cs" company="Defra">
 // Copyright (c) Defra. All rights reserved.
 // </copyright>
 
@@ -8,7 +8,6 @@ using System.Net;
 using System.Net.Http.Json;
 using Asp.Versioning;
 using Defra.Lis.Api.Endpoints.Cattle;
-using Defra.Lis.Api.Endpoints.Holding;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models;
 using Defra.Lis.Api.Models.Responses;
