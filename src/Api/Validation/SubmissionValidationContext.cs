@@ -6,7 +6,7 @@ namespace Defra.Lis.Api.Validation;
 
 using System.Text.RegularExpressions;
 using Defra.Lis.Api.Configurations;
-using Defra.Lis.Api.Models;
+using Defra.Lis.Api.Models.Responses;
 using Defra.Lis.Entities;
 
 /// <summary>

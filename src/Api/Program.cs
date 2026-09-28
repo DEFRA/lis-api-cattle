@@ -2,10 +2,13 @@
 // Copyright (c) Defra. All rights reserved.
 // </copyright>
 
+using System.Reflection;
 using System.Text.Json;
+using Asp.Versioning;
 using Defra.Database.Postgres;
 using Defra.Lis.Api.Configurations;
-using Defra.Lis.Api.Endpoints;
+using Defra.Lis.Api.Endpoints.Cattle;
+using Defra.Lis.Api.Endpoints.Registration;
 using Defra.Lis.Api.Endpoints.Users;
 using Defra.Lis.Api.Exceptions;
 using Defra.Lis.Api.Interfaces;
@@ -14,11 +17,13 @@ using Defra.Lis.Database;
 using Defra.Livestock.Sdk.Api.Strategies;
 using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Operations.Http.Rest.Client;
 using Defra.Livestock.Sdk.Api.Strategies.Operations.Http.Rest.Client;
+using Scalar.AspNetCore;
 
 #pragma warning disable S1075 // Using http protocol is insecure. Use https instead
 #pragma warning disable S5332 // Using http protocol is insecure. Use https instead
 
 var builder = WebApplication.CreateBuilder(args);
+var isGeneratingOpenApi = Assembly.GetEntryAssembly()?.GetName().Name == "GetDocument.Insider";
 
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -34,6 +39,26 @@ builder.Services.AddCattleDatabaseConfigurations();
 // Problem-details responses for NotFound / validation failures raised by services.
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
+builder.Services.AddApiVersioning(options =>
+    {
+        options.DefaultApiVersion = new ApiVersion(1.0);
+        options.ApiVersionReader = new UrlSegmentApiVersionReader();
+        options.ReportApiVersions = true;
+    })
+    .AddApiExplorer(options =>
+    {
+        options.GroupNameFormat = "'v'VVV";
+        options.SubstituteApiVersionInUrl = true;
+    })
+    .AddOpenApi(options =>
+    {
+        options.Document.AddDocumentTransformer((document, _, _) =>
+        {
+            document.Info.Title = "LIS Cattle API";
+            document.Info.Description = "API for cattle holdings, registrations and submission processing.";
+            return Task.CompletedTask;
+        });
+    });
 
 // Propagate the CDP correlation header to every outbound call (Correlation ID standard).
 builder.Services.AddHeaderPropagation(options => options.Headers.Add(TraceHeaders.CdpRequestId));
@@ -71,18 +96,37 @@ else
 builder.Services.AddScoped<ICattleService, CattleService>();
 builder.Services.AddScoped<ICtsBundleProcessorService, CtsBundleProcessorService>();
 
-builder.Services.AddAwsMessagingServices(builder.Configuration);
-builder.Services.AddQuartzServices(builder.Configuration);
+if (!isGeneratingOpenApi)
+{
+    builder.Services.AddAwsMessagingServices(builder.Configuration);
+    builder.Services.AddQuartzServices(builder.Configuration);
+}
 
 var app = builder.Build();
 app.UseExceptionHandler();
 app.UseHeaderPropagation();
 app.UseHealthChecks("/health");
-app.UsePostgresDatabase();
+
+if (!isGeneratingOpenApi)
+{
+    app.UsePostgresDatabase();
+}
 
 if (app.Environment.IsDevelopment())
 {
-    await app.SeedDevelopmentDatabaseAsync();
+    if (!isGeneratingOpenApi)
+    {
+        await app.SeedDevelopmentDatabaseAsync();
+    }
+
+    app.MapOpenApi().WithDocumentPerVersion();
+    app.MapScalarApiReference(options =>
+    {
+        foreach (var groupName in app.DescribeApiVersions().Select(description => description.GroupName))
+        {
+            options.AddDocument(groupName, groupName);
+        }
+    });
 }
 
 app.MapCattleEndpoints();

@@ -7,7 +7,7 @@ namespace Defra.Lis.Api.Validation;
 using Defra.Database.Postgres;
 using Defra.Lis.Api.Configurations;
 using Defra.Lis.Api.Interfaces;
-using Defra.Lis.Api.Models;
+using Defra.Lis.Api.Models.Responses;
 using Defra.Lis.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;

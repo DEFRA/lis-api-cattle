@@ -2,32 +2,48 @@
 // Copyright (c) Defra. All rights reserved.
 // </copyright>
 
-namespace Defra.Lis.Api.Endpoints;
+namespace Defra.Lis.Api.Endpoints.Registration;
 
 using Defra.Lis.Api.Interfaces;
-using Defra.Lis.Api.Models;
+using Defra.Lis.Api.Models.Requests;
+using Defra.Lis.Api.Models.Responses;
 using Defra.Lis.Api.Validation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 
+/// <summary>
+/// Provides endpoint mappings for cattle registration bundle operations.
+/// </summary>
 public static class RegistrationEndpoints
 {
+    /// <summary>
+    /// Maps the versioned cattle registration bundle endpoints onto the supplied route builder.
+    /// </summary>
+    /// <param name="app">The endpoint route builder to which the endpoints are added.</param>
+    /// <returns>The supplied endpoint route builder.</returns>
     public static IEndpointRouteBuilder MapRegistrationEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/registrations")
-                       .WithTags("Registrations");
+        var registrationApi = app.NewVersionedApi(OpenApiMetadata.Tag);
+        var versionOne = registrationApi.MapGroup(RouteNames.ApiVersionRoot)
+            .HasApiVersion(1.0);
+        var group = versionOne.MapGroup(RouteNames.Registrations)
+            .WithTags(OpenApiMetadata.Tag);
 
         group.MapPost("/", CreateRegistrationBundle)
-             .WithName("CreateRegistrationBundle")
-             .Produces<BundleResponse>(StatusCodes.Status201Created)
-             .ProducesProblem(StatusCodes.Status400BadRequest);
+            .WithName(OpenApiMetadata.CreateRegistrationBundleRoute.Name)
+            .WithSummary(OpenApiMetadata.CreateRegistrationBundleRoute.Summary)
+            .WithDescription(OpenApiMetadata.CreateRegistrationBundleRoute.Description)
+            .Produces<BundleResponse>(StatusCodes.Status201Created)
+            .ProducesProblem(StatusCodes.Status400BadRequest);
 
         group.MapPost("/{id:guid}/validate", ValidateRegistrationBundle)
-             .WithName("ValidateRegistrationBundle")
-             .Produces<SubmissionValidationResult>()
-             .ProducesProblem(StatusCodes.Status404NotFound);
+            .WithName(OpenApiMetadata.ValidateRegistrationBundleRoute.Name)
+            .WithSummary(OpenApiMetadata.ValidateRegistrationBundleRoute.Summary)
+            .WithDescription(OpenApiMetadata.ValidateRegistrationBundleRoute.Description)
+            .Produces<SubmissionValidationResult>()
+            .ProducesProblem(StatusCodes.Status404NotFound);
 
         return app;
     }
@@ -40,7 +56,7 @@ public static class RegistrationEndpoints
         try
         {
             var result = await cattleService.CreateRegistrationBundleAsync(request, cancellationToken);
-            return Results.Created($"/holdings/{result.CountyParishHolding}/bundles", result);
+            return Results.Created($"/v1/holdings/{result.CountyParishHolding}/bundles", result);
         }
         catch (ArgumentException ex)
         {

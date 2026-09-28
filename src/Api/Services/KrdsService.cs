@@ -7,7 +7,6 @@ namespace Defra.Lis.Api.Services;
 using System.Text.RegularExpressions;
 using Defra.Lis.Api.Configurations;
 using Defra.Lis.Api.Interfaces;
-using Defra.Lis.Api.Models;
 using Defra.Lis.Api.Models.Krds;
 using Defra.Lis.Api.Models.Responses;
 using Defra.Lis.Api.Services.Upstream;

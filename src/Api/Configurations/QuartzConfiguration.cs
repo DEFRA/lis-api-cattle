@@ -38,7 +38,7 @@ public static class QuartzConfiguration
                     else
                     {
                         var interval = jobOptions.PollingIntervalSeconds > 0 ? jobOptions.PollingIntervalSeconds : 30;
-                        opts.WithSimpleSchedule(x => x.WithIntervalInSeconds(interval).RepeatForever());
+                        opts.WithSimpleSchedule(x => x.WithInterval(TimeSpan.FromSeconds(interval)).RepeatForever());
                     }
                 });
             }

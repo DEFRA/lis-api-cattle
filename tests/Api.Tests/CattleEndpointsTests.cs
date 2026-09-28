@@ -6,9 +6,12 @@ namespace Defra.Lis.Api.Tests;
 
 using System.Net;
 using System.Net.Http.Json;
+using Asp.Versioning;
 using Defra.Lis.Api.Endpoints;
+using Defra.Lis.Api.Endpoints.Cattle;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models;
+using Defra.Lis.Api.Models.Responses;
 using Defra.Lis.Entities;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
@@ -17,12 +20,32 @@ using Moq;
 
 public class CattleEndpointsTests
 {
+    [Theory]
+    [InlineData("/holdings/12-345-6789/cattle")]
+    [InlineData("/v2/holdings/12-345-6789/cattle")]
+    public async Task GetCattleForHolding_WithoutSupportedVersion_Returns404(string requestUri)
+    {
+        var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
+        builder.WebHost.UseTestServer();
+        builder.Services.AddRouting();
+        builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
+        builder.Services.AddSingleton(Mock.Of<ICattleService>());
+        var app = builder.Build();
+        app.MapCattleEndpoints();
+        await app.StartAsync(TestContext.Current.CancellationToken);
+
+        var response = await app.GetTestClient().GetAsync(requestUri, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
     [Fact]
     public void MapCattleEndpoints_MapsGroupAndRouteSuccessfully()
     {
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
         builder.Services.AddRouting();
+        builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
         var app = builder.Build();
 
         var returned = app.MapCattleEndpoints();
@@ -46,13 +69,14 @@ public class CattleEndpointsTests
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
         builder.Services.AddRouting();
+        builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
         builder.Services.AddSingleton(mockService.Object);
         var app = builder.Build();
         app.MapCattleEndpoints();
         await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
-        var response = await client.GetAsync($"/holdings/{cph}/cattle", TestContext.Current.CancellationToken);
+        var response = await client.GetAsync($"/v1/holdings/{cph}/cattle", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var result = await response.Content.ReadFromJsonAsync<List<CattleResponse>>(TestContext.Current.CancellationToken);
@@ -77,13 +101,14 @@ public class CattleEndpointsTests
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
         builder.Services.AddRouting();
+        builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
         builder.Services.AddSingleton(mockService.Object);
         var app = builder.Build();
         app.MapCattleEndpoints();
         await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
-        var response = await client.GetAsync($"/holdings/{cph}/cattle", TestContext.Current.CancellationToken);
+        var response = await client.GetAsync($"/v1/holdings/{cph}/cattle", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var result = await response.Content.ReadFromJsonAsync<List<CattleResponse>>(TestContext.Current.CancellationToken);
@@ -106,13 +131,14 @@ public class CattleEndpointsTests
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
         builder.Services.AddRouting();
+        builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
         builder.Services.AddSingleton(mockService.Object);
         var app = builder.Build();
         app.MapCattleEndpoints();
         await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
-        var response = await client.GetAsync($"/holdings/{cph}/cattle?earTag=UK2000&breed=AA&sex=female", TestContext.Current.CancellationToken);
+        var response = await client.GetAsync($"/v1/holdings/{cph}/cattle?earTag=UK2000&breed=AA&sex=female", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.NotNull(capturedFilter);
@@ -142,13 +168,14 @@ public class CattleEndpointsTests
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
         builder.Services.AddRouting();
+        builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
         builder.Services.AddSingleton(mockKrds.Object);
         var app = builder.Build();
         app.MapCattleEndpoints();
         await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
-        var response = await client.GetAsync("/holdings/22/001/0001", TestContext.Current.CancellationToken);
+        var response = await client.GetAsync("/v1/holdings/22/001/0001", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var result = await response.Content.ReadFromJsonAsync<HoldingResponse>(TestContext.Current.CancellationToken);
@@ -169,6 +196,7 @@ public class CattleEndpointsTests
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
         builder.Services.AddRouting();
+        builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
         builder.Services.AddLogging();
         builder.Services.AddProblemDetails();
         builder.Services.AddExceptionHandler<Defra.Lis.Api.Exceptions.ApiExceptionHandler>();
@@ -179,7 +207,7 @@ public class CattleEndpointsTests
         await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
-        var response = await client.GetAsync("/holdings/22/050/0050", TestContext.Current.CancellationToken);
+        var response = await client.GetAsync("/v1/holdings/22/050/0050", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
@@ -307,13 +335,14 @@ public class CattleEndpointsTests
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
         builder.Services.AddRouting();
+        builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
         builder.Services.AddSingleton(mockService.Object);
         var app = builder.Build();
         app.MapCattleEndpoints();
         await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
-        var response = await client.GetAsync($"/holdings/{cph}/bundles", TestContext.Current.CancellationToken);
+        var response = await client.GetAsync($"/v1/holdings/{cph}/bundles", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var result = await response.Content.ReadFromJsonAsync<List<BundleResponse>>(TestContext.Current.CancellationToken);
@@ -347,13 +376,14 @@ public class CattleEndpointsTests
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
         builder.Services.AddRouting();
+        builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
         builder.Services.AddSingleton(mockService.Object);
         var app = builder.Build();
         app.MapCattleEndpoints();
         await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
-        var response = await client.GetAsync($"/holdings/{cph}/bundles", TestContext.Current.CancellationToken);
+        var response = await client.GetAsync($"/v1/holdings/{cph}/bundles", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var result = await response.Content.ReadFromJsonAsync<List<BundleResponse>>(TestContext.Current.CancellationToken);

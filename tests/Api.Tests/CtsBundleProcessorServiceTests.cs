@@ -6,6 +6,7 @@ namespace Defra.Lis.Api.Tests;
 
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models;
+using Defra.Lis.Api.Models.Responses;
 using Defra.Lis.Api.Services;
 using Defra.Lis.Entities;
 using Microsoft.EntityFrameworkCore;

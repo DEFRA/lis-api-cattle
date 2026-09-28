@@ -5,6 +5,8 @@
 namespace Defra.Lis.Api.Interfaces;
 
 using Defra.Lis.Api.Models;
+using Defra.Lis.Api.Models.Requests;
+using Defra.Lis.Api.Models.Responses;
 
 public interface ICattleService
 {
