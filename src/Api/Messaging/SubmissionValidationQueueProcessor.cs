@@ -12,7 +12,7 @@ using Defra.Lis.Api.Validation;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-public class SubmissionValidationQueueProcessor(
+public partial class SubmissionValidationQueueProcessor(
     IAmazonSQS sqsClient,
     ISubmissionValidationService validationService,
     IOptions<AwsMessagingOptions>? options = null,
@@ -27,7 +27,7 @@ public class SubmissionValidationQueueProcessor(
     {
         if (string.IsNullOrWhiteSpace(options.SubmissionValidationQueueUrl))
         {
-            logger?.LogDebug("Submission validation queue URL is not configured. Skipping queue processing.");
+            LogSubmissionValidationQueueUrlIsNotConfiguredSkippingQueueProcessing();
             return 0;
         }
 
@@ -45,7 +45,7 @@ public class SubmissionValidationQueueProcessor(
         }
         catch (Exception ex)
         {
-            logger?.LogError(ex, "Failed to receive messages from SQS queue {QueueUrl}", options.SubmissionValidationQueueUrl);
+            LogFailedToReceiveMessagesFromSqsQueueQueueurl(options.SubmissionValidationQueueUrl, ex);
             return 0;
         }
 
@@ -54,7 +54,7 @@ public class SubmissionValidationQueueProcessor(
             return 0;
         }
 
-        logger?.LogInformation("Received {Count} validation messages from SQS queue", receiveResponse.Messages.Count);
+        LogReceivedCountValidationMessagesFromSqsQueue(receiveResponse.Messages.Count);
 
         var processedCount = 0;
 
@@ -70,12 +70,12 @@ public class SubmissionValidationQueueProcessor(
                 var validationMessage = ExtractValidationMessage(message.Body);
                 if (validationMessage != null && validationMessage.SubmissionId != Guid.Empty)
                 {
-                    logger?.LogInformation("Processing validation for submission {SubmissionId} from SQS", validationMessage.SubmissionId);
+                    LogProcessingValidationForSubmissionSubmissionidFromSqs(validationMessage.SubmissionId);
                     await validationService.ValidateSubmissionByIdAsync(validationMessage.SubmissionId, cancellationToken);
                 }
                 else
                 {
-                    logger?.LogWarning("SQS message {MessageId} did not contain valid submission data", message.MessageId);
+                    LogSqsMessageMessageidDidNotContainValidSubmissionData(message.MessageId);
                 }
 
                 await sqsClient.DeleteMessageAsync(
@@ -90,7 +90,7 @@ public class SubmissionValidationQueueProcessor(
             }
             catch (Exception ex)
             {
-                logger?.LogError(ex, "Error processing SQS validation message {MessageId}", message.MessageId);
+                LogErrorProcessingSqsValidationMessageMessageid(message.MessageId, ex);
             }
         }
 

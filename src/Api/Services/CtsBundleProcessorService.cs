@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-public class CtsBundleProcessorService(
+public partial class CtsBundleProcessorService(
     ICtsService ctsService,
     DbContext dbContext,
     IOptions<CtsPollingJobOptions>? options = null,
@@ -48,11 +48,11 @@ public class CtsBundleProcessorService(
 
         if (bundles.Count == 0)
         {
-            logger?.LogDebug("No pending bundles found to process.");
+            LogNoPendingBundlesFoundToProcess();
             return;
         }
 
-        logger?.LogInformation("Found {Count} bundles to process with CTS.", bundles.Count);
+        LogFoundCountBundlesToProcessWithCts(bundles.Count);
 
         foreach (var bundle in bundles)
         {
@@ -67,7 +67,7 @@ public class CtsBundleProcessorService(
             }
             catch (Exception ex)
             {
-                logger?.LogError(ex, "Error processing bundle {BundleId}", bundle.Id);
+                LogErrorProcessingBundleBundleid(bundle.Id, ex);
             }
         }
 

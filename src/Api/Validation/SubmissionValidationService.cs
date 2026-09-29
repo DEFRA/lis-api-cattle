@@ -13,7 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-public class SubmissionValidationService(
+public partial class SubmissionValidationService(
     DbContext dbContext,
     ICadsService cadsService,
     IOptions<SubmissionValidationOptions>? options = null,
@@ -42,7 +42,7 @@ public class SubmissionValidationService(
 
         if (submission == null)
         {
-            logger?.LogWarning("Submission with ID {SubmissionId} not found for validation", submissionId);
+            LogSubmissionWithIdSubmissionidNotFoundForValidation(submissionId);
             throw new KeyNotFoundException($"Submission with ID {submissionId} not found.");
         }
 
@@ -57,7 +57,7 @@ public class SubmissionValidationService(
     {
         ArgumentNullException.ThrowIfNull(submission);
 
-        logger?.LogInformation("Starting validation for submission {SubmissionId} (CPH: {Cph})", submission.Id, submission.CountyParishHolding);
+        LogStartingValidationForSubmissionSubmissionidCphCph(submission.Id, submission.CountyParishHolding);
 
         var context = await BuildContextAsync(submission, cancellationToken);
 
@@ -86,11 +86,7 @@ public class SubmissionValidationService(
         result.Status = submission.Status;
         result.ErrorCount = result.AnimalResults.Sum(a => a.Errors.Count);
 
-        logger?.LogInformation(
-            "Validation completed for submission {SubmissionId}. Status: {Status}, Errors: {ErrorCount}",
-            submission.Id,
-            submission.Status,
-            result.ErrorCount);
+        LogValidationCompletedForSubmissionSubmissionidStatusStatusErrorsErrorcount(submission.Id, submission.Status, result.ErrorCount);
 
         return result;
     }
@@ -145,7 +141,7 @@ public class SubmissionValidationService(
         }
         catch (Exception ex)
         {
-            logger?.LogWarning(ex, "Could not fetch CADS cattle for holding {Cph}", cph);
+            LogCouldNotFetchCadsCattleForHoldingCph(cph, ex);
             return [];
         }
     }

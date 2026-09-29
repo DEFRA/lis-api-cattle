@@ -9,7 +9,7 @@ using Defra.Lis.Api.Models.Responses;
 using Defra.Lis.Entities;
 using Microsoft.Extensions.Logging;
 
-public class FakeCtsService(
+public partial class FakeCtsService(
     ILogger<FakeCtsService>? logger = null)
     : ICtsService
 {
@@ -17,7 +17,7 @@ public class FakeCtsService(
     {
         ArgumentNullException.ThrowIfNull(animal);
 
-        logger?.LogInformation("Fake CTS received submission for animal {AnimalId} with EarTag {EarTag}", animal.Id, animal.EarTag);
+        LogFakeCtsReceivedSubmissionForAnimalAnimalidWithEartagEartag(animal.Id, animal.EarTag);
 
         if (animal.EarTag.Contains("SUBMIT_ERR", StringComparison.OrdinalIgnoreCase))
         {
@@ -47,7 +47,7 @@ public class FakeCtsService(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(earTag);
 
-        logger?.LogInformation("Fake CTS checking status for animal {AnimalId} with EarTag {EarTag}", animalId, earTag);
+        LogFakeCtsCheckingStatusForAnimalAnimalidWithEartagEartag(animalId, earTag);
 
         if (earTag.Contains("ERR", StringComparison.OrdinalIgnoreCase))
         {

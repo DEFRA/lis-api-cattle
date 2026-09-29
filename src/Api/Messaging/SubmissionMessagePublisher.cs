@@ -13,7 +13,7 @@ using Defra.Lis.Api.Configurations;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-public class SubmissionMessagePublisher(
+public partial class SubmissionMessagePublisher(
     IAmazonSQS sqsClient,
     IAmazonSimpleNotificationService? snsClient = null,
     IOptions<AwsMessagingOptions>? options = null,
@@ -41,17 +41,13 @@ public class SubmissionMessagePublisher(
                 };
 
                 var response = await sqsClient.SendMessageAsync(sendMessageRequest, cancellationToken);
-                logger?.LogInformation(
-                    "Enqueued submission {SubmissionId} for validation to SQS queue {QueueUrl}. MessageId: {MessageId}",
-                    message.SubmissionId,
-                    options.SubmissionValidationQueueUrl,
-                    response.MessageId);
+                LogEnqueuedSubmissionSubmissionidForValidationToSqsQueueQueueurlMessageidMessageid(message.SubmissionId, options.SubmissionValidationQueueUrl, response.MessageId);
             }
 #pragma warning disable S2139
             catch (Exception ex)
 #pragma warning restore S2139
             {
-                logger?.LogError(ex, "Failed to send validation message to SQS for submission {SubmissionId}", message.SubmissionId);
+                LogFailedToSendValidationMessageToSqsForSubmissionSubmissionid(message.SubmissionId, ex);
                 throw;
             }
         }
@@ -69,15 +65,11 @@ public class SubmissionMessagePublisher(
                 };
 
                 var response = await snsClient.PublishAsync(publishRequest, cancellationToken);
-                logger?.LogInformation(
-                    "Published submission {SubmissionId} validation event to SNS topic {TopicArn}. MessageId: {MessageId}",
-                    message.SubmissionId,
-                    options.SubmissionValidationTopicArn,
-                    response.MessageId);
+                LogPublishedSubmissionSubmissionidValidationEventToSnsTopicTopicarnMessageidMessageid(message.SubmissionId, options.SubmissionValidationTopicArn, response.MessageId);
             }
             catch (Exception ex)
             {
-                logger?.LogWarning(ex, "Failed to publish validation event to SNS topic for submission {SubmissionId}", message.SubmissionId);
+                LogFailedToPublishValidationEventToSnsTopicForSubmissionSubmissionid(message.SubmissionId, ex);
             }
         }
     }

@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 using Quartz;
 
 [DisallowConcurrentExecution]
-public class CtsBundlePollingJob(
+public partial class CtsBundlePollingJob(
     IServiceScopeFactory scopeFactory,
     ILogger<CtsBundlePollingJob> logger)
     : IJob
@@ -20,20 +20,20 @@ public class CtsBundlePollingJob(
 
     public async ValueTask Execute(IJobExecutionContext context, CancellationToken cancellationToken = default)
     {
-        logger.LogInformation("Starting CTS bundle polling job execution at {Time}", DateTimeOffset.UtcNow);
+        LogStartingCtsBundlePollingJobExecutionAtTime(DateTimeOffset.UtcNow);
 
         try
         {
             using var scope = scopeFactory.CreateScope();
             var processor = scope.ServiceProvider.GetRequiredService<ICtsBundleProcessorService>();
             await processor.ProcessPendingBundlesAsync(context.CancellationToken);
-            logger.LogInformation("Finished CTS bundle polling job execution successfully at {Time}", DateTimeOffset.UtcNow);
+            LogFinishedCtsBundlePollingJobExecutionSuccessfullyAtTime(DateTimeOffset.UtcNow);
         }
 #pragma warning disable S2139
         catch (Exception ex)
 #pragma warning restore S2139
         {
-            logger.LogError(ex, "CTS bundle polling job execution failed.");
+            LogCtsBundlePollingJobExecutionFailed(ex);
             throw;
         }
     }

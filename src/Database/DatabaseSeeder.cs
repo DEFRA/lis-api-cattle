@@ -11,7 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-public static class DatabaseSeeder
+public static partial class DatabaseSeeder
 {
     private const string Female = "female";
 
@@ -31,7 +31,7 @@ public static class DatabaseSeeder
 
         if (dbContext is null)
         {
-            logger?.LogWarning("PostgresDbContext not found in service provider. Skipping development database seeding.");
+            logger.LogPostgresdbcontextNotFoundInServiceProviderSkippingDevelopmentDatabaseSeeding();
             return;
         }
 
@@ -49,18 +49,18 @@ public static class DatabaseSeeder
 
         if (await submissionsSet.AnyAsync(cancellationToken))
         {
-            logger?.LogInformation("Database already contains submission records. Skipping development seeding.");
+            logger.LogDatabaseAlreadyContainsSubmissionRecordsSkippingDevelopmentSeeding();
             return;
         }
 
-        logger?.LogInformation("Seeding development test data...");
+        logger.LogSeedingDevelopmentTestData();
 
         var testSubmissions = CreateDevelopmentSubmissions();
 
         await submissionsSet.AddRangeAsync(testSubmissions, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        logger?.LogInformation("Development test data successfully seeded ({Count} submissions).", testSubmissions.Count);
+        logger.LogDevelopmentTestDataSuccessfullySeededCountSubmissions(testSubmissions.Count);
     }
 
     public static IReadOnlyList<Submission> CreateDevelopmentSubmissions()
