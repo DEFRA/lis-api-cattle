@@ -4,6 +4,7 @@
 
 namespace Defra.Lis.Database;
 
+using System;
 using Defra.Database.Postgres;
 using Defra.Lis.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -28,12 +29,12 @@ public static partial class DatabaseSeeder
         }
 
         using var scope = host.Services.CreateScope();
-        var logger = scope.ServiceProvider.GetService<ILoggerFactory>()?.CreateLogger(typeof(DatabaseSeeder));
+        var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(DatabaseSeeder));
         var dbContext = scope.ServiceProvider.GetService<PostgresDbContext>();
 
         if (dbContext is null)
         {
-            logger.LogPostgresdbcontextNotFoundInServiceProviderSkippingDevelopmentDatabaseSeeding();
+            LogPostgresdbcontextNotFoundInServiceProviderSkippingDevelopmentDatabaseSeeding(logger);
             return;
         }
 
@@ -51,18 +52,18 @@ public static partial class DatabaseSeeder
 
         if (await submissionsSet.AnyAsync(cancellationToken))
         {
-            logger.LogDatabaseAlreadyContainsSubmissionRecordsSkippingDevelopmentSeeding();
+            LogDatabaseAlreadyContainsSubmissionRecordsSkippingDevelopmentSeeding(logger);
             return;
         }
 
-        logger.LogSeedingDevelopmentTestData();
+        LogSeedingDevelopmentTestData(logger);
 
         var testSubmissions = CreateDevelopmentSubmissions();
 
         await submissionsSet.AddRangeAsync(testSubmissions, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        logger.LogDevelopmentTestDataSuccessfullySeededCountSubmissions(testSubmissions.Count);
+        LogDevelopmentTestDataSuccessfullySeededCountSubmissions(logger, testSubmissions.Count);
     }
 
     private static IReadOnlyList<Submission> CreateDevelopmentSubmissions()

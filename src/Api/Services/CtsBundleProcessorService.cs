@@ -74,52 +74,63 @@ public partial class CtsBundleProcessorService(
 
     private async Task ProcessBundleAsync(Submission bundle, CancellationToken cancellationToken)
     {
-        if (bundle.Status == Statuses.Submitted || bundle.Status == Statuses.Pending)
+        string[] toProcess = [Statuses.Submitted, Statuses.Pending];
+        string[] beingProcess = [Statuses.Processing, Statuses.Error];
+
+        if (toProcess.Contains(bundle.Status))
         {
             bundle.MarkAsProcessing();
-
-            foreach (var animal in bundle.Animals)
-            {
-                var response = await ctsService.SubmitAnimalRegistrationAsync(animal, cancellationToken);
-                if (response.IsError)
-                {
-                    animal.MarkAsError(
-                        response.Errors.FirstOrDefault()?.ErrorCode ?? "CTS_ERR",
-                        response.Errors.FirstOrDefault()?.ErrorText ?? "CTS Submission Error");
-                }
-                else
-                {
-                    animal.MarkAsProcessing();
-                }
-            }
+            await SubmitAnimalRegistrationAndHandleResponse(bundle, cancellationToken);
         }
-        else if (bundle.Status == Statuses.Processing || bundle.Status == Statuses.Error)
+        else if (beingProcess.Contains(bundle.Status))
         {
             var targetAnimals = bundle.Animals
                 .Where(a => a.Status == Statuses.Processing || a.Status == Statuses.Error || a.Status == Statuses.Submitted || a.Status == Statuses.Pending)
                 .ToList();
-
-            foreach (var animal in targetAnimals)
-            {
-                var response = await ctsService.CheckAnimalStatusAsync(animal.EarTag, animal.Id, cancellationToken);
-
-                if (response.IsClean)
-                {
-                    animal.MarkAsComplete();
-                }
-                else if (response.IsError)
-                {
-                    var errorCode = response.Errors.FirstOrDefault()?.ErrorCode ?? "CTS_ERR";
-                    var errorText = response.Errors.FirstOrDefault()?.ErrorText ?? "CTS Validation Error";
-                    animal.MarkAsError(errorCode, errorText);
-                }
-                else
-                {
-                    animal.MarkAsProcessing();
-                }
-            }
+            await CheckAnimalStatusAndUpdate(cancellationToken, targetAnimals);
         }
 
         bundle.RefreshStatusFromAnimals();
+    }
+
+    private async Task CheckAnimalStatusAndUpdate(CancellationToken cancellationToken, List<SubmissionAnimal> targetAnimals)
+    {
+        foreach (var animal in targetAnimals)
+        {
+            var response = await ctsService.CheckAnimalStatusAsync(animal.EarTag, animal.Id, cancellationToken);
+
+            if (response.IsClean)
+            {
+                animal.MarkAsComplete();
+            }
+            else if (response.IsError)
+            {
+                var errorCode = response.Errors.FirstOrDefault()?.ErrorCode ?? "CTS_ERR";
+                var errorText = response.Errors.FirstOrDefault()?.ErrorText ?? "CTS Validation Error";
+                animal.MarkAsError(errorCode, errorText);
+            }
+            else
+            {
+                animal.MarkAsProcessing();
+            }
+        }
+    }
+
+    private async Task SubmitAnimalRegistrationAndHandleResponse(Submission bundle, CancellationToken cancellationToken)
+    {
+        foreach (var animal in bundle.Animals)
+        {
+            var response = await ctsService.SubmitAnimalRegistrationAsync(animal, cancellationToken);
+            if (response.IsError)
+            {
+                animal.MarkAsError(
+                    response.Errors.FirstOrDefault()?.ErrorCode ?? "CTS_ERR",
+                    response.Errors.FirstOrDefault()?.ErrorText ?? "CTS Submission Error");
+            }
+            else
+            {
+                animal.MarkAsProcessing();
+            }
+        }
     }
 }

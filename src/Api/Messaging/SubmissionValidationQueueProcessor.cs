@@ -108,22 +108,22 @@ public partial class SubmissionValidationQueueProcessor(
         {
             // If message was delivered via SNS subscription to SQS, payload is inside "Message" property
             using var doc = JsonDocument.Parse(body);
-            if (doc.RootElement.ValueKind == JsonValueKind.Object && doc.RootElement.TryGetProperty("Message", out var snsMessageProperty))
+            var jsonSerializerOptions = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+            };
+
+            if (doc.RootElement.ValueKind == JsonValueKind.Object &&
+                doc.RootElement.TryGetProperty("Message", out var snsMessageProperty))
             {
                 var nestedMessage = snsMessageProperty.GetString();
                 if (!string.IsNullOrWhiteSpace(nestedMessage))
                 {
-                    return JsonSerializer.Deserialize<SubmissionValidationMessage>(nestedMessage, new JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true,
-                    });
+                    return JsonSerializer.Deserialize<SubmissionValidationMessage>(nestedMessage, jsonSerializerOptions);
                 }
             }
 
-            return JsonSerializer.Deserialize<SubmissionValidationMessage>(body, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true,
-            });
+            return JsonSerializer.Deserialize<SubmissionValidationMessage>(body, jsonSerializerOptions);
         }
         catch
         {
