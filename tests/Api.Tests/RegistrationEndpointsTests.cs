@@ -4,6 +4,8 @@
 
 namespace Defra.Lis.Api.Tests;
 
+using System.Net;
+using System.Net.Http.Json;
 using Asp.Versioning;
 using Defra.Lis.Api.Endpoints.Registration;
 using Defra.Lis.Api.Interfaces;
@@ -34,7 +36,6 @@ public class RegistrationEndpointsTests
     [Fact]
     public async Task CreateRegistrationBundle_CallsServiceAndReturnsCreatedResult()
     {
-        // Arrange
         var mockService = new Mock<ICattleService>();
         var request = new RegistrationBundleRequest
         {
@@ -93,13 +94,26 @@ public class RegistrationEndpointsTests
             ],
         };
 
-        mockService.Setup(s => s.CreateRegistrationBundleAsync(request, It.IsAny<CancellationToken>()))
+        mockService.Setup(s => s.CreateRegistrationBundleAsync(It.IsAny<RegistrationBundleRequest>(), It.IsAny<CancellationToken>()))
                    .ReturnsAsync(expected);
 
-        // Act
-        var result = await mockService.Object.CreateRegistrationBundleAsync(request, TestContext.Current.CancellationToken);
+        var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
+        builder.WebHost.UseTestServer();
+        builder.Services.AddRouting();
+        builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
+        builder.Services.AddSingleton(mockService.Object);
+        var app = builder.Build();
+        app.MapRegistrationEndpoints();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
-        // Assert
+        var response = await app.GetTestClient().PostAsJsonAsync(
+            "/v1/registrations/",
+            request,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.Equal($"/v1/holdings/{expected.CountyParishHolding}/bundles", response.Headers.Location?.OriginalString);
+        var result = await response.Content.ReadFromJsonAsync<BundleResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(result);
         Assert.Equal("REG-MNBX4Q2A", result.ClientReference);
         Assert.Equal(Statuses.Pending, result.Status);
@@ -111,7 +125,6 @@ public class RegistrationEndpointsTests
     [Fact]
     public async Task ValidateRegistrationBundle_CallsValidationServiceAndReturnsResult()
     {
-        // Arrange
         var mockValidationService = new Mock<Validation.ISubmissionValidationService>();
         var submissionId = Guid.NewGuid();
         var expectedResult = new Validation.SubmissionValidationResult
@@ -124,13 +137,84 @@ public class RegistrationEndpointsTests
         mockValidationService.Setup(v => v.ValidateSubmissionByIdAsync(submissionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(expectedResult);
 
-        // Act
-        var result = await mockValidationService.Object.ValidateSubmissionByIdAsync(submissionId, TestContext.Current.CancellationToken);
+        var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
+        builder.WebHost.UseTestServer();
+        builder.Services.AddRouting();
+        builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
+        builder.Services.AddSingleton(mockValidationService.Object);
+        var app = builder.Build();
+        app.MapRegistrationEndpoints();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
-        // Assert
+        var response = await app.GetTestClient().PostAsync(
+            $"/v1/registrations/{submissionId}/validate",
+            null,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<Validation.SubmissionValidationResult>(TestContext.Current.CancellationToken);
         Assert.NotNull(result);
         Assert.True(result.IsValid);
         Assert.Equal(Statuses.Complete, result.Status);
         mockValidationService.Verify(v => v.ValidateSubmissionByIdAsync(submissionId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task CreateRegistrationBundle_WhenRequestIsInvalid_ReturnsProblemDetails400()
+    {
+        var mockService = new Mock<ICattleService>();
+        mockService
+            .Setup(s => s.CreateRegistrationBundleAsync(It.IsAny<RegistrationBundleRequest>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ArgumentException("Client reference is required."));
+
+        var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
+        builder.WebHost.UseTestServer();
+        builder.Services.AddRouting();
+        builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
+        builder.Services.AddSingleton(mockService.Object);
+        var app = builder.Build();
+        app.MapRegistrationEndpoints();
+        await app.StartAsync(TestContext.Current.CancellationToken);
+
+        var response = await app.GetTestClient().PostAsJsonAsync(
+            "/v1/registrations/",
+            new RegistrationBundleRequest(),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<Microsoft.AspNetCore.Mvc.ProblemDetails>(TestContext.Current.CancellationToken);
+        Assert.NotNull(problem);
+        Assert.Equal("Invalid registration bundle request", problem.Title);
+        Assert.Equal("Client reference is required.", problem.Detail);
+    }
+
+    [Fact]
+    public async Task ValidateRegistrationBundle_WhenSubmissionIsUnknown_ReturnsProblemDetails404()
+    {
+        var submissionId = Guid.NewGuid();
+        var mockValidationService = new Mock<Validation.ISubmissionValidationService>();
+        mockValidationService
+            .Setup(v => v.ValidateSubmissionByIdAsync(submissionId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new KeyNotFoundException($"Submission {submissionId} was not found."));
+
+        var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
+        builder.WebHost.UseTestServer();
+        builder.Services.AddRouting();
+        builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
+        builder.Services.AddSingleton(mockValidationService.Object);
+        var app = builder.Build();
+        app.MapRegistrationEndpoints();
+        await app.StartAsync(TestContext.Current.CancellationToken);
+
+        var response = await app.GetTestClient().PostAsync(
+            $"/v1/registrations/{submissionId}/validate",
+            null,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<Microsoft.AspNetCore.Mvc.ProblemDetails>(TestContext.Current.CancellationToken);
+        Assert.NotNull(problem);
+        Assert.Equal("Submission not found", problem.Title);
+        Assert.Contains(submissionId.ToString(), problem.Detail);
     }
 }

@@ -87,13 +87,13 @@ public partial class CtsBundleProcessorService(
             var targetAnimals = bundle.Animals
                 .Where(a => a.Status == Statuses.Processing || a.Status == Statuses.Error || a.Status == Statuses.Submitted || a.Status == Statuses.Pending)
                 .ToList();
-            await CheckAnimalStatusAndUpdate(cancellationToken, targetAnimals);
+            await CheckAnimalStatusAndUpdate(targetAnimals, cancellationToken);
         }
 
         bundle.RefreshStatusFromAnimals();
     }
 
-    private async Task CheckAnimalStatusAndUpdate(CancellationToken cancellationToken, List<SubmissionAnimal> targetAnimals)
+    private async Task CheckAnimalStatusAndUpdate(List<SubmissionAnimal> targetAnimals, CancellationToken cancellationToken)
     {
         foreach (var animal in targetAnimals)
         {
