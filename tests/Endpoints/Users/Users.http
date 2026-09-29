@@ -1,0 +1,18 @@
+### Get User details (lis-fake-service: POST the account to /krds/api/v2/user-accounts first, the store is in memory)
+GET {{host}}/users/{{subject}}
+Accept: application/json
+x-cdp-request-id: {{$guid}}
+
+> ../Asserts/Should_be_200_OK.js
+
+### Get User details (unknown subject)
+GET {{host}}/users/00000000-0000-4000-8000-000000000000
+Accept: application/json
+
+> ../Asserts/Should_be_404.js
+
+### Get User details (subject rejected by KRDS)
+GET {{host}}/users/not-a-uuid
+Accept: application/json
+
+> ../Asserts/Should_be_400_bad_request.js

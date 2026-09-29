@@ -13,4 +13,10 @@ public partial class KrdsService
 
     [LoggerMessage(LogLevel.Warning, "Holding {Cph} is not known to KRDS")]
     partial void LogHoldingNotKnownToKrds(string cph);
+
+    [LoggerMessage(LogLevel.Information, "Retrieved user account for subject {Subject} with {CphCount} CPH associations from KRDS")]
+    partial void LogRetrievedUserAccount(string subject, int cphCount);
+
+    [LoggerMessage(LogLevel.Warning, "Subject {Subject} is not known to KRDS")]
+    partial void LogUserAccountNotKnownToKrds(string subject);
 }
