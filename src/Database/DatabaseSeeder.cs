@@ -66,7 +66,7 @@ public static partial class DatabaseSeeder
         LogDevelopmentTestDataSuccessfullySeededCountSubmissions(logger, testSubmissions.Count);
     }
 
-    private static IReadOnlyList<Submission> CreateDevelopmentSubmissions()
+    private static IList<Submission> CreateDevelopmentSubmissions()
     {
         var submissions = new List<Submission>();
 
