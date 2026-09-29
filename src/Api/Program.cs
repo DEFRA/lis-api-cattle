@@ -29,6 +29,7 @@ using Scalar.AspNetCore;
 /// <summary>
 /// Entry point for the application.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public static class Program
 {
     /// <summary>
@@ -145,7 +146,6 @@ public static class Program
         }
     }
 
-    [ExcludeFromCodeCoverage]
     private static WebApplication SetupApplication(
         WebApplication app,
         bool isGeneratingOpenApi)

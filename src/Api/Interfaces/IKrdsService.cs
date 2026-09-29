@@ -4,7 +4,6 @@
 
 namespace Defra.Lis.Api.Interfaces;
 
-using Defra.Lis.Api.Models;
 using Defra.Lis.Api.Models.Responses;
 
 public interface IKrdsService
@@ -23,5 +22,6 @@ public interface IKrdsService
     /// </summary>
     /// <exception cref="ArgumentException">The subject is blank or was rejected by the keeper data service.</exception>
     /// <exception cref="Defra.Lis.Core.Exceptions.NotFoundException">The subject is not known.</exception>
+    /// <returns><placeholder>A <see cref="Task"/> representing the asynchronous operation.</placeholder></returns>
     Task<UserDetailsResponse> GetUserAccountAsync(string subject, CancellationToken cancellationToken = default);
 }
