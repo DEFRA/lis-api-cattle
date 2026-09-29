@@ -124,6 +124,10 @@ Task("Test")
             Configuration = CONFIGURATION,
         };
         var coverageOutput = DirectoryPath.FromString("./coverage");
+
+        // ReportGenerator merges every matching Cobertura file. Remove reports from
+        // previous runs so stale coverage cannot dilute the current result.
+        CleanDirectory(coverageOutput);
         
         var testProjects = GetFiles("./tests/**/*.csproj");
         if (!testProjects.Any())
