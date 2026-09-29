@@ -15,8 +15,6 @@ using Microsoft.AspNetCore.Routing;
 /// </summary>
 public static class UsersEndpoints
 {
-    private const string Users = "/users";
-
     /// <summary>
     /// Maps the user endpoints onto the supplied route builder.
     /// </summary>
@@ -24,7 +22,10 @@ public static class UsersEndpoints
     /// <returns>The supplied endpoint route builder.</returns>
     public static IEndpointRouteBuilder MapUserEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup(Users)
+        var registrationApi = app.NewVersionedApi(OpenApiMetadata.Tag);
+        var versionOne = registrationApi.MapGroup(RouteNames.ApiVersionRoot)
+            .HasApiVersion(1.0);
+        var group = versionOne.MapGroup(RouteNames.Users)
             .WithTags(OpenApiMetadata.Tag);
 
         group.MapGet("/{subject}", GetUserDetails)

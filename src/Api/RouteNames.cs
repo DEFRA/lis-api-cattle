@@ -33,4 +33,9 @@ public static class RouteNames
     /// The route segment for registrations endpoint.
     /// </summary>
     public const string Registrations = "registrations";
+
+    /// <summary>
+    /// The route segment for users endpoint.
+    /// </summary>
+    public const string Users = "users";
 }

@@ -170,6 +170,7 @@ public static class Program
         app.MapCattleEndpoints();
         app.MapHoldingEndpoints();
         app.MapRegistrationEndpoints();
+        app.MapUserEndpoints();
 
         return app;
     }
