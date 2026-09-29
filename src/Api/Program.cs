@@ -6,6 +6,7 @@ using System.Text.Json;
 using Defra.Database.Postgres;
 using Defra.Lis.Api.Configurations;
 using Defra.Lis.Api.Endpoints;
+using Defra.Lis.Api.Endpoints.Users;
 using Defra.Lis.Api.Exceptions;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Services;
@@ -37,7 +38,7 @@ builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 // Propagate the CDP correlation header to every outbound call (Correlation ID standard).
 builder.Services.AddHeaderPropagation(options => options.Headers.Add(TraceHeaders.CdpRequestId));
 
-// Upstream connections (CADS animals and KRDS holdings, both faked by lis-fake-service for now).
+// Upstream connections (CADS animals, KRDS holdings and user accounts, both faked by lis-fake-service for now).
 // Validated when first used rather than on start-up so the service can boot (and answer /health)
 // before the upstream secrets are configured.
 builder.Services.AddOptions<CadsApiOptions>()
@@ -86,5 +87,6 @@ if (app.Environment.IsDevelopment())
 
 app.MapCattleEndpoints();
 app.MapRegistrationEndpoints();
+app.MapUserEndpoints();
 
 await app.RunAsync();

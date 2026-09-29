@@ -134,16 +134,23 @@ Until the real services exist both point at [lis-fake-service](https://github.co
 | `KrdsApi__ClientId` / `KrdsApi__ClientSecret` | Basic credentials for KRDS (fake defaults `local-dev-krds-client` / `local-dev-krds-secret`) | dev settings; CDP secrets elsewhere |
 
 The services send only the API-relative paths (`api/v1/bovine/animals`, `api/v1/bovine/animals/{identifier}`,
-`api/v2/holdings/...`), so any
+`api/v2/holdings/...`, `api/v2/user-accounts/{subject}`), so any
 route qualifier such as the fake service's `/cads` and `/krds` prefixes must be part of the base URL, never the code.
 
 All settings are validated when an upstream call is first made (not on start-up, so `/health` works before the secrets are set). The inbound `x-cdp-request-id` header is propagated to
 every upstream call (Correlation ID standard). Never log the credentials or upstream payloads.
 
 Endpoints exposed for the BE4FE: `GET /holdings/{county}/{parish}/{holding}`,
-`GET /holdings/{county}/{parish}/{holding}/cattle?earTag=&breed=&sex=` (live animals only) and
-`GET /cattle/{earTag}` (details for one animal, 404 when CADS does not know it). See
-`tests/Endpoints/Cattle/Cattle.http`.
+`GET /holdings/{county}/{parish}/{holding}/cattle?earTag=&breed=&sex=` (live animals only),
+`GET /cattle/{earTag}` (details for one animal, 404 when CADS does not know it) and
+`GET /users/{subject}` (a user's details and associated CPHs from KRDS). See
+`tests/Endpoints/Cattle/Cattle.http` and `tests/Endpoints/Users/Users.http`.
+
+`GET /users/{subject}` takes the identity provider (Defra ID) `sub` claim, treated as an opaque string and
+percent-encoded upstream. KRDS serves the CPH associations captured when the user last signed in (the hub's
+ensure call, `POST api/v2/user-accounts`); it does not refresh them, so a user who has never signed in is a 404.
+Against lis-fake-service the account store is in memory: POST the account first, and expect a 422 (returned here as
+400) for any subject that is not a UUID. Only the subject is logged, never the email or names.
 
 `GET /cattle/{earTag}` flattens the parentage list CADS returns into `damType` (`surrogate` when a
 surrogate dam is recorded, otherwise `genetic` when a genetic dam is), `geneticDamEarTag`,

@@ -9,6 +9,7 @@ using Defra.Lis.Api.Configurations;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models;
 using Defra.Lis.Api.Models.Krds;
+using Defra.Lis.Api.Models.Responses;
 using Defra.Lis.Api.Services.Upstream;
 using Defra.Lis.Core.Exceptions;
 using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Exceptions;
@@ -17,7 +18,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 /// <summary>
-/// Reads holding details from the keeper-data-api (KRDS) V2 holdings endpoint through a REST strategy.
+/// Reads holding details and user accounts from the keeper-data-api (KRDS) V2 endpoints through a REST strategy.
 /// </summary>
 public sealed partial class KrdsService(
     IRestStrategyFactory<KrdsService> strategyFactory,
@@ -25,7 +26,7 @@ public sealed partial class KrdsService(
     ILogger<KrdsService> logger)
     : IKrdsService
 {
-    private const string ApiDescription = "KRDS holdings API";
+    private const string ApiDescription = "KRDS API";
     private const string KeeperRoleCode = "Keeper";
 
     public async Task<HoldingResponse> GetHoldingAsync(string county, string parish, string holding, CancellationToken cancellationToken = default)
@@ -65,6 +66,71 @@ public sealed partial class KrdsService(
         {
             throw new ArgumentException($"Holding '{cph}' is not a valid CPH.", ex);
         }
+    }
+
+    public async Task<UserDetailsResponse> GetUserAccountAsync(string subject, CancellationToken cancellationToken = default)
+    {
+        // The V2 contract treats the subject as an opaque identity provider claim, so only blank values are rejected here.
+        if (string.IsNullOrWhiteSpace(subject))
+        {
+            throw new ArgumentException("A subject is required.", nameof(subject));
+        }
+
+        var settings = options.Value;
+
+        try
+        {
+            var response = await strategyFactory
+                .BuildRestStrategy()
+                .WithLogger(logger)
+                .WithCancellationToken(cancellationToken)
+                .WithApiDescription(ApiDescription)
+                .WithActionDescription("Get user account")
+                .WithBaseUrl(settings.BaseUrl)
+                .WithResourceUrl($"api/v2/user-accounts/{Uri.EscapeDataString(subject)}")
+                .WithBasicAuth(settings.ClientId, settings.ClientSecret)
+                .WithJsonSerializerOptions(UpstreamJson.Options)
+                .WithGet()
+                .ExecuteAndTransform<KrdsUserAccount, UserDetailsResponse>(account => ToUserDetailsResponse(subject, account));
+
+            LogRetrievedUserAccount(subject, response.Cphs.Count);
+
+            return response;
+        }
+        catch (RestResponseException ex) when (UpstreamErrors.IsNotFound(ex))
+        {
+            LogUserAccountNotKnownToKrds(subject);
+            throw new NotFoundException($"User '{subject}' was not found.");
+        }
+        catch (RestResponseException ex) when (UpstreamErrors.IsBadRequest(ex) || UpstreamErrors.IsUnprocessableEntity(ex))
+        {
+            throw new ArgumentException($"User '{subject}' is not a valid subject.", nameof(subject), ex);
+        }
+    }
+
+    internal static UserDetailsResponse ToUserDetailsResponse(string subject, KrdsUserAccount account)
+    {
+        ArgumentNullException.ThrowIfNull(account);
+
+        return new UserDetailsResponse
+        {
+            Subject = string.IsNullOrWhiteSpace(account.Subject) ? subject : account.Subject,
+            Email = account.Email ?? string.Empty,
+            FirstName = account.FirstName,
+            LastName = account.LastName,
+            DisplayName = account.DisplayName,
+            Cphs = (account.CphAssociations ?? [])
+                .Where(association => !string.IsNullOrWhiteSpace(association.CphNumber))
+                .DistinctBy(association => (association.CphNumber, association.Role))
+                .Select(association => new UserCphResponse
+                {
+                    Cph = association.CphNumber!,
+                    HoldingId = association.HoldingId,
+                    HoldingName = association.HoldingName,
+                    Role = association.Role ?? string.Empty,
+                })
+                .ToList(),
+        };
     }
 
     internal static HoldingResponse ToHoldingResponse(string cph, KrdsHolding holding)

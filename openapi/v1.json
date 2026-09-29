@@ -382,6 +382,69 @@
                     }
                 }
             }
+        },
+        "/users/{subject}": {
+            "get": {
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get a user's details and associated CPHs",
+                "description": "Retrieves a user's details and the CPHs they are associated with from the keeper data service, by identity provider subject. The associations are those captured when the user last signed in.",
+                "operationId": "GetUserDetails",
+                "parameters": [
+                    {
+                        "name": "subject",
+                        "in": "path",
+                        "description": "The identity provider (Defra ID) subject claim, percent encoded in the path.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserDetailsResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -840,6 +903,76 @@
                     }
                 }
             },
+            "UserCphResponse": {
+                "type": "object",
+                "description": "Represents a CPH a user is associated with, and the role they hold on it.",
+                "properties": {
+                    "cph": {
+                        "type": "string",
+                        "description": "The county, parish and holding (CPH) number."
+                    },
+                    "holdingId": {
+                        "type": [
+                            "null",
+                            "string"
+                        ],
+                        "description": "The keeper data identifier of the holding the CPH belongs to."
+                    },
+                    "holdingName": {
+                        "type": [
+                            "null",
+                            "string"
+                        ],
+                        "description": "The name of the holding, where the source carries one."
+                    },
+                    "role": {
+                        "type": "string",
+                        "description": "The role the user holds on the holding."
+                    }
+                }
+            },
+            "UserDetailsResponse": {
+                "type": "object",
+                "description": "Represents a user's details and the CPHs they are associated with.",
+                "properties": {
+                    "subject": {
+                        "type": "string",
+                        "description": "The identity provider subject claim."
+                    },
+                    "email": {
+                        "type": "string",
+                        "description": "The email address of the user."
+                    },
+                    "firstName": {
+                        "type": [
+                            "null",
+                            "string"
+                        ],
+                        "description": "The first name of the user."
+                    },
+                    "lastName": {
+                        "type": [
+                            "null",
+                            "string"
+                        ],
+                        "description": "The last name of the user."
+                    },
+                    "displayName": {
+                        "type": [
+                            "null",
+                            "string"
+                        ],
+                        "description": "The display name of the user."
+                    },
+                    "cphs": {
+                        "type": "array",
+                        "description": "The CPHs the user was associated with when they last signed in.",
+                        "items": {
+                            "$ref": "#/components/schemas/UserCphResponse"
+                        }
+                    }
+                }
+            },
             "ValidationErrorItem": {
                 "type": "object",
                 "properties": {
@@ -859,6 +992,9 @@
         },
         {
             "name": "Registrations"
+        },
+        {
+            "name": "Users"
         }
     ]
 }

@@ -27,4 +27,7 @@ public static class UpstreamErrors
 
     public static bool IsBadRequest(RestResponseException exception) =>
         StatusCode(exception) == HttpStatusCode.BadRequest;
+
+    public static bool IsUnprocessableEntity(RestResponseException exception) =>
+        StatusCode(exception) == HttpStatusCode.UnprocessableEntity;
 }
