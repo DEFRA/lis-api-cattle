@@ -10,6 +10,7 @@ using Amazon.SQS.Model;
 using Defra.Lis.Api.Configurations;
 using Defra.Lis.Api.Messaging;
 using Defra.Lis.Api.Validation;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
@@ -63,7 +64,8 @@ public class SubmissionValidationQueueProcessorTests
         var processor = new SubmissionValidationQueueProcessor(
             mockSqs.Object,
             mockValidationService.Object,
-            Options.Create(options));
+            Options.Create(options),
+            NullLogger<SubmissionValidationQueueProcessor>.Instance);
 
         var processedCount = await processor.ProcessMessagesAsync(TestContext.Current.CancellationToken);
 
@@ -118,7 +120,8 @@ public class SubmissionValidationQueueProcessorTests
         var processor = new SubmissionValidationQueueProcessor(
             mockSqs.Object,
             mockValidationService.Object,
-            Options.Create(options));
+            Options.Create(options),
+            NullLogger<SubmissionValidationQueueProcessor>.Instance);
 
         var processedCount = await processor.ProcessMessagesAsync(TestContext.Current.CancellationToken);
 
@@ -138,7 +141,8 @@ public class SubmissionValidationQueueProcessorTests
         var processor = new SubmissionValidationQueueProcessor(
             mockSqs.Object,
             mockValidationService.Object,
-            Options.Create(options));
+            Options.Create(options),
+            NullLogger<SubmissionValidationQueueProcessor>.Instance);
 
         var processedCount = await processor.ProcessMessagesAsync(TestContext.Current.CancellationToken);
 

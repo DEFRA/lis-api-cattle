@@ -4,6 +4,7 @@
 
 namespace Defra.Lis.Api.Messaging;
 
+using System;
 using System.Text.Json;
 using Amazon.SimpleNotificationService;
 using Amazon.SimpleNotificationService.Model;
@@ -15,13 +16,13 @@ using Microsoft.Extensions.Options;
 
 public partial class SubmissionMessagePublisher(
     IAmazonSQS sqsClient,
-    IAmazonSimpleNotificationService? snsClient = null,
-    IOptions<AwsMessagingOptions>? options = null,
-    ILogger<SubmissionMessagePublisher>? logger = null)
+    IAmazonSimpleNotificationService? snsClient,
+    IOptions<AwsMessagingOptions> options,
+    ILogger<SubmissionMessagePublisher> logger)
     : ISubmissionMessagePublisher
 {
-    private readonly IAmazonSQS sqsClient = sqsClient ?? throw new ArgumentNullException(nameof(sqsClient));
-    private readonly AwsMessagingOptions options = options?.Value ?? new AwsMessagingOptions();
+    private readonly IAmazonSQS sqsClient = sqsClient.ThrowIfNull();
+    private readonly AwsMessagingOptions options = options.Value;
 
     public async Task PublishSubmissionForValidationAsync(SubmissionValidationMessage message, CancellationToken cancellationToken = default)
     {

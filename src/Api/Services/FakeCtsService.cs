@@ -8,11 +8,14 @@ using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models.Responses;
 using Defra.Lis.Entities;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 public partial class FakeCtsService(
-    ILogger<FakeCtsService>? logger = null)
+    ILogger<FakeCtsService>? logger)
     : ICtsService
 {
+    private readonly ILogger logger = logger ?? NullLogger<FakeCtsService>.Instance;
+
     public Task<CtsAnimalStatusResponse> SubmitAnimalRegistrationAsync(SubmissionAnimal animal, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(animal);

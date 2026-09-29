@@ -15,13 +15,13 @@ using Microsoft.Extensions.Options;
 public partial class SubmissionValidationQueueProcessor(
     IAmazonSQS sqsClient,
     ISubmissionValidationService validationService,
-    IOptions<AwsMessagingOptions>? options = null,
-    ILogger<SubmissionValidationQueueProcessor>? logger = null)
+    IOptions<AwsMessagingOptions> options,
+    ILogger<SubmissionValidationQueueProcessor> logger)
     : ISubmissionValidationQueueProcessor
 {
-    private readonly IAmazonSQS sqsClient = sqsClient ?? throw new ArgumentNullException(nameof(sqsClient));
-    private readonly ISubmissionValidationService validationService = validationService ?? throw new ArgumentNullException(nameof(validationService));
-    private readonly AwsMessagingOptions options = options?.Value ?? new AwsMessagingOptions();
+    private readonly IAmazonSQS sqsClient = sqsClient.ThrowIfNull();
+    private readonly ISubmissionValidationService validationService = validationService.ThrowIfNull();
+    private readonly AwsMessagingOptions options = options.Value;
 
     public async Task<int> ProcessMessagesAsync(CancellationToken cancellationToken = default)
     {

@@ -13,22 +13,20 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 public partial class CtsBundleProcessorService(
-    ICtsService ctsService,
     DbContext dbContext,
-    IOptions<CtsPollingJobOptions>? options = null,
-    ILogger<CtsBundleProcessorService>? logger = null)
+    ICtsService ctsService,
+    IOptions<CtsPollingJobOptions> options,
+    ILogger<CtsBundleProcessorService> logger)
     : ICtsBundleProcessorService
 {
-    private readonly ICtsService ctsService = ctsService ?? throw new ArgumentNullException(nameof(ctsService));
-    private readonly DbContext dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
-    private readonly CtsPollingJobOptions options = options?.Value ?? new CtsPollingJobOptions();
+    private readonly CtsPollingJobOptions options = options.Value;
 
     public CtsBundleProcessorService(
-        ICtsService ctsService,
         PostgresDbContext dbContext,
-        IOptions<CtsPollingJobOptions>? options = null,
-        ILogger<CtsBundleProcessorService>? logger = null)
-        : this(ctsService, (DbContext)dbContext, options, logger)
+        ICtsService ctsService,
+        IOptions<CtsPollingJobOptions> options,
+        ILogger<CtsBundleProcessorService> logger)
+        : this((DbContext)dbContext, ctsService, options, logger)
     {
     }
 

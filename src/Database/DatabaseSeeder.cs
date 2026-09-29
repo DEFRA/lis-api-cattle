@@ -15,7 +15,9 @@ public static partial class DatabaseSeeder
 {
     private const string Female = "female";
 
-    public static async Task SeedDevelopmentDatabaseAsync(this IHost host, CancellationToken cancellationToken = default)
+    public static async Task SeedDevelopmentDatabaseAsync(
+        this IHost host,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(host);
 
@@ -40,7 +42,7 @@ public static partial class DatabaseSeeder
 
     public static async Task SeedDevelopmentDataAsync(
         DbContext dbContext,
-        ILogger? logger = null,
+        ILogger logger,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(dbContext);
@@ -63,7 +65,7 @@ public static partial class DatabaseSeeder
         logger.LogDevelopmentTestDataSuccessfullySeededCountSubmissions(testSubmissions.Count);
     }
 
-    public static IReadOnlyList<Submission> CreateDevelopmentSubmissions()
+    private static IReadOnlyList<Submission> CreateDevelopmentSubmissions()
     {
         var submissions = new List<Submission>();
 

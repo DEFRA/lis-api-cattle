@@ -16,19 +16,17 @@ using Microsoft.Extensions.Options;
 public partial class SubmissionValidationService(
     DbContext dbContext,
     ICadsService cadsService,
-    IOptions<SubmissionValidationOptions>? options = null,
-    ILogger<SubmissionValidationService>? logger = null)
+    IOptions<SubmissionValidationOptions> options,
+    ILogger<SubmissionValidationService> logger)
     : ISubmissionValidationService
 {
-    private readonly DbContext dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
-    private readonly ICadsService cadsService = cadsService ?? throw new ArgumentNullException(nameof(cadsService));
-    private readonly SubmissionValidationOptions options = options?.Value ?? new SubmissionValidationOptions();
+    private readonly SubmissionValidationOptions options = options.Value;
 
     public SubmissionValidationService(
         PostgresDbContext dbContext,
         ICadsService cadsService,
-        IOptions<SubmissionValidationOptions>? options = null,
-        ILogger<SubmissionValidationService>? logger = null)
+        IOptions<SubmissionValidationOptions> options,
+        ILogger<SubmissionValidationService> logger)
         : this((DbContext)dbContext, cadsService, options, logger)
     {
     }
