@@ -4,7 +4,7 @@
     <DataCollectors>
       <DataCollector friendlyName="XPlat Code Coverage">
         <Configuration>
-          <Format>cobertura</Format>
+          <Format>opencover,cobertura</Format>
           <ExcludeByFile>**/obj/**/*.cs,**/Program.cs</ExcludeByFile>
         </Configuration>
       </DataCollector>
