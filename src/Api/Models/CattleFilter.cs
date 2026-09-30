@@ -4,36 +4,49 @@
 
 namespace Defra.Lis.Api.Models;
 
+using Defra.Lis.Api.Models.Responses;
+
 /// <summary>
 /// Optional filters for the cattle-on-holding query. All comparisons are case-insensitive;
 /// ear tag matching ignores spaces and matches anywhere in the tag; breed matches the breed code or name.
 /// </summary>
+/// <param name="EarTag">The optional ear tag filter substring.</param>
+/// <param name="Breed">The optional breed code or name filter.</param>
+/// <param name="Sex">The optional sex filter.</param>
 public sealed record CattleFilter(string? EarTag = null, string? Breed = null, string? Sex = null)
 {
+    /// <summary>
+    /// Gets a value indicating whether all filter criteria are empty or whitespace.
+    /// </summary>
     public bool IsEmpty =>
         string.IsNullOrWhiteSpace(EarTag) && string.IsNullOrWhiteSpace(Breed) && string.IsNullOrWhiteSpace(Sex);
 
-    public bool Matches(CattleResponse cattle)
+    /// <summary>
+    /// Determines whether the specified cattle response matches all configured filter criteria.
+    /// </summary>
+    /// <param name="cattleResponse">The cattle response to evaluate.</param>
+    /// <returns><see langword="true"/> if the cattle response matches the filter; otherwise, <see langword="false"/>.</returns>
+    public bool Matches(CattleResponse cattleResponse)
     {
-        ArgumentNullException.ThrowIfNull(cattle);
+        ArgumentNullException.ThrowIfNull(cattleResponse);
 
-        return MatchesEarTag(cattle) && MatchesBreed(cattle) && MatchesSex(cattle);
+        return MatchesEarTag(cattleResponse) && MatchesBreed(cattleResponse) && MatchesSex(cattleResponse);
     }
 
     private static string NormaliseEarTag(string value) =>
         value.Replace(" ", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
 
-    private bool MatchesEarTag(CattleResponse cattle)
+    private bool MatchesEarTag(CattleResponse cattleResponse)
     {
         if (string.IsNullOrWhiteSpace(EarTag))
         {
             return true;
         }
 
-        return NormaliseEarTag(cattle.EarTag).Contains(NormaliseEarTag(EarTag), StringComparison.Ordinal);
+        return NormaliseEarTag(cattleResponse.EarTag).Contains(NormaliseEarTag(EarTag), StringComparison.Ordinal);
     }
 
-    private bool MatchesBreed(CattleResponse cattle)
+    private bool MatchesBreed(CattleResponse cattleResponse)
     {
         if (string.IsNullOrWhiteSpace(Breed))
         {
@@ -42,18 +55,14 @@ public sealed record CattleFilter(string? EarTag = null, string? Breed = null, s
 
         var wanted = Breed.Trim();
 
-        return string.Equals(cattle.BreedCode, wanted, StringComparison.OrdinalIgnoreCase)
-               || string.Equals(cattle.BreedName, wanted, StringComparison.OrdinalIgnoreCase)
-               || string.Equals(cattle.Breed, wanted, StringComparison.OrdinalIgnoreCase);
+        return string.Equals(cattleResponse.BreedCode, wanted, StringComparison.OrdinalIgnoreCase)
+               || string.Equals(cattleResponse.BreedName, wanted, StringComparison.OrdinalIgnoreCase)
+               || string.Equals(cattleResponse.Breed, wanted, StringComparison.OrdinalIgnoreCase);
     }
 
-    private bool MatchesSex(CattleResponse cattle)
+    private bool MatchesSex(CattleResponse cattleResponse)
     {
-        if (string.IsNullOrWhiteSpace(Sex))
-        {
-            return true;
-        }
-
-        return string.Equals(cattle.Sex, Sex.Trim(), StringComparison.OrdinalIgnoreCase);
+        return string.IsNullOrWhiteSpace(Sex) ||
+               string.Equals(cattleResponse.Sex, Sex.Trim(), StringComparison.OrdinalIgnoreCase);
     }
 }

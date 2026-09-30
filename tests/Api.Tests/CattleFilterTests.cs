@@ -5,6 +5,7 @@
 namespace Defra.Lis.Api.Tests;
 
 using Defra.Lis.Api.Models;
+using Defra.Lis.Api.Models.Responses;
 
 public class CattleFilterTests
 {

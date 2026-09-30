@@ -6,9 +6,11 @@ namespace Defra.Lis.Api.Tests;
 
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models;
+using Defra.Lis.Api.Models.Responses;
 using Defra.Lis.Api.Services;
 using Defra.Lis.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 
@@ -44,7 +46,7 @@ public class CtsBundleProcessorServiceTests
             .ReturnsAsync(new CtsAnimalStatusResponse { Status = Statuses.Processing });
 
         var options = Options.Create(new CtsPollingJobOptions { BatchSize = 10 });
-        var service = new CtsBundleProcessorService(mockCtsService.Object, context, options);
+        var service = new CtsBundleProcessorService(context, mockCtsService.Object, options, NullLogger<CtsBundleProcessorService>.Instance);
 
         // Act
         await service.ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
@@ -71,7 +73,7 @@ public class CtsBundleProcessorServiceTests
             .ReturnsAsync(new CtsAnimalStatusResponse { Status = "clean" });
 
         var options = Options.Create(new CtsPollingJobOptions { BatchSize = 10 });
-        var service = new CtsBundleProcessorService(mockCtsService.Object, context, options);
+        var service = new CtsBundleProcessorService(context, mockCtsService.Object, options, NullLogger<CtsBundleProcessorService>.Instance);
 
         // Act
         await service.ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
@@ -104,7 +106,7 @@ public class CtsBundleProcessorServiceTests
             });
 
         var options = Options.Create(new CtsPollingJobOptions { BatchSize = 10 });
-        var service = new CtsBundleProcessorService(mockCtsService.Object, context, options);
+        var service = new CtsBundleProcessorService(context, mockCtsService.Object, options, NullLogger<CtsBundleProcessorService>.Instance);
 
         // Act
         await service.ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
@@ -137,7 +139,7 @@ public class CtsBundleProcessorServiceTests
             .ReturnsAsync(new CtsAnimalStatusResponse { Status = "clean" });
 
         var options = Options.Create(new CtsPollingJobOptions { BatchSize = 10 });
-        var service = new CtsBundleProcessorService(mockCtsService.Object, context, options);
+        var service = new CtsBundleProcessorService(context, mockCtsService.Object, options, NullLogger<CtsBundleProcessorService>.Instance);
 
         // Act
         await service.ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
@@ -153,7 +155,7 @@ public class CtsBundleProcessorServiceTests
     public async Task ProcessPendingBundlesAsync_WhenNoPendingBundles_CompletesGracefully()
     {
         var options = Options.Create(new CtsPollingJobOptions { BatchSize = 10 });
-        var service = new CtsBundleProcessorService(mockCtsService.Object, context, options);
+        var service = new CtsBundleProcessorService(context, mockCtsService.Object, options, NullLogger<CtsBundleProcessorService>.Instance);
 
         await service.ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
 

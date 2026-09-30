@@ -27,6 +27,7 @@ internal static class EarTags
     /// <summary>
     /// The dam recorded for a calf: the genetic dam when given, otherwise the surrogate dam.
     /// </summary>
+    /// <returns></returns>
     public static string? DamOf(SubmissionAnimal animal) =>
         Normalise(animal.DamGeneticEarTag) ?? Normalise(animal.DamSurrogateEarTag);
 

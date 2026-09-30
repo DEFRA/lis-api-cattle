@@ -10,7 +10,7 @@ namespace Defra.Lis.Api.Endpoints.Users;
 public static class OpenApiMetadata
 {
     /// <summary>Gets the OpenAPI tag applied to user endpoints.</summary>
-    public const string Tag = "Users";
+    public const string Tag = nameof(RouteNames.Users);
 
     /// <summary>Contains metadata for the get-user-details endpoint.</summary>
     public static class GetUserDetailsRoute

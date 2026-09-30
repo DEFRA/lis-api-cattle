@@ -8,11 +8,13 @@ using Defra.Database.Postgres;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Messaging;
 using Defra.Lis.Api.Models;
+using Defra.Lis.Api.Models.Requests;
+using Defra.Lis.Api.Models.Responses;
 using Defra.Lis.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
-public class CattleService : ICattleService
+public partial class CattleService : ICattleService
 {
     private readonly ICadsService cadsService;
     private readonly DbContext dbContext;
@@ -207,7 +209,7 @@ public class CattleService : ICattleService
             }
             catch (Exception ex)
             {
-                logger?.LogWarning(ex, "Failed to publish validation message for submission {SubmissionId}", submission.Id);
+                LogFailedToPublishValidationMessageForSubmissionSubmissionid(submission.Id, ex);
             }
         }
 

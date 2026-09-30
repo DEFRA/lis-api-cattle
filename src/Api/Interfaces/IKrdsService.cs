@@ -4,7 +4,6 @@
 
 namespace Defra.Lis.Api.Interfaces;
 
-using Defra.Lis.Api.Models;
 using Defra.Lis.Api.Models.Responses;
 
 public interface IKrdsService
@@ -14,6 +13,7 @@ public interface IKrdsService
     /// </summary>
     /// <exception cref="ArgumentException">A CPH segment does not match the expected format.</exception>
     /// <exception cref="Defra.Lis.Core.Exceptions.NotFoundException">The CPH is not known.</exception>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     Task<HoldingResponse> GetHoldingAsync(string county, string parish, string holding, CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -22,5 +22,6 @@ public interface IKrdsService
     /// </summary>
     /// <exception cref="ArgumentException">The subject is blank or was rejected by the keeper data service.</exception>
     /// <exception cref="Defra.Lis.Core.Exceptions.NotFoundException">The subject is not known.</exception>
+    /// <returns><placeholder>A <see cref="Task"/> representing the asynchronous operation.</placeholder></returns>
     Task<UserDetailsResponse> GetUserAccountAsync(string subject, CancellationToken cancellationToken = default);
 }

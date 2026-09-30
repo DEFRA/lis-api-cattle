@@ -9,7 +9,7 @@ using Defra.Lis.Entities;
 
 public class FakeCtsServiceTests
 {
-    private readonly FakeCtsService fakeCtsService = new();
+    private readonly FakeCtsService fakeCtsService = new(null);
 
     [Fact]
     public async Task SubmitAnimalRegistrationAsync_WithNormalEarTag_ReturnsProcessing()

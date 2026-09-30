@@ -10,7 +10,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-public class SubmissionValidationBackgroundService(
+public partial class SubmissionValidationBackgroundService(
     IServiceProvider serviceProvider,
     IOptions<AwsMessagingOptions>? options = null,
     ILogger<SubmissionValidationBackgroundService>? logger = null)
@@ -23,11 +23,11 @@ public class SubmissionValidationBackgroundService(
     {
         if (!options.EnableBackgroundConsumer)
         {
-            logger?.LogInformation("SubmissionValidationBackgroundService is disabled.");
+            LogSubmissionvalidationbackgroundserviceIsDisabled();
             return;
         }
 
-        logger?.LogInformation("SubmissionValidationBackgroundService started.");
+        LogSubmissionvalidationbackgroundserviceStarted();
 
         var interval = TimeSpan.FromSeconds(Math.Max(1, options.PollingIntervalSeconds));
 
@@ -45,7 +45,7 @@ public class SubmissionValidationBackgroundService(
             }
             catch (Exception ex)
             {
-                logger?.LogError(ex, "Unhandled error occurred in SubmissionValidationBackgroundService polling loop.");
+                LogUnhandledErrorOccurredInSubmissionvalidationbackgroundservicePollingLoop(ex);
             }
 
             try
@@ -58,6 +58,6 @@ public class SubmissionValidationBackgroundService(
             }
         }
 
-        logger?.LogInformation("SubmissionValidationBackgroundService stopped.");
+        LogSubmissionvalidationbackgroundserviceStopped();
     }
 }

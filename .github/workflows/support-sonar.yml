@@ -51,7 +51,7 @@ jobs:
         with:
           dotnet-version: |
             10.0
-          
+
       - name: Cache SonarQube Cloud packages
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
@@ -67,25 +67,11 @@ jobs:
           key: ${{ runner.os }}-sonar-scanner
           restore-keys: ${{ runner.os }}-sonar-scanner
 
-      - name: Cache dotNet code coverage
-        id: cache-sonar-coverage
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: ./.sonar/coverage
-          key: ${{ runner.os }}-sonar-coverage
-          restore-keys: ${{ runner.os }}-sonar-coverage
-          
       - name: Install SonarQube Cloud scanner
         if: steps.cache-sonar-scanner.outputs.cache-hit != 'true'
         run: |
           mkdir -p ./.sonar/scanner
           dotnet tool update dotnet-sonarscanner --tool-path ./.sonar/scanner
-
-      - name: Install dotNet code coverage
-        if: steps.cache-sonar-coverage.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p ./.sonar/coverage
-          dotnet tool update dotnet-coverage --tool-path ./.sonar/coverage
           
       - name: Build and analyze
         if: github.actor != 'dependabot[bot]'
@@ -98,12 +84,15 @@ jobs:
             /o:"defra" \
             /d:sonar.token="${{ env.SONAR_TOKEN }}" \
             /d:sonar.host.url="https://sonarcloud.io" \
-            /d:sonar.cs.vscoveragexml.reportsPaths=coverage.xml \
+            /d:sonar.cs.opencover.reportsPaths="coverage/**/coverage.opencover.xml" \
             /d:sonar.exclusions=".github/**,changelog/**"
 
           dotnet build --no-incremental
 
-          ./.sonar/coverage/dotnet-coverage collect "dotnet test" -f xml -o "coverage.xml"
+          dotnet test \
+            --no-build \
+            --collect:"XPlat Code Coverage" \
+            --results-directory coverage
           ./.sonar/scanner/dotnet-sonarscanner end /d:sonar.token="${{ env.SONAR_TOKEN }}"
 
       - name: SonarCloud Quality Gate check
@@ -115,4 +104,3 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.OVERRIDE_SONAR_TOKEN || secrets.LIS_SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
-          

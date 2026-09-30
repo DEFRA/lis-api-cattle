@@ -4,6 +4,7 @@
 
 namespace Defra.Lis.Database;
 
+using System;
 using Defra.Database.Postgres;
 using Defra.Lis.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -11,11 +12,13 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-public static class DatabaseSeeder
+public static partial class DatabaseSeeder
 {
     private const string Female = "female";
 
-    public static async Task SeedDevelopmentDatabaseAsync(this IHost host, CancellationToken cancellationToken = default)
+    public static async Task SeedDevelopmentDatabaseAsync(
+        this IHost host,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(host);
 
@@ -26,12 +29,12 @@ public static class DatabaseSeeder
         }
 
         using var scope = host.Services.CreateScope();
-        var logger = scope.ServiceProvider.GetService<ILoggerFactory>()?.CreateLogger(typeof(DatabaseSeeder));
+        var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(DatabaseSeeder));
         var dbContext = scope.ServiceProvider.GetService<PostgresDbContext>();
 
         if (dbContext is null)
         {
-            logger?.LogWarning("PostgresDbContext not found in service provider. Skipping development database seeding.");
+            LogPostgresdbcontextNotFoundInServiceProviderSkippingDevelopmentDatabaseSeeding(logger);
             return;
         }
 
@@ -40,7 +43,7 @@ public static class DatabaseSeeder
 
     public static async Task SeedDevelopmentDataAsync(
         DbContext dbContext,
-        ILogger? logger = null,
+        ILogger logger,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(dbContext);
@@ -49,21 +52,21 @@ public static class DatabaseSeeder
 
         if (await submissionsSet.AnyAsync(cancellationToken))
         {
-            logger?.LogInformation("Database already contains submission records. Skipping development seeding.");
+            LogDatabaseAlreadyContainsSubmissionRecordsSkippingDevelopmentSeeding(logger);
             return;
         }
 
-        logger?.LogInformation("Seeding development test data...");
+        LogSeedingDevelopmentTestData(logger);
 
         var testSubmissions = CreateDevelopmentSubmissions();
 
         await submissionsSet.AddRangeAsync(testSubmissions, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        logger?.LogInformation("Development test data successfully seeded ({Count} submissions).", testSubmissions.Count);
+        LogDevelopmentTestDataSuccessfullySeededCountSubmissions(logger, testSubmissions.Count);
     }
 
-    public static IReadOnlyList<Submission> CreateDevelopmentSubmissions()
+    private static List<Submission> CreateDevelopmentSubmissions()
     {
         var submissions = new List<Submission>();
 

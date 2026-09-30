@@ -6,7 +6,7 @@ namespace Defra.Lis.Api.Validation;
 
 using System.Text.RegularExpressions;
 using Defra.Lis.Api.Configurations;
-using Defra.Lis.Api.Models;
+using Defra.Lis.Api.Models.Responses;
 using Defra.Lis.Entities;
 
 /// <summary>
@@ -62,6 +62,7 @@ internal sealed class SubmissionValidationContext
     /// <summary>
     /// Finds an animal by ear tag in CADS first, then in animals held by other submissions.
     /// </summary>
+    /// <returns></returns>
     public CattleResponse? FindAnimal(string earTag)
     {
         var cadsRecord = CadsCattle.FirstOrDefault(c => EarTags.AreEqual(c.EarTag, earTag));
@@ -85,6 +86,7 @@ internal sealed class SubmissionValidationContext
     /// <summary>
     /// Birth dates of every other calf (in this submission or already held) recorded against the dam.
     /// </summary>
+    /// <returns></returns>
     public IEnumerable<DateOnly> OtherCalfBirthDates(SubmissionAnimal calf, string damEarTag)
     {
         var siblingsInFile = Submission.Animals.Where(a => a.Id != calf.Id);

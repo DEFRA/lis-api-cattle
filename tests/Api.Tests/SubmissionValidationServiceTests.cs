@@ -6,10 +6,11 @@ namespace Defra.Lis.Api.Tests;
 
 using Defra.Lis.Api.Configurations;
 using Defra.Lis.Api.Interfaces;
-using Defra.Lis.Api.Models;
+using Defra.Lis.Api.Models.Responses;
 using Defra.Lis.Api.Validation;
 using Defra.Lis.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
@@ -535,7 +536,7 @@ public class SubmissionValidationServiceTests
 
         var dbContext = new TestDbContext(dbOptions);
         var optionsWrapper = Options.Create(options);
-        var service = new SubmissionValidationService(dbContext, mockCadsService.Object, optionsWrapper);
+        var service = new SubmissionValidationService(dbContext, mockCadsService.Object, optionsWrapper, NullLogger<SubmissionValidationService>.Instance);
 
         return (dbContext, service);
     }

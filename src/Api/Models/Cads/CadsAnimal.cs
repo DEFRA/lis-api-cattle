@@ -7,6 +7,14 @@ namespace Defra.Lis.Api.Models.Cads;
 /// <summary>
 /// A list item from the CADS bovine animals-on-holding endpoint.
 /// </summary>
+/// <param name="Identifier">The identifier of the animal.</param>
+/// <param name="BirthDate">The birth date of the animal.</param>
+/// <param name="DateOnCph">The date the animal arrived on the holding (CPH).</param>
+/// <param name="DateOffCph">The date the animal left the holding (CPH).</param>
+/// <param name="Species">The species of the animal.</param>
+/// <param name="Sex">The sex of the animal.</param>
+/// <param name="BreedCode">The breed code information of the animal.</param>
+/// <param name="Status">The status of the animal.</param>
 public sealed record CadsAnimal(
     CadsIdentifier? Identifier,
     DateOnly? BirthDate,
@@ -17,7 +25,13 @@ public sealed record CadsAnimal(
     CadsBreedCode? BreedCode,
     string? Status)
 {
+    /// <summary>
+    /// The status value representing an alive animal in CADS.
+    /// </summary>
     public const string AliveStatus = "Alive";
 
+    /// <summary>
+    /// Gets a value indicating whether the animal has an alive status.
+    /// </summary>
     public bool IsAlive => string.Equals(Status, AliveStatus, StringComparison.OrdinalIgnoreCase);
 }

@@ -10,6 +10,7 @@ using Amazon.SQS;
 using Amazon.SQS.Model;
 using Defra.Lis.Api.Configurations;
 using Defra.Lis.Api.Messaging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
@@ -43,7 +44,8 @@ public class SubmissionMessagePublisherTests
         var publisher = new SubmissionMessagePublisher(
             mockSqs.Object,
             mockSns.Object,
-            Options.Create(options));
+            Options.Create(options),
+            NullLogger<SubmissionMessagePublisher>.Instance);
 
         var message = new SubmissionValidationMessage
         {
@@ -83,7 +85,8 @@ public class SubmissionMessagePublisherTests
         var publisher = new SubmissionMessagePublisher(
             mockSqs.Object,
             null,
-            Options.Create(options));
+            Options.Create(options),
+            NullLogger<SubmissionMessagePublisher>.Instance);
 
         var message = new SubmissionValidationMessage
         {

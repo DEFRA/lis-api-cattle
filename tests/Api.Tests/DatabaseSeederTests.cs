@@ -11,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
 public class DatabaseSeederTests
@@ -19,6 +20,7 @@ public class DatabaseSeederTests
     public async Task SeedDevelopmentDataAsync_WhenDatabaseIsEmpty_SeedsTestSubmissions()
     {
         // Arrange
+        var logger = NullLogger<DatabaseSeederTests>.Instance;
         var dbName = "TestDb_Empty_" + Guid.NewGuid();
         var services = new ServiceCollection();
         services.AddLogging();
@@ -32,7 +34,7 @@ public class DatabaseSeederTests
         using var context = serviceProvider.GetRequiredService<PostgresDbContext>();
 
         // Act
-        await DatabaseSeeder.SeedDevelopmentDataAsync(context, cancellationToken: TestContext.Current.CancellationToken);
+        await DatabaseSeeder.SeedDevelopmentDataAsync(context, logger, cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
         var submissions = await context.Set<Submission>()
@@ -62,6 +64,7 @@ public class DatabaseSeederTests
     public async Task SeedDevelopmentDataAsync_WhenDatabaseHasExistingData_DoesNotDuplicate()
     {
         // Arrange
+        var logger = NullLogger<DatabaseSeederTests>.Instance;
         var dbName = "TestDb_NotEmpty_" + Guid.NewGuid();
         var services = new ServiceCollection();
         services.AddLogging();
@@ -79,7 +82,7 @@ public class DatabaseSeederTests
         await context.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         // Act
-        await DatabaseSeeder.SeedDevelopmentDataAsync(context, cancellationToken: TestContext.Current.CancellationToken);
+        await DatabaseSeeder.SeedDevelopmentDataAsync(context, logger, cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
         var submissions = await context.Set<Submission>().ToListAsync(TestContext.Current.CancellationToken);
