@@ -2,7 +2,7 @@
 // Copyright (c) Defra. All rights reserved.
 // </copyright>
 
-namespace Defra.Lis.Api.Services;
+namespace Defra.Lis.Api.Services.Health;
 
 using Defra.Lis.Api.Interfaces;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -22,16 +22,11 @@ public class DatabaseHealthCheck : IHealthCheck
     {
         var result = await this.healthService.CheckDatabaseHealthAsync(cancellationToken);
 
-        if (result.Status == HealthStatus.Healthy.ToString())
+        return result.Status switch
         {
-            return HealthCheckResult.Healthy(result.Description, result.Data);
-        }
-
-        if (result.Status == HealthStatus.Degraded.ToString())
-        {
-            return HealthCheckResult.Degraded(result.Description, data: result.Data);
-        }
-
-        return HealthCheckResult.Unhealthy(result.Description, data: result.Data);
+            nameof(HealthStatus.Healthy) => HealthCheckResult.Healthy(result.Description, result.Data),
+            nameof(HealthStatus.Degraded) => HealthCheckResult.Degraded(result.Description, data: result.Data),
+            _ => HealthCheckResult.Unhealthy(result.Description, data: result.Data),
+        };
     }
 }

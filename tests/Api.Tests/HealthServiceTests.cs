@@ -59,6 +59,45 @@ public class HealthServiceTests
     }
 
     [Fact]
+    public async Task CheckDatabaseHealthAsync_WhenCanConnectThrowsException_ReturnsUnhealthy()
+    {
+        var options = new DbContextOptionsBuilder<PostgresDbContext>()
+            .UseNpgsql("Host=nonexistent-host-for-health-test;Database=db;Username=u;Password=p;Timeout=1;CommandTimeout=1")
+            .Options;
+
+        await using var dbContext = new PostgresDbContext(options);
+        var service = new HealthService(this.mockLogger.Object, dbContext: dbContext);
+
+        var result = await service.CheckDatabaseHealthAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(HealthStatus.Unhealthy.ToString(), result.Status);
+        Assert.True(
+            result.Description?.Contains("Database health check failed", StringComparison.OrdinalIgnoreCase) == true ||
+            result.Description?.Contains("Cannot connect", StringComparison.OrdinalIgnoreCase) == true);
+    }
+
+    [Fact]
+    public async Task CheckDatabaseHealthAsync_WhenTimedOut_ReturnsUnhealthy()
+    {
+        var options = new DbContextOptionsBuilder<PostgresDbContext>()
+            .UseNpgsql("Host=192.0.2.1;Database=db;Username=u;Password=p;Timeout=10;CommandTimeout=10")
+            .Options;
+
+        await using var dbContext = new PostgresDbContext(options);
+        var service = new HealthService(
+            this.mockLogger.Object,
+            dbContext: dbContext,
+            checkTimeout: TimeSpan.FromMilliseconds(20));
+
+        var result = await service.CheckDatabaseHealthAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(HealthStatus.Unhealthy.ToString(), result.Status);
+        Assert.True(
+            result.Description?.Contains("timed out", StringComparison.OrdinalIgnoreCase) == true ||
+            result.Description?.Contains("failed", StringComparison.OrdinalIgnoreCase) == true);
+    }
+
+    [Fact]
     public async Task CheckQueueHealthAsync_WhenSqsClientIsNull_ReturnsUnhealthy()
     {
         var service = new HealthService(this.mockLogger.Object, sqsClient: null);
@@ -449,5 +488,177 @@ public class HealthServiceTests
 
         Assert.Equal(HealthStatus.Unhealthy.ToString(), result.Status);
         Assert.Contains("timed out", result.Description, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CheckQuartzHealthAsync_WhenSchedulerFactoryReturnsNull_ReturnsUnhealthy()
+    {
+        this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IScheduler)null!);
+
+        var service = new HealthService(
+            this.mockLogger.Object,
+            schedulerFactory: this.mockSchedulerFactory.Object);
+
+        var result = await service.CheckQuartzHealthAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(HealthStatus.Unhealthy.ToString(), result.Status);
+        Assert.Equal("Quartz scheduler instance could not be obtained.", result.Description);
+    }
+
+    [Fact]
+    public async Task CheckQuartzHealthAsync_WhenJobDisabled_ReturnsHealthy()
+    {
+        this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(this.mockScheduler.Object);
+        this.mockScheduler.Setup(s => s.IsShutdown).Returns(false);
+        this.mockScheduler.Setup(s => s.CheckExists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        this.mockScheduler.Setup(s => s.GetTriggersOfJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        var service = new HealthService(
+            this.mockLogger.Object,
+            schedulerFactory: this.mockSchedulerFactory.Object,
+            ctsJobOptions: Options.Create(new CtsPollingJobOptions { Enabled = false }));
+
+        var result = await service.CheckQuartzHealthAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(HealthStatus.Healthy.ToString(), result.Status);
+        Assert.Contains("disabled by configuration", result.Description, StringComparison.OrdinalIgnoreCase);
+        Assert.NotNull(result.Data);
+        Assert.Equal(false, result.Data["jobEnabled"]);
+    }
+
+    [Fact]
+    public async Task CheckQuartzHealthAsync_WhenJobHasNoTriggers_ReturnsDegraded()
+    {
+        this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(this.mockScheduler.Object);
+        this.mockScheduler.Setup(s => s.IsShutdown).Returns(false);
+        this.mockScheduler.Setup(s => s.CheckExists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        this.mockScheduler.Setup(s => s.GetTriggersOfJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        var service = new HealthService(
+            this.mockLogger.Object,
+            schedulerFactory: this.mockSchedulerFactory.Object,
+            ctsJobOptions: Options.Create(new CtsPollingJobOptions { Enabled = true }));
+
+        var result = await service.CheckQuartzHealthAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(HealthStatus.Degraded.ToString(), result.Status);
+        Assert.Contains("has no triggers scheduled", result.Description, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CheckQuartzHealthAsync_WhenTriggerInPausedState_ReturnsDegraded()
+    {
+        this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(this.mockScheduler.Object);
+        this.mockScheduler.Setup(s => s.IsShutdown).Returns(false);
+        this.mockScheduler.Setup(s => s.CheckExists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        var mockTrigger = new Mock<ITrigger>();
+        mockTrigger.Setup(t => t.Key).Returns(new TriggerKey("paused-trigger"));
+        this.mockScheduler.Setup(s => s.GetTriggersOfJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([mockTrigger.Object]);
+        this.mockScheduler.Setup(s => s.GetTriggerState(It.IsAny<TriggerKey>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(TriggerState.Paused);
+
+        var service = new HealthService(
+            this.mockLogger.Object,
+            schedulerFactory: this.mockSchedulerFactory.Object,
+            ctsJobOptions: Options.Create(new CtsPollingJobOptions { Enabled = true }));
+
+        var result = await service.CheckQuartzHealthAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(HealthStatus.Degraded.ToString(), result.Status);
+        Assert.Contains("Paused", result.Description, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CheckQuartzHealthAsync_WhenSchedulerThrowsException_ReturnsUnhealthy()
+    {
+        this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Scheduler crash"));
+
+        var service = new HealthService(
+            this.mockLogger.Object,
+            schedulerFactory: this.mockSchedulerFactory.Object);
+
+        var result = await service.CheckQuartzHealthAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(HealthStatus.Unhealthy.ToString(), result.Status);
+        Assert.Contains("Scheduler crash", result.Description);
+    }
+
+    [Fact]
+    public async Task CheckHealthAsync_WhenComponentIsDegraded_ReturnsDegradedOverall()
+    {
+        var dbOptions = new DbContextOptionsBuilder<PostgresDbContext>()
+            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .Options;
+        await using var dbContext = new PostgresDbContext(dbOptions);
+
+        var queueUrl = "https://sqs.eu-west-2.amazonaws.com/123/submission-validation-queue";
+        var awsOptions = Options.Create(new AwsMessagingOptions { SubmissionValidationQueueUrl = queueUrl });
+        this.mockSqs.Setup(s => s.GetQueueAttributesAsync(It.IsAny<GetQueueAttributesRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GetQueueAttributesResponse());
+
+        this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(this.mockScheduler.Object);
+        this.mockScheduler.Setup(s => s.IsShutdown).Returns(false);
+        this.mockScheduler.Setup(s => s.CheckExists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        this.mockScheduler.Setup(s => s.GetTriggersOfJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        var service = new HealthService(
+            this.mockLogger.Object,
+            dbContext: dbContext,
+            sqsClient: this.mockSqs.Object,
+            schedulerFactory: this.mockSchedulerFactory.Object,
+            awsOptions: awsOptions,
+            ctsJobOptions: Options.Create(new CtsPollingJobOptions { Enabled = true }));
+
+        var response = await service.CheckHealthAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(HealthStatus.Degraded.ToString(), response.Status);
+        Assert.Equal(HealthStatus.Healthy.ToString(), response.Entries["database"].Status);
+        Assert.Equal(HealthStatus.Healthy.ToString(), response.Entries["queue"].Status);
+        Assert.Equal(HealthStatus.Degraded.ToString(), response.Entries["quartz"].Status);
+    }
+
+    [Fact]
+    public async Task CheckQueueHealthAsync_WhenAttributesDoNotContainMessageCount_DefaultsToZero()
+    {
+        var queueUrl = "https://sqs.eu-west-2.amazonaws.com/123/submission-validation-queue";
+        var awsOptions = Options.Create(new AwsMessagingOptions { SubmissionValidationQueueUrl = queueUrl });
+
+        var getAttributesResponse = new GetQueueAttributesResponse
+        {
+            Attributes = new Dictionary<string, string>
+            {
+                ["SomeOtherAttribute"] = "value",
+            },
+        };
+
+        this.mockSqs.Setup(s => s.GetQueueAttributesAsync(
+                It.Is<GetQueueAttributesRequest>(r => r.QueueUrl == queueUrl),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(getAttributesResponse);
+
+        var service = new HealthService(
+            this.mockLogger.Object,
+            sqsClient: this.mockSqs.Object,
+            awsOptions: awsOptions);
+
+        var result = await service.CheckQueueHealthAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(HealthStatus.Healthy.ToString(), result.Status);
+        Assert.NotNull(result.Data);
+        Assert.Equal(0, result.Data["approximateNumberOfMessages"]);
     }
 }

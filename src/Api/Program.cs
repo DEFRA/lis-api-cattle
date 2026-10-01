@@ -19,6 +19,7 @@ using Defra.Lis.Api.Endpoints.Users;
 using Defra.Lis.Api.Exceptions;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Services;
+using Defra.Lis.Api.Services.Health;
 using Defra.Lis.Database;
 using Defra.Livestock.Sdk.Api.Strategies;
 using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Operations.Http.Rest.Client;
@@ -84,6 +85,7 @@ public static class Program
             .AddCheck<DatabaseHealthCheck>("database", timeout: HealthService.DefaultCheckTimeout)
             .AddCheck<QueueHealthCheck>("queue", timeout: HealthService.DefaultCheckTimeout)
             .AddCheck<QuartzHealthCheck>("quartz", timeout: HealthService.DefaultCheckTimeout);
+
         builder.Services.AddPostgresDatabase(configuration);
         builder.Services.AddCattleDatabaseConfigurations();
 
