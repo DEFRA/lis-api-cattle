@@ -17,6 +17,41 @@ using Moq;
 public class DatabaseSeederTests
 {
     [Fact]
+    public async Task SeedDevelopmentDatabaseAsync_WhenHostIsNull_ThrowsArgumentNullException()
+    {
+        IHost host = null!;
+        await Assert.ThrowsAsync<ArgumentNullException>(() => host.SeedDevelopmentDatabaseAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task SeedDevelopmentDataAsync_WhenDbContextIsNull_ThrowsArgumentNullException()
+    {
+        var logger = NullLogger<DatabaseSeederTests>.Instance;
+        await Assert.ThrowsAsync<ArgumentNullException>(() => DatabaseSeeder.SeedDevelopmentDataAsync(null!, logger, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task SeedDevelopmentDatabaseAsync_WhenPostgresDbContextNotRegistered_LogsAndReturnsGracefully()
+    {
+        // Arrange
+        var mockEnv = new Mock<IHostEnvironment>();
+        mockEnv.Setup(e => e.EnvironmentName).Returns("Development");
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(mockEnv.Object);
+        // Do not register PostgresDbContext in DI
+
+        var hostServices = services.BuildServiceProvider();
+        var mockHost = new Mock<IHost>();
+        mockHost.Setup(h => h.Services).Returns(hostServices);
+
+        // Act & Assert (Should complete cleanly without throwing)
+        var exception = await Record.ExceptionAsync(() => mockHost.Object.SeedDevelopmentDatabaseAsync(TestContext.Current.CancellationToken));
+        Assert.Null(exception);
+    }
+
+    [Fact]
     public async Task SeedDevelopmentDataAsync_WhenDatabaseIsEmpty_SeedsTestSubmissions()
     {
         // Arrange
@@ -58,6 +93,36 @@ public class DatabaseSeederTests
         var cph10Sub = submissions.Single(s => s.CountyParishHolding == "10/081/1234");
         Assert.Equal(Statuses.Submitted, cph10Sub.Status);
         Assert.Equal("REG-MNBX4Q2A", cph10Sub.ClientReference);
+
+        // Check sub1 details
+        var sub1 = submissions.Single(s => s.ClientReference == "DEV-SUB-001");
+        Assert.Equal(Statuses.Complete, sub1.Status);
+        Assert.Equal("DEV-USER", sub1.SubmittedBy);
+        Assert.Equal(2, sub1.Animals.Count);
+        var animal1 = sub1.Animals.First(a => a.EarTag == "UK 12 3456 000001");
+        Assert.Equal("Limousin", animal1.Breed);
+        Assert.Equal("female", animal1.Sex);
+        Assert.Equal("natural", animal1.DamType);
+        Assert.Equal("UK 12 3456 000099", animal1.DamGeneticEarTag);
+        Assert.Equal("UK 12 3456 000088", animal1.SireEarTag);
+        Assert.Equal("Highland Bull", animal1.SireName);
+        Assert.Equal(new DateOnly(2025, 3, 15), animal1.DateBirth);
+
+        // Check sub2 details
+        var sub2 = submissions.Single(s => s.ClientReference == "DEV-SUB-002");
+        Assert.Equal(Statuses.Submitted, sub2.Status);
+        Assert.Single(sub2.Animals);
+        var animal3 = sub2.Animals.First();
+        Assert.Equal("surrogate", animal3.DamType);
+        Assert.Equal("UK 12 3456 000090", animal3.DamGeneticEarTag);
+        Assert.Equal("UK 12 3456 000091", animal3.DamSurrogateEarTag);
+        Assert.Equal("Angus Premier", animal3.SireName);
+
+        // Check sub3 errors
+        var sub3 = submissions.Single(s => s.ClientReference == "DEV-SUB-003");
+        var errorAnimal = sub3.Animals.First();
+        Assert.Contains(errorAnimal.Errors, e => e.ErrorCode == "ERR_DAM_NOT_FOUND" && e.ErrorText.Contains("CTS"));
+        Assert.Contains(errorAnimal.Errors, e => e.ErrorCode == "ERR_INVALID_DOB" && e.ErrorText.Contains("current date"));
     }
 
     [Fact]

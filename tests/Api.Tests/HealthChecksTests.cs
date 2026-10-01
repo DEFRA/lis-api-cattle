@@ -1,0 +1,159 @@
+﻿// <copyright file="HealthChecksTests.cs" company="Defra">
+// Copyright (c) Defra. All rights reserved.
+// </copyright>
+
+namespace Defra.Lis.Api.Tests;
+
+using Defra.Lis.Api.Interfaces;
+using Defra.Lis.Api.Models;
+using Defra.Lis.Api.Services.Health;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Moq;
+
+public class HealthChecksTests
+{
+    private readonly Mock<IHealthService> mockHealthService = new();
+
+    [Fact]
+    public void DatabaseHealthCheck_Constructor_ThrowsArgumentNullException_WhenHealthServiceIsNull()
+    {
+        Assert.Throws<ArgumentNullException>(() => new DatabaseHealthCheck(null!));
+    }
+
+    [Theory]
+    [InlineData("Healthy", HealthStatus.Healthy)]
+    [InlineData("Degraded", HealthStatus.Degraded)]
+    [InlineData("Unhealthy", HealthStatus.Unhealthy)]
+    [InlineData("UnknownStatus", HealthStatus.Unhealthy)]
+    public async Task DatabaseHealthCheck_CheckHealthAsync_MapsStatusCorrectly(string serviceStatus, HealthStatus expectedStatus)
+    {
+        var componentResult = new ComponentHealthResult(
+            serviceStatus,
+            "Database test description",
+            TimeSpan.FromMilliseconds(50),
+            new Dictionary<string, object> { ["key"] = "val" });
+
+        this.mockHealthService.Setup(s => s.CheckDatabaseHealthAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(componentResult);
+
+        var check = new DatabaseHealthCheck(this.mockHealthService.Object);
+        var context = new HealthCheckContext();
+
+        var result = await check.CheckHealthAsync(context, TestContext.Current.CancellationToken);
+
+        Assert.Equal(expectedStatus, result.Status);
+        Assert.Equal("Database test description", result.Description);
+        Assert.NotNull(result.Data);
+        Assert.Equal("val", result.Data["key"]);
+    }
+
+    [Fact]
+    public void QueueHealthCheck_Constructor_ThrowsArgumentNullException_WhenHealthServiceIsNull()
+    {
+        Assert.Throws<ArgumentNullException>(() => new QueueHealthCheck(null!));
+    }
+
+    [Theory]
+    [InlineData("Healthy", HealthStatus.Healthy)]
+    [InlineData("Degraded", HealthStatus.Degraded)]
+    [InlineData("Unhealthy", HealthStatus.Unhealthy)]
+    [InlineData("CustomStatus", HealthStatus.Unhealthy)]
+    public async Task QueueHealthCheck_CheckHealthAsync_MapsStatusCorrectly(string serviceStatus, HealthStatus expectedStatus)
+    {
+        var componentResult = new ComponentHealthResult(
+            serviceStatus,
+            "Queue test description",
+            TimeSpan.FromMilliseconds(25),
+            new Dictionary<string, object> { ["queueUrl"] = "http://localhost:4566/0000/test" });
+
+        this.mockHealthService.Setup(s => s.CheckQueueHealthAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(componentResult);
+
+        var check = new QueueHealthCheck(this.mockHealthService.Object);
+        var context = new HealthCheckContext();
+
+        var result = await check.CheckHealthAsync(context, TestContext.Current.CancellationToken);
+
+        Assert.Equal(expectedStatus, result.Status);
+        Assert.Equal("Queue test description", result.Description);
+        Assert.NotNull(result.Data);
+        Assert.Equal("http://localhost:4566/0000/test", result.Data["queueUrl"]);
+    }
+
+    [Fact]
+    public void QuartzHealthCheck_Constructor_ThrowsArgumentNullException_WhenHealthServiceIsNull()
+    {
+        Assert.Throws<ArgumentNullException>(() => new QuartzHealthCheck(null!));
+    }
+
+    [Theory]
+    [InlineData("Healthy", HealthStatus.Healthy)]
+    [InlineData("Degraded", HealthStatus.Degraded)]
+    [InlineData("Unhealthy", HealthStatus.Unhealthy)]
+    [InlineData("Failed", HealthStatus.Unhealthy)]
+    public async Task QuartzHealthCheck_CheckHealthAsync_MapsStatusCorrectly(string serviceStatus, HealthStatus expectedStatus)
+    {
+        var componentResult = new ComponentHealthResult(
+            serviceStatus,
+            "Quartz test description",
+            TimeSpan.FromMilliseconds(10),
+            new Dictionary<string, object> { ["jobExists"] = true });
+
+        this.mockHealthService.Setup(s => s.CheckQuartzHealthAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(componentResult);
+
+        var check = new QuartzHealthCheck(this.mockHealthService.Object);
+        var context = new HealthCheckContext();
+
+        var result = await check.CheckHealthAsync(context, TestContext.Current.CancellationToken);
+
+        Assert.Equal(expectedStatus, result.Status);
+        Assert.Equal("Quartz test description", result.Description);
+        Assert.NotNull(result.Data);
+        Assert.Equal(true, result.Data["jobExists"]);
+    }
+
+    [Fact]
+    public void ComponentHealthResult_ConstructorsAndProperties_InitializeCorrectly()
+    {
+        var data = new Dictionary<string, object> { ["testKey"] = "testValue" };
+
+        var resultWithTimeSpan = new ComponentHealthResult("Healthy", "All good", TimeSpan.FromSeconds(1.5), data);
+        Assert.Equal("Healthy", resultWithTimeSpan.Status);
+        Assert.Equal("All good", resultWithTimeSpan.Description);
+        Assert.Equal(1.5, resultWithTimeSpan.DurationSeconds);
+        Assert.Equal(data, resultWithTimeSpan.Data);
+
+        var resultWithDouble = new ComponentHealthResult("Degraded", "Slow", 2.5, data);
+        Assert.Equal("Degraded", resultWithDouble.Status);
+        Assert.Equal("Slow", resultWithDouble.Description);
+        Assert.Equal(2.5, resultWithDouble.DurationSeconds);
+        Assert.Equal(data, resultWithDouble.Data);
+
+        var defaultResult = new ComponentHealthResult("Unhealthy");
+        Assert.Equal("Unhealthy", defaultResult.Status);
+        Assert.Null(defaultResult.Description);
+        Assert.Equal(0, defaultResult.DurationSeconds);
+        Assert.Null(defaultResult.Data);
+    }
+
+    [Fact]
+    public void HealthCheckResponse_ConstructorsAndProperties_InitializeCorrectly()
+    {
+        var entries = new Dictionary<string, ComponentHealthResult>
+        {
+            ["database"] = new("Healthy", "DB OK", 0.05),
+            ["queue"] = new("Healthy", "Queue OK", 0.02),
+        };
+
+        var responseWithTimeSpan = new HealthCheckResponse("Healthy", TimeSpan.FromSeconds(0.07), entries);
+        Assert.Equal("Healthy", responseWithTimeSpan.Status);
+        Assert.Equal(0.07, responseWithTimeSpan.TotalDurationSeconds);
+        Assert.Equal(2, responseWithTimeSpan.Entries.Count);
+
+        var responseWithDouble = new HealthCheckResponse("Unhealthy", 1.25, entries);
+        Assert.Equal("Unhealthy", responseWithDouble.Status);
+        Assert.Equal(1.25, responseWithDouble.TotalDurationSeconds);
+        Assert.Equal(entries, responseWithDouble.Entries);
+    }
+}
