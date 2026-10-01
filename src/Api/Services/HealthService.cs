@@ -152,28 +152,20 @@ public class HealthService : IHealthService
         }
 
         var queueUrl = this.awsOptions.SubmissionValidationQueueUrl;
+        if (string.IsNullOrWhiteSpace(queueUrl))
+        {
+            stopwatch.Stop();
+            return new ComponentHealthResult(
+                HealthStatus.Healthy.ToString(),
+                "Queue health check skipped: No queue URL configured.",
+                stopwatch.Elapsed);
+        }
 
         using var timeoutCts = new CancellationTokenSource(this.checkTimeout);
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
         try
         {
-            if (string.IsNullOrWhiteSpace(queueUrl))
-            {
-                // Verify queue service availability via ListQueuesAsync if specific queue url is not specified
-                var response = await this.sqsClient.ListQueuesAsync(new ListQueuesRequest { MaxResults = 1 }, linkedCts.Token);
-                stopwatch.Stop();
-
-                return new ComponentHealthResult(
-                    HealthStatus.Healthy.ToString(),
-                    "SQS service is accessible.",
-                    stopwatch.Elapsed,
-                    new Dictionary<string, object>
-                    {
-                        ["queueCount"] = response.QueueUrls?.Count ?? 0,
-                    });
-            }
-
             var queueName = ExtractQueueName(queueUrl);
             var effectiveQueueUrl = await this.ResolveQueueUrlAsync(queueUrl, queueName, linkedCts.Token);
 

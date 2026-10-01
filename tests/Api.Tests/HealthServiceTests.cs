@@ -70,12 +70,9 @@ public class HealthServiceTests
     }
 
     [Fact]
-    public async Task CheckQueueHealthAsync_WhenNoQueueUrlConfigured_AndListQueuesSucceeds_ReturnsHealthy()
+    public async Task CheckQueueHealthAsync_WhenNoQueueUrlConfigured_SkipsCheckAndReturnsHealthy()
     {
         var awsOptions = Options.Create(new AwsMessagingOptions { SubmissionValidationQueueUrl = string.Empty });
-
-        this.mockSqs.Setup(s => s.ListQueuesAsync(It.IsAny<ListQueuesRequest>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ListQueuesResponse { QueueUrls = ["https://sqs.eu-west-2.amazonaws.com/123/queue1"] });
 
         var service = new HealthService(
             this.mockLogger.Object,
@@ -85,8 +82,8 @@ public class HealthServiceTests
         var result = await service.CheckQueueHealthAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(HealthStatus.Healthy.ToString(), result.Status);
-        Assert.NotNull(result.Data);
-        Assert.Equal(1, result.Data["queueCount"]);
+        Assert.Contains("skipped", result.Description, StringComparison.OrdinalIgnoreCase);
+        this.mockSqs.Verify(s => s.ListQueuesAsync(It.IsAny<ListQueuesRequest>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
