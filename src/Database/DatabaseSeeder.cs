@@ -38,7 +38,14 @@ public static partial class DatabaseSeeder
             return;
         }
 
-        await SeedDevelopmentDataAsync(dbContext, logger, cancellationToken);
+        try
+        {
+            await SeedDevelopmentDataAsync(dbContext, logger, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Failed to seed development database due to a database error or connection issue. Continuing application startup.");
+        }
     }
 
     public static async Task SeedDevelopmentDataAsync(

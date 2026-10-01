@@ -153,4 +153,30 @@ public class DatabaseSeederTests
         var submissions = await context.Set<Submission>().ToListAsync(TestContext.Current.CancellationToken);
         Assert.Empty(submissions);
     }
+
+    [Fact]
+    public async Task SeedDevelopmentDatabaseAsync_WhenDatabaseConnectionFails_DoesNotThrowAndAllowsStartup()
+    {
+        // Arrange
+        var mockEnv = new Mock<IHostEnvironment>();
+        mockEnv.Setup(e => e.EnvironmentName).Returns("Development");
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(mockEnv.Object);
+        // Configure with a non-existent connection string that will fail to connect
+        services.AddDbContext<PostgresDbContext>(options =>
+        {
+            options.UseNpgsql("Host=nonexistent-host;Database=lis_test;Username=user;Password=pass;Timeout=1;CommandTimeout=1");
+            options.ReplaceService<IModelCustomizer, CattleModelCustomizer>();
+        });
+
+        var hostServices = services.BuildServiceProvider();
+        var mockHost = new Mock<IHost>();
+        mockHost.Setup(h => h.Services).Returns(hostServices);
+
+        // Act & Assert (Should complete without throwing exception)
+        var exception = await Record.ExceptionAsync(() => mockHost.Object.SeedDevelopmentDatabaseAsync(TestContext.Current.CancellationToken));
+        Assert.Null(exception);
+    }
 }
