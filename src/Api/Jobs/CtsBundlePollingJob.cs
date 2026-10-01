@@ -5,8 +5,10 @@
 namespace Defra.Lis.Api.Jobs;
 
 using Defra.Lis.Api.Interfaces;
+using Defra.Lis.Api.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Quartz;
 
 [DisallowConcurrentExecution]
@@ -18,7 +20,7 @@ public partial class CtsBundlePollingJob(
     private readonly IServiceScopeFactory scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
     private readonly ILogger<CtsBundlePollingJob> logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-    public async ValueTask Execute(IJobExecutionContext context, CancellationToken cancellationToken = default)
+    public async Task Execute(IJobExecutionContext context)
     {
         LogStartingCtsBundlePollingJobExecutionAtTime(DateTimeOffset.UtcNow);
 

@@ -10,7 +10,9 @@ using System.Text.Json;
 using Asp.Versioning;
 using Defra.Database.Postgres;
 using Defra.Lis.Api.Configurations;
+using Defra.Lis.Api.Endpoints;
 using Defra.Lis.Api.Endpoints.Cattle;
+using Defra.Lis.Api.Endpoints.Health;
 using Defra.Lis.Api.Endpoints.Holding;
 using Defra.Lis.Api.Endpoints.Registration;
 using Defra.Lis.Api.Endpoints.Users;
@@ -77,7 +79,11 @@ public static class Program
         });
 
         // Add services to the container.
-        builder.Services.AddHealthChecks();
+        builder.Services.AddScoped<IHealthService, HealthService>();
+        builder.Services.AddHealthChecks()
+            .AddCheck<DatabaseHealthCheck>("database", timeout: HealthService.DefaultCheckTimeout)
+            .AddCheck<QueueHealthCheck>("queue", timeout: HealthService.DefaultCheckTimeout)
+            .AddCheck<QuartzHealthCheck>("quartz", timeout: HealthService.DefaultCheckTimeout);
         builder.Services.AddPostgresDatabase(configuration);
         builder.Services.AddCattleDatabaseConfigurations();
 
@@ -152,7 +158,7 @@ public static class Program
     {
         app.UseExceptionHandler();
         app.UseHeaderPropagation();
-        app.UseHealthChecks("/health");
+
         if (!isGeneratingOpenApi)
         {
             app.UsePostgresDatabase();
@@ -171,6 +177,7 @@ public static class Program
         app.MapHoldingEndpoints();
         app.MapRegistrationEndpoints();
         app.MapUserEndpoints();
+        app.MapHealthEndpoints();
 
         return app;
     }

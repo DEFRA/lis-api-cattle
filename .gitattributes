@@ -1,0 +1,6 @@
+﻿# Enforce LF line endings for shell scripts and compose files (required for Linux Docker containers on Windows)
+*.sh text eol=lf
+Dockerfile* text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
