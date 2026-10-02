@@ -1,0 +1,11 @@
+﻿### Get Health status
+GET {{host}}/health
+Accept: application/json
+
+> ../Asserts/Should_be_200_OK.js
+
+### Get Detailed Health status
+GET {{host}}/health/detailed
+Accept: application/json
+
+> ../Asserts/Should_be_200_OK.js
