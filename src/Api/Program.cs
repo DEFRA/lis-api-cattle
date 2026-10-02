@@ -10,7 +10,6 @@ using System.Text.Json;
 using Asp.Versioning;
 using Defra.Database.Postgres;
 using Defra.Lis.Api.Configurations;
-using Defra.Lis.Api.Endpoints;
 using Defra.Lis.Api.Endpoints.Cattle;
 using Defra.Lis.Api.Endpoints.Health;
 using Defra.Lis.Api.Endpoints.Holding;
@@ -133,7 +132,7 @@ public static class Program
         builder.Services.AddScoped<ICadsService, CadsService>();
         builder.Services.AddScoped<IKrdsService, KrdsService>();
 
-        if (builder.Configuration.GetValue<bool>("CtsApi:UseFake", true))
+        if (builder.Configuration.GetValue("CtsApi:UseFake", true))
         {
             builder.Services.AddSingleton<ICtsService, FakeCtsService>();
         }
@@ -147,6 +146,7 @@ public static class Program
 
         builder.Services.AddScoped<ICattleService, CattleService>();
         builder.Services.AddScoped<ICtsBundleProcessorService, CtsBundleProcessorService>();
+
         if (!isGeneratingOpenApi)
         {
             builder.Services.AddAwsMessagingServices(builder.Configuration);

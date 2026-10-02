@@ -17,7 +17,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Quartz;
 
-public class HealthService : IHealthService
+public partial class HealthService : IHealthService
 {
     public static readonly TimeSpan DefaultCheckTimeout = TimeSpan.FromSeconds(10);
 
@@ -116,7 +116,7 @@ public class HealthService : IHealthService
         {
             stopwatch.Stop();
 
-            logger.LogWarning(ex, "Database health check timed out after {Timeout}", checkTimeout);
+            LogDatabaseHealthCheckTimedOut(checkTimeout, ex);
 
             return new ComponentHealthResult(
                 nameof(HealthStatus.Unhealthy),
@@ -127,7 +127,7 @@ public class HealthService : IHealthService
         {
             stopwatch.Stop();
 
-            logger.LogError(ex, "Database health check failed");
+            LogDatabaseHealthCheckFailed(ex);
 
             return new ComponentHealthResult(
                 nameof(HealthStatus.Unhealthy),
@@ -205,7 +205,7 @@ public class HealthService : IHealthService
         {
             stopwatch.Stop();
 
-            logger.LogWarning(ex, "Queue health check timed out after {Timeout}", checkTimeout);
+            LogQueueHealthCheckTimedOut(checkTimeout, ex);
 
             return new ComponentHealthResult(
                 nameof(HealthStatus.Unhealthy),
@@ -217,7 +217,7 @@ public class HealthService : IHealthService
         {
             stopwatch.Stop();
 
-            logger.LogError(ex, "Queue health check failed for SQS");
+            LogQueueHealthCheckFailed(ex);
 
             return new ComponentHealthResult(
                 nameof(HealthStatus.Unhealthy),
@@ -356,7 +356,7 @@ public class HealthService : IHealthService
         {
             stopwatch.Stop();
 
-            logger.LogWarning(ex, "Quartz health check timed out after {Timeout}", checkTimeout);
+            LogQuartzHealthCheckTimedOut(checkTimeout, ex);
 
             return new ComponentHealthResult(
                 nameof(HealthStatus.Unhealthy),
@@ -367,7 +367,7 @@ public class HealthService : IHealthService
         {
             stopwatch.Stop();
 
-            logger.LogError(ex, "Quartz health check failed");
+            LogQuartzHealthCheckFailed(ex);
 
             return new ComponentHealthResult(
                 nameof(HealthStatus.Unhealthy),

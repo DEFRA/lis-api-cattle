@@ -35,6 +35,7 @@ public static partial class DatabaseSeeder
         if (dbContext is null)
         {
             LogPostgresdbcontextNotFoundInServiceProviderSkippingDevelopmentDatabaseSeeding(logger);
+
             return;
         }
 
@@ -44,7 +45,9 @@ public static partial class DatabaseSeeder
         }
         catch (Exception ex)
         {
-            logger?.LogWarning(ex, "Failed to seed development database due to a database error or connection issue. Continuing application startup.");
+            logger?.LogWarning(
+                ex,
+                "Failed to seed development database due to a database error or connection issue. Continuing application startup.");
         }
     }
 
