@@ -67,7 +67,7 @@ public static class HealthEndpoints
         app.MapGet("/health/detailed", async (IHealthService healthService, CancellationToken cancellationToken) =>
         {
             var result = await healthService.CheckHealthAsync(cancellationToken);
-            return result.Status == HealthStatus.Healthy.ToString()
+            return result.Status == nameof(HealthStatus.Healthy)
                 ? Results.Ok(result)
                 : Results.Json(result, statusCode: StatusCodes.Status503ServiceUnavailable);
         })
