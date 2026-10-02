@@ -21,9 +21,9 @@ public class HealthService : IHealthService
 {
     public static readonly TimeSpan DefaultCheckTimeout = TimeSpan.FromSeconds(10);
 
-    private readonly PostgresDbContext? dbContext;
-    private readonly IAmazonSQS? sqsClient;
-    private readonly ISchedulerFactory? schedulerFactory;
+    private readonly PostgresDbContext dbContext;
+    private readonly IAmazonSQS sqsClient;
+    private readonly ISchedulerFactory schedulerFactory;
     private readonly AwsMessagingOptions awsOptions;
     private readonly CtsPollingJobOptions ctsJobOptions;
     private readonly ILogger<HealthService> logger;
@@ -31,19 +31,19 @@ public class HealthService : IHealthService
 
     public HealthService(
         ILogger<HealthService> logger,
-        PostgresDbContext? dbContext = null,
-        IAmazonSQS? sqsClient = null,
-        ISchedulerFactory? schedulerFactory = null,
-        IOptions<AwsMessagingOptions>? awsOptions = null,
-        IOptions<CtsPollingJobOptions>? ctsJobOptions = null,
+        PostgresDbContext dbContext,
+        IAmazonSQS sqsClient,
+        ISchedulerFactory schedulerFactory,
+        IOptions<AwsMessagingOptions> awsOptions,
+        IOptions<CtsPollingJobOptions> ctsJobOptions,
         TimeSpan? checkTimeout = null)
     {
         this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        this.dbContext = dbContext;
-        this.sqsClient = sqsClient;
-        this.schedulerFactory = schedulerFactory;
-        this.awsOptions = awsOptions?.Value ?? new AwsMessagingOptions();
-        this.ctsJobOptions = ctsJobOptions?.Value ?? new CtsPollingJobOptions();
+        this.dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
+        this.sqsClient = sqsClient ?? throw new ArgumentNullException(nameof(sqsClient));
+        this.schedulerFactory = schedulerFactory ?? throw new ArgumentNullException(nameof(schedulerFactory));
+        this.awsOptions = awsOptions?.Value ?? throw new ArgumentNullException(nameof(awsOptions));
+        this.ctsJobOptions = ctsJobOptions?.Value ?? throw new ArgumentNullException(nameof(ctsJobOptions));
         this.checkTimeout = checkTimeout ?? DefaultCheckTimeout;
     }
 
@@ -64,21 +64,22 @@ public class HealthService : IHealthService
 
         stopwatch.Stop();
 
-        var isHealthy = entries.Values.All(e => e.Status == HealthStatus.Healthy.ToString());
-        var isDegraded = entries.Values.Any(e => e.Status == HealthStatus.Degraded.ToString());
+        var isHealthy = entries.Values.All(e => e.Status == nameof(HealthStatus.Healthy));
+        var isDegraded = entries.Values.Any(e => e.Status == nameof(HealthStatus.Degraded));
 
         string overallStatus;
+
         if (isHealthy)
         {
-            overallStatus = HealthStatus.Healthy.ToString();
+            overallStatus = nameof(HealthStatus.Healthy);
         }
         else if (isDegraded)
         {
-            overallStatus = HealthStatus.Degraded.ToString();
+            overallStatus = nameof(HealthStatus.Degraded);
         }
         else
         {
-            overallStatus = HealthStatus.Unhealthy.ToString();
+            overallStatus = nameof(HealthStatus.Unhealthy);
         }
 
         return new HealthCheckResponse(overallStatus, stopwatch.Elapsed, entries);
@@ -87,15 +88,6 @@ public class HealthService : IHealthService
     public async Task<ComponentHealthResult> CheckDatabaseHealthAsync(CancellationToken cancellationToken = default)
     {
         var stopwatch = Stopwatch.StartNew();
-
-        if (this.dbContext == null)
-        {
-            stopwatch.Stop();
-            return new ComponentHealthResult(
-                HealthStatus.Unhealthy.ToString(),
-                "Database context is not configured.",
-                stopwatch.Elapsed);
-        }
 
         using var timeoutCts = new CancellationTokenSource(this.checkTimeout);
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
@@ -108,22 +100,23 @@ public class HealthService : IHealthService
             if (canConnect)
             {
                 return new ComponentHealthResult(
-                    HealthStatus.Healthy.ToString(),
+                    nameof(HealthStatus.Healthy),
                     "PostgreSQL database connection is healthy.",
                     stopwatch.Elapsed);
             }
 
             return new ComponentHealthResult(
-                HealthStatus.Unhealthy.ToString(),
+                nameof(HealthStatus.Unhealthy),
                 "Cannot connect to the PostgreSQL database.",
                 stopwatch.Elapsed);
         }
-        catch (OperationCanceledException ex) when (timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException ex) when (timeoutCts.IsCancellationRequested &&
+                                                    !cancellationToken.IsCancellationRequested)
         {
             stopwatch.Stop();
             this.logger.LogWarning(ex, "Database health check timed out after {Timeout}", this.checkTimeout);
             return new ComponentHealthResult(
-                HealthStatus.Unhealthy.ToString(),
+                nameof(HealthStatus.Unhealthy),
                 $"Database health check timed out after {this.checkTimeout.TotalSeconds}s.",
                 stopwatch.Elapsed);
         }
@@ -132,7 +125,7 @@ public class HealthService : IHealthService
             stopwatch.Stop();
             this.logger.LogError(ex, "Database health check failed");
             return new ComponentHealthResult(
-                HealthStatus.Unhealthy.ToString(),
+                nameof(HealthStatus.Unhealthy),
                 $"Database health check failed: {ex.Message}",
                 stopwatch.Elapsed);
         }
@@ -146,17 +139,18 @@ public class HealthService : IHealthService
         {
             stopwatch.Stop();
             return new ComponentHealthResult(
-                HealthStatus.Unhealthy.ToString(),
+                nameof(HealthStatus.Unhealthy),
                 "SQS client is not configured.",
                 stopwatch.Elapsed);
         }
 
         var queueUrl = this.awsOptions.SubmissionValidationQueueUrl;
+
         if (string.IsNullOrWhiteSpace(queueUrl))
         {
             stopwatch.Stop();
             return new ComponentHealthResult(
-                HealthStatus.Healthy.ToString(),
+                nameof(HealthStatus.Healthy),
                 "Queue health check skipped: No queue URL configured.",
                 stopwatch.Elapsed);
         }
@@ -172,96 +166,67 @@ public class HealthService : IHealthService
             GetQueueAttributesResponse attributesResponse;
             try
             {
-                var request = new GetQueueAttributesRequest
-                {
-                    QueueUrl = effectiveQueueUrl,
-                    AttributeNames = ["All"],
-                };
+                var request = new GetQueueAttributesRequest { QueueUrl = effectiveQueueUrl, AttributeNames = ["All"], };
 
                 attributesResponse = await this.sqsClient.GetQueueAttributesAsync(request, linkedCts.Token);
             }
             catch (QueueDoesNotExistException) when (!string.IsNullOrWhiteSpace(queueName))
             {
                 // Fall back: resolve URL via GetQueueUrlAsync in case configured URL host differed from client host
-                var urlResponse = await this.sqsClient.GetQueueUrlAsync(new GetQueueUrlRequest { QueueName = queueName }, linkedCts.Token);
+                var urlResponse =
+                    await this.sqsClient.GetQueueUrlAsync(
+                        new GetQueueUrlRequest { QueueName = queueName },
+                        linkedCts.Token);
                 effectiveQueueUrl = urlResponse.QueueUrl;
 
                 attributesResponse = await this.sqsClient.GetQueueAttributesAsync(
-                    new GetQueueAttributesRequest
-                    {
-                        QueueUrl = effectiveQueueUrl,
-                        AttributeNames = ["All"],
-                    },
+                    new GetQueueAttributesRequest { QueueUrl = effectiveQueueUrl, AttributeNames = ["All"], },
                     linkedCts.Token);
             }
 
             stopwatch.Stop();
 
-            var messageCount = attributesResponse.Attributes != null && attributesResponse.Attributes.TryGetValue(QueueAttributeName.ApproximateNumberOfMessages, out var countStr) && int.TryParse(countStr, out var count)
+            var messageCount = attributesResponse.Attributes != null &&
+                               attributesResponse.Attributes.TryGetValue(
+                                   QueueAttributeName.ApproximateNumberOfMessages,
+                                   out var countStr) && int.TryParse(countStr, out var count)
                 ? count
                 : 0;
 
             return new ComponentHealthResult(
-                HealthStatus.Healthy.ToString(),
+                nameof(HealthStatus.Healthy),
                 "SQS queue is healthy and accessible.",
                 stopwatch.Elapsed,
                 new Dictionary<string, object>
                 {
-                    ["queueUrl"] = effectiveQueueUrl,
-                    ["approximateNumberOfMessages"] = messageCount,
+                    ["queueUrl"] = effectiveQueueUrl, ["approximateNumberOfMessages"] = messageCount,
                 });
         }
-        catch (OperationCanceledException ex) when (timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException ex) when (timeoutCts.IsCancellationRequested &&
+                                                    !cancellationToken.IsCancellationRequested)
         {
             stopwatch.Stop();
-            this.logger.LogWarning(ex, "Queue health check timed out after {Timeout}", this.checkTimeout);
+
+            logger.LogWarning(ex, "Queue health check timed out after {Timeout}", checkTimeout);
+
             return new ComponentHealthResult(
-                HealthStatus.Unhealthy.ToString(),
-                $"Queue health check timed out after {this.checkTimeout.TotalSeconds}s.",
+                nameof(HealthStatus.Unhealthy),
+                $"Queue health check timed out after {checkTimeout.TotalSeconds}s.",
                 stopwatch.Elapsed,
-                new Dictionary<string, object>
-                {
-                    ["queueUrl"] = queueUrl ?? string.Empty,
-                });
+                new Dictionary<string, object> { ["queueUrl"] = queueUrl });
         }
         catch (Exception ex)
         {
             stopwatch.Stop();
+
             this.logger.LogError(ex, "Queue health check failed for SQS");
+
             return new ComponentHealthResult(
-                HealthStatus.Unhealthy.ToString(),
+                nameof(HealthStatus.Unhealthy),
                 $"Queue health check failed: {ex.Message}",
                 stopwatch.Elapsed,
-                new Dictionary<string, object>
-                {
-                    ["queueUrl"] = queueUrl ?? string.Empty,
-                });
+                new Dictionary<string, object> { ["queueUrl"] = queueUrl });
         }
-    }
-
-    private async Task<string> ResolveQueueUrlAsync(string configuredUrl, string queueName, CancellationToken cancellationToken)
-    {
-        if (!configuredUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
-            !configuredUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase) &&
-            !string.IsNullOrWhiteSpace(queueName))
-        {
-            var getUrlResponse = await this.sqsClient!.GetQueueUrlAsync(new GetQueueUrlRequest { QueueName = queueName }, cancellationToken);
-            return getUrlResponse.QueueUrl;
-        }
-
-        return configuredUrl;
-    }
-
-    private static string ExtractQueueName(string queueUrl)
-    {
-        if (string.IsNullOrWhiteSpace(queueUrl))
-        {
-            return string.Empty;
-        }
-
-        var trimmed = queueUrl.TrimEnd('/');
-        var lastSlashIndex = trimmed.LastIndexOf('/');
-        return lastSlashIndex >= 0 ? trimmed[(lastSlashIndex + 1)..] : trimmed;
     }
 
     public async Task<ComponentHealthResult> CheckQuartzHealthAsync(CancellationToken cancellationToken = default)
@@ -271,8 +236,9 @@ public class HealthService : IHealthService
         if (this.schedulerFactory == null)
         {
             stopwatch.Stop();
+
             return new ComponentHealthResult(
-                HealthStatus.Unhealthy.ToString(),
+                nameof(HealthStatus.Unhealthy),
                 "Quartz scheduler factory is not configured.",
                 stopwatch.Elapsed);
         }
@@ -282,13 +248,14 @@ public class HealthService : IHealthService
 
         try
         {
-            var scheduler = await this.schedulerFactory.GetScheduler(linkedCts.Token);
+            var scheduler = await schedulerFactory.GetScheduler(linkedCts.Token);
 
             if (scheduler == null)
             {
                 stopwatch.Stop();
+
                 return new ComponentHealthResult(
-                    HealthStatus.Unhealthy.ToString(),
+                    nameof(HealthStatus.Unhealthy),
                     "Quartz scheduler instance could not be obtained.",
                     stopwatch.Elapsed);
             }
@@ -297,7 +264,7 @@ public class HealthService : IHealthService
             {
                 stopwatch.Stop();
                 return new ComponentHealthResult(
-                    HealthStatus.Unhealthy.ToString(),
+                    nameof(HealthStatus.Unhealthy),
                     "Quartz scheduler is shutdown.",
                     stopwatch.Elapsed,
                     new Dictionary<string, object>
@@ -327,21 +294,23 @@ public class HealthService : IHealthService
                 ["triggersCount"] = triggerList.Count,
             };
 
-            if (this.ctsJobOptions.Enabled && !jobExists)
+            if (ctsJobOptions.Enabled && !jobExists)
             {
                 stopwatch.Stop();
+
                 return new ComponentHealthResult(
-                    HealthStatus.Unhealthy.ToString(),
+                    nameof(HealthStatus.Unhealthy),
                     $"Quartz background job '{nameof(CtsBundlePollingJob)}' is enabled in options but not registered in scheduler.",
                     stopwatch.Elapsed,
                     data);
             }
 
-            if (this.ctsJobOptions.Enabled && triggerList.Count == 0)
+            if (ctsJobOptions.Enabled && triggerList.Count == 0)
             {
                 stopwatch.Stop();
+
                 return new ComponentHealthResult(
-                    HealthStatus.Degraded.ToString(),
+                    nameof(HealthStatus.Degraded),
                     $"Quartz background job '{nameof(CtsBundlePollingJob)}' is registered but has no triggers scheduled.",
                     stopwatch.Elapsed,
                     data);
@@ -355,6 +324,7 @@ public class HealthService : IHealthService
 
                 data["triggerKey"] = trigger.Key.ToString();
                 data["triggerState"] = triggerState.ToString();
+
                 if (nextFireTimeUtc.HasValue)
                 {
                     data["nextFireTimeUtc"] = nextFireTimeUtc.Value.ToString("o");
@@ -363,8 +333,9 @@ public class HealthService : IHealthService
                 if (triggerState == TriggerState.Error)
                 {
                     stopwatch.Stop();
+
                     return new ComponentHealthResult(
-                        HealthStatus.Unhealthy.ToString(),
+                        nameof(HealthStatus.Unhealthy),
                         $"Quartz background trigger '{trigger.Key}' is in Error state.",
                         stopwatch.Elapsed,
                         data);
@@ -373,8 +344,9 @@ public class HealthService : IHealthService
                 if (triggerState == TriggerState.Paused)
                 {
                     stopwatch.Stop();
+
                     return new ComponentHealthResult(
-                        HealthStatus.Degraded.ToString(),
+                        nameof(HealthStatus.Degraded),
                         $"Quartz background trigger '{trigger.Key}' is Paused.",
                         stopwatch.Elapsed,
                         data);
@@ -388,17 +360,20 @@ public class HealthService : IHealthService
                 : "Quartz scheduler is healthy (background job is disabled by configuration).";
 
             return new ComponentHealthResult(
-                HealthStatus.Healthy.ToString(),
+                nameof(HealthStatus.Healthy),
                 description,
                 stopwatch.Elapsed,
                 data);
         }
-        catch (OperationCanceledException ex) when (timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException ex) when (timeoutCts.IsCancellationRequested &&
+                                                    !cancellationToken.IsCancellationRequested)
         {
             stopwatch.Stop();
+
             this.logger.LogWarning(ex, "Quartz health check timed out after {Timeout}", this.checkTimeout);
+
             return new ComponentHealthResult(
-                HealthStatus.Unhealthy.ToString(),
+                nameof(HealthStatus.Unhealthy),
                 $"Quartz health check timed out after {this.checkTimeout.TotalSeconds}s.",
                 stopwatch.Elapsed);
         }
@@ -407,9 +382,40 @@ public class HealthService : IHealthService
             stopwatch.Stop();
             this.logger.LogError(ex, "Quartz health check failed");
             return new ComponentHealthResult(
-                HealthStatus.Unhealthy.ToString(),
+                nameof(HealthStatus.Unhealthy),
                 $"Quartz health check failed: {ex.Message}",
                 stopwatch.Elapsed);
         }
+    }
+
+    private static string ExtractQueueName(string queueUrl)
+    {
+        if (string.IsNullOrWhiteSpace(queueUrl))
+        {
+            return string.Empty;
+        }
+
+        var trimmed = queueUrl.TrimEnd('/');
+        var lastSlashIndex = trimmed.LastIndexOf('/');
+        return lastSlashIndex >= 0 ? trimmed[(lastSlashIndex + 1)..] : trimmed;
+    }
+
+    private async Task<string> ResolveQueueUrlAsync(
+        string configuredUrl,
+        string queueName,
+        CancellationToken cancellationToken)
+    {
+        if (configuredUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            configuredUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+            string.IsNullOrWhiteSpace(queueName))
+        {
+            return configuredUrl;
+        }
+
+        var getUrlResponse =
+            await this.sqsClient.GetQueueUrlAsync(
+                new GetQueueUrlRequest { QueueName = queueName },
+                cancellationToken);
+        return getUrlResponse.QueueUrl;
     }
 }
