@@ -15,11 +15,13 @@ public static class ServiceCollectionExtensions
         services.ConfigureDbContext<PostgresDbContext>((_, options) =>
         {
             options.ReplaceService<IModelCustomizer, CattleModelCustomizer>();
+            options.EnableSensitiveDataLogging(false);
         });
 
         services.ConfigureDbContext<ReadOnlyPostgresDbContext>((_, options) =>
         {
             options.ReplaceService<IModelCustomizer, CattleModelCustomizer>();
+            options.EnableSensitiveDataLogging(false);
         });
 
         return services;
