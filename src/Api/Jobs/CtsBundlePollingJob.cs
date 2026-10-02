@@ -5,10 +5,8 @@
 namespace Defra.Lis.Api.Jobs;
 
 using Defra.Lis.Api.Interfaces;
-using Defra.Lis.Api.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Quartz;
 
 [DisallowConcurrentExecution]
