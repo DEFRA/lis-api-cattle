@@ -20,14 +20,16 @@ public class DatabaseSeederTests
     public async Task SeedDevelopmentDatabaseAsync_WhenHostIsNull_ThrowsArgumentNullException()
     {
         IHost host = null!;
-        await Assert.ThrowsAsync<ArgumentNullException>(() => host.SeedDevelopmentDatabaseAsync(TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentNullException>(() =>
+            host.SeedDevelopmentDatabaseAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task SeedDevelopmentDataAsync_WhenDbContextIsNull_ThrowsArgumentNullException()
     {
         var logger = NullLogger<DatabaseSeederTests>.Instance;
-        await Assert.ThrowsAsync<ArgumentNullException>(() => DatabaseSeeder.SeedDevelopmentDataAsync(null!, logger, TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentNullException>(() =>
+            DatabaseSeeder.SeedDevelopmentDataAsync(null!, logger, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -40,14 +42,15 @@ public class DatabaseSeederTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(mockEnv.Object);
-        // Do not register PostgresDbContext in DI
 
+        // Do not register PostgresDbContext in DI
         var hostServices = services.BuildServiceProvider();
         var mockHost = new Mock<IHost>();
         mockHost.Setup(h => h.Services).Returns(hostServices);
 
         // Act & Assert (Should complete cleanly without throwing)
-        var exception = await Record.ExceptionAsync(() => mockHost.Object.SeedDevelopmentDatabaseAsync(TestContext.Current.CancellationToken));
+        var exception = await Record.ExceptionAsync(() =>
+            mockHost.Object.SeedDevelopmentDatabaseAsync(TestContext.Current.CancellationToken));
         Assert.Null(exception);
     }
 
@@ -65,16 +68,19 @@ public class DatabaseSeederTests
             options.ReplaceService<IModelCustomizer, CattleModelCustomizer>();
         });
 
-        using var serviceProvider = services.BuildServiceProvider();
-        using var context = serviceProvider.GetRequiredService<PostgresDbContext>();
+        await using var serviceProvider = services.BuildServiceProvider();
+        await using var context = serviceProvider.GetRequiredService<PostgresDbContext>();
 
         // Act
-        await DatabaseSeeder.SeedDevelopmentDataAsync(context, logger, cancellationToken: TestContext.Current.CancellationToken);
+        await DatabaseSeeder.SeedDevelopmentDataAsync(
+            context,
+            logger,
+            cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
         var submissions = await context.Set<Submission>()
             .Include(s => s.Animals)
-                .ThenInclude(a => a.Errors)
+            .ThenInclude(a => a.Errors)
             .ToListAsync(TestContext.Current.CancellationToken);
 
         Assert.NotEmpty(submissions);
@@ -122,7 +128,9 @@ public class DatabaseSeederTests
         var sub3 = submissions.Single(s => s.ClientReference == "DEV-SUB-003");
         var errorAnimal = sub3.Animals.First();
         Assert.Contains(errorAnimal.Errors, e => e.ErrorCode == "ERR_DAM_NOT_FOUND" && e.ErrorText.Contains("CTS"));
-        Assert.Contains(errorAnimal.Errors, e => e.ErrorCode == "ERR_INVALID_DOB" && e.ErrorText.Contains("current date"));
+        Assert.Contains(
+            errorAnimal.Errors,
+            e => e.ErrorCode == "ERR_INVALID_DOB" && e.ErrorText.Contains("current date"));
     }
 
     [Fact]
@@ -139,15 +147,18 @@ public class DatabaseSeederTests
             options.ReplaceService<IModelCustomizer, CattleModelCustomizer>();
         });
 
-        using var serviceProvider = services.BuildServiceProvider();
-        using var context = serviceProvider.GetRequiredService<PostgresDbContext>();
+        await using var serviceProvider = services.BuildServiceProvider();
+        await using var context = serviceProvider.GetRequiredService<PostgresDbContext>();
 
         var existing = new Submission("EXISTING-01", "99/999/9999", "TEST-USER", Statuses.Complete);
         await context.Set<Submission>().AddAsync(existing, TestContext.Current.CancellationToken);
         await context.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         // Act
-        await DatabaseSeeder.SeedDevelopmentDataAsync(context, logger, cancellationToken: TestContext.Current.CancellationToken);
+        await DatabaseSeeder.SeedDevelopmentDataAsync(
+            context,
+            logger,
+            cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
         var submissions = await context.Set<Submission>().ToListAsync(TestContext.Current.CancellationToken);
@@ -180,7 +191,7 @@ public class DatabaseSeederTests
         await mockHost.Object.SeedDevelopmentDatabaseAsync(TestContext.Current.CancellationToken);
 
         // Assert
-        using var context = hostServices.GetRequiredService<PostgresDbContext>();
+        await using var context = hostServices.GetRequiredService<PostgresDbContext>();
         var submissions = await context.Set<Submission>().ToListAsync(TestContext.Current.CancellationToken);
         Assert.NotEmpty(submissions);
     }
@@ -214,7 +225,7 @@ public class DatabaseSeederTests
         await mockHost.Object.SeedDevelopmentDatabaseAsync(TestContext.Current.CancellationToken);
 
         // Assert
-        using var context = hostServices.GetRequiredService<PostgresDbContext>();
+        await using var context = hostServices.GetRequiredService<PostgresDbContext>();
         var submissions = await context.Set<Submission>().ToListAsync(TestContext.Current.CancellationToken);
         Assert.Empty(submissions);
     }
@@ -229,10 +240,12 @@ public class DatabaseSeederTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(mockEnv.Object);
+
         // Configure with a non-existent connection string that will fail to connect
         services.AddDbContext<PostgresDbContext>(options =>
         {
-            options.UseNpgsql("Host=nonexistent-host;Database=lis_test;Username=user;Password=pass;Timeout=1;CommandTimeout=1");
+            options.UseNpgsql(
+                "Host=nonexistent-host;Database=lis_test;Username=user;Password=pass;Timeout=1;CommandTimeout=1");
             options.ReplaceService<IModelCustomizer, CattleModelCustomizer>();
         });
 
@@ -241,7 +254,8 @@ public class DatabaseSeederTests
         mockHost.Setup(h => h.Services).Returns(hostServices);
 
         // Act & Assert (Should complete without throwing exception)
-        var exception = await Record.ExceptionAsync(() => mockHost.Object.SeedDevelopmentDatabaseAsync(TestContext.Current.CancellationToken));
+        var exception = await Record.ExceptionAsync(() =>
+            mockHost.Object.SeedDevelopmentDatabaseAsync(TestContext.Current.CancellationToken));
         Assert.Null(exception);
     }
 }
