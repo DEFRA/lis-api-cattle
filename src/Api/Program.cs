@@ -9,6 +9,7 @@ using System.Reflection;
 using System.Text.Json;
 using Asp.Versioning;
 using Defra.Database.Postgres;
+using Defra.Lis.Api.Authentication;
 using Defra.Lis.Api.Configurations;
 using Defra.Lis.Api.Endpoints.Cattle;
 using Defra.Lis.Api.Endpoints.Holding;
@@ -102,7 +103,11 @@ public static class Program
                     document.Info.Description = "API for cattle holdings, registrations and submission processing.";
                     return Task.CompletedTask;
                 });
+                options.Document.AddApiKeySecurity();
             });
+
+        // Service-to-service authentication: an API key for now, AWS STS later (LREG-560).
+        builder.Services.AddServiceToServiceAuthentication(builder.Configuration);
 
         // Propagate the CDP correlation header to every outbound call (Correlation ID standard).
         builder.Services.AddHeaderPropagation(options => options.Headers.Add(TraceHeaders.CdpRequestId));
@@ -153,6 +158,8 @@ public static class Program
         app.UseExceptionHandler();
         app.UseHeaderPropagation();
         app.UseHealthChecks("/health");
+        app.UseAuthentication();
+        app.UseAuthorization();
         if (!isGeneratingOpenApi)
         {
             app.UsePostgresDatabase();
@@ -167,6 +174,7 @@ public static class Program
             }
         });
 
+        // Every versioned endpoint requires AuthPolicies.ServiceToService; health and OpenAPI stay anonymous.
         app.MapCattleEndpoints();
         app.MapHoldingEndpoints();
         app.MapRegistrationEndpoints();

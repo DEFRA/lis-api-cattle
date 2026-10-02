@@ -4,6 +4,7 @@
 
 namespace Defra.Lis.Api.Endpoints.Registration;
 
+using Defra.Lis.Api.Authentication;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models.Requests;
 using Defra.Lis.Api.Models.Responses;
@@ -27,7 +28,8 @@ public static class RegistrationEndpoints
     {
         var registrationApi = app.NewVersionedApi(OpenApiMetadata.Tag);
         var versionOne = registrationApi.MapGroup(RouteNames.ApiVersionRoot)
-            .HasApiVersion(1.0);
+            .HasApiVersion(1.0)
+            .RequireServiceToServiceAuthorization();
         var group = versionOne.MapGroup(RouteNames.Registrations)
             .WithTags(OpenApiMetadata.Tag);
 

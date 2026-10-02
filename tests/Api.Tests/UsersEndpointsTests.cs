@@ -11,6 +11,7 @@ using Defra.Lis.Api.Endpoints.Users;
 using Defra.Lis.Api.Exceptions;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models.Responses;
+using Defra.Lis.Api.Tests.Authentication;
 using Defra.Lis.Core.Exceptions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -39,7 +40,7 @@ public class UsersEndpointsTests
                    });
         await using var app = await StartAppAsync();
 
-        var response = await app.GetTestClient().GetAsync($"/v1/users/{Subject}", TestContext.Current.CancellationToken);
+        var response = await app.GetAuthenticatedTestClient().GetAsync($"/v1/users/{Subject}", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var result = await response.Content.ReadFromJsonAsync<UserDetailsResponse>(TestContext.Current.CancellationToken);
@@ -59,7 +60,7 @@ public class UsersEndpointsTests
                    .ReturnsAsync(new UserDetailsResponse { Subject = "idp|user 1" });
         await using var app = await StartAppAsync();
 
-        var response = await app.GetTestClient().GetAsync("/v1/users/idp%7Cuser%201", TestContext.Current.CancellationToken);
+        var response = await app.GetAuthenticatedTestClient().GetAsync("/v1/users/idp%7Cuser%201", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         krdsService.Verify(s => s.GetUserAccountAsync("idp|user 1", It.IsAny<CancellationToken>()), Times.Once);
@@ -72,7 +73,7 @@ public class UsersEndpointsTests
                    .ThrowsAsync(new NotFoundException($"User '{Subject}' was not found."));
         await using var app = await StartAppAsync();
 
-        var response = await app.GetTestClient().GetAsync($"/v1/users/{Subject}", TestContext.Current.CancellationToken);
+        var response = await app.GetAuthenticatedTestClient().GetAsync($"/v1/users/{Subject}", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
@@ -86,7 +87,7 @@ public class UsersEndpointsTests
                    .ThrowsAsync(new ArgumentException("User 'not-a-subject' is not a valid subject."));
         await using var app = await StartAppAsync();
 
-        var response = await app.GetTestClient().GetAsync("/v1/users/not-a-subject", TestContext.Current.CancellationToken);
+        var response = await app.GetAuthenticatedTestClient().GetAsync("/v1/users/not-a-subject", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -105,7 +106,7 @@ public class UsersEndpointsTests
         Assert.Equal(OpenApiMetadata.GetUserDetailsRoute.Description, endpoint.Metadata.GetMetadata<IEndpointDescriptionMetadata>()?.Description);
         Assert.Contains(OpenApiMetadata.Tag, endpoint.Metadata.GetMetadata<ITagsMetadata>()!.Tags);
         var statusCodes = endpoint.Metadata.GetOrderedMetadata<IProducesResponseTypeMetadata>().Select(m => m.StatusCode).ToList();
-        Assert.Equal([StatusCodes.Status200OK, StatusCodes.Status400BadRequest, StatusCodes.Status404NotFound, StatusCodes.Status500InternalServerError], statusCodes);
+        Assert.Equal([StatusCodes.Status401Unauthorized, StatusCodes.Status200OK, StatusCodes.Status400BadRequest, StatusCodes.Status404NotFound, StatusCodes.Status500InternalServerError], statusCodes);
     }
 
     private async Task<WebApplication> StartAppAsync()
@@ -113,6 +114,7 @@ public class UsersEndpointsTests
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
         builder.Services.AddRouting();
+        builder.Services.AddTestServiceToServiceAuthentication();
         builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
         builder.Services.AddLogging();
         builder.Services.AddProblemDetails();
@@ -120,6 +122,7 @@ public class UsersEndpointsTests
         builder.Services.AddSingleton(krdsService.Object);
         var app = builder.Build();
         app.UseExceptionHandler();
+        app.UseTestServiceToServiceAuthentication();
         app.MapUserEndpoints();
         await app.StartAsync(TestContext.Current.CancellationToken);
         return app;

@@ -50,3 +50,18 @@ The repository configuration and LocalStack bootstrapping scripts have been upda
 ```
 
 These names conform directly to `/^[a-z0-9][a-z0-9_]+[a-z0-9]$/` and align with existing resource conventions in `compose/start-localstack.sh` (such as `identity_service_helper_intake` and `ls_keeper_data_import_complete`).
+### Service-to-service authentication
+
+Every versioned endpoint (`/v1/...`) requires an `x-api-key` header that matches one of the configured keys,
+otherwise it returns `401` problem details. `/health`, the OpenAPI document and Scalar stay anonymous. This is the
+interim mechanism agreed in [LREG-560](https://eaflood.atlassian.net/browse/LREG-560) until AWS STS replaces it; the
+endpoints only reference the `ServiceToService` authorisation policy, so STS is added as another scheme on that policy.
+
+| Setting | Purpose |
+| --- | --- |
+| `ApiKeyAuthentication__Keys__0` | Accepted key. Set as a CDP secret; it must equal `CattleApi__ApiKey` in `lis-be4fe-cattle-home`. |
+| `ApiKeyAuthentication__Keys__1` | Optional second key, so the key can be rotated without downtime. |
+
+With no key configured the service still starts and answers `/health`, but rejects every API request. Locally,
+`development-compose.yml`, `compose.override.yml` and the launch profiles use `local-dev-cattle-api-key`, and the
+`.http` files send it from `tests/Endpoints/http-client.env.json`.

@@ -4,6 +4,7 @@
 
 namespace Defra.Lis.Api.Endpoints.Cattle;
 
+using Defra.Lis.Api.Authentication;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models;
 using Microsoft.AspNetCore.Http;
@@ -24,7 +25,8 @@ public static class CattleEndpoints
     {
         var cattleApi = app.NewVersionedApi(OpenApiMetadata.Tag);
         var versionOne = cattleApi.MapGroup(RouteNames.ApiVersionRoot)
-            .HasApiVersion(1.0);
+            .HasApiVersion(1.0)
+            .RequireServiceToServiceAuthorization();
         var group = versionOne.MapGroup(RouteNames.Cattle)
             .WithTags(OpenApiMetadata.Tag);
 

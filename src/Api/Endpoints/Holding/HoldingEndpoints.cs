@@ -4,6 +4,7 @@
 
 namespace Defra.Lis.Api.Endpoints.Holding;
 
+using Defra.Lis.Api.Authentication;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models;
 using Defra.Lis.Api.Models.Responses;
@@ -25,7 +26,8 @@ public static class HoldingEndpoints
     {
         var cattleApi = app.NewVersionedApi(OpenApiMetadata.Tag);
         var versionOne = cattleApi.MapGroup(RouteNames.ApiVersionRoot)
-            .HasApiVersion(1.0);
+            .HasApiVersion(1.0)
+            .RequireServiceToServiceAuthorization();
         var group = versionOne.MapGroup(RouteNames.Holdings)
             .WithTags(OpenApiMetadata.Tag);
 
