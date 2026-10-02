@@ -18,7 +18,7 @@ using Microsoft.Extensions.Options;
 using Moq;
 using Quartz;
 
-public class HealthServiceTests : IDisposable
+public sealed class HealthServiceTests : IDisposable
 {
     private readonly Mock<ILogger<HealthService>> mockLogger = new();
     private readonly Mock<IAmazonSQS> mockSqs = new();
@@ -664,7 +664,6 @@ public class HealthServiceTests : IDisposable
     public void Dispose()
     {
         this.defaultDbContext.Dispose();
-        GC.SuppressFinalize(this);
     }
 
     private HealthService CreateHealthService(
