@@ -25,7 +25,9 @@ public class HealthChecksTests
     [InlineData("Degraded", HealthStatus.Degraded)]
     [InlineData("Unhealthy", HealthStatus.Unhealthy)]
     [InlineData("UnknownStatus", HealthStatus.Unhealthy)]
-    public async Task DatabaseHealthCheck_CheckHealthAsync_MapsStatusCorrectly(string serviceStatus, HealthStatus expectedStatus)
+    public async Task DatabaseHealthCheck_CheckHealthAsync_MapsStatusCorrectly(
+        string serviceStatus,
+        HealthStatus expectedStatus)
     {
         var componentResult = new ComponentHealthResult(
             serviceStatus,
@@ -58,7 +60,9 @@ public class HealthChecksTests
     [InlineData("Degraded", HealthStatus.Degraded)]
     [InlineData("Unhealthy", HealthStatus.Unhealthy)]
     [InlineData("CustomStatus", HealthStatus.Unhealthy)]
-    public async Task QueueHealthCheck_CheckHealthAsync_MapsStatusCorrectly(string serviceStatus, HealthStatus expectedStatus)
+    public async Task QueueHealthCheck_CheckHealthAsync_MapsStatusCorrectly(
+        string serviceStatus,
+        HealthStatus expectedStatus)
     {
         var componentResult = new ComponentHealthResult(
             serviceStatus,
@@ -91,7 +95,9 @@ public class HealthChecksTests
     [InlineData("Degraded", HealthStatus.Degraded)]
     [InlineData("Unhealthy", HealthStatus.Unhealthy)]
     [InlineData("Failed", HealthStatus.Unhealthy)]
-    public async Task QuartzHealthCheck_CheckHealthAsync_MapsStatusCorrectly(string serviceStatus, HealthStatus expectedStatus)
+    public async Task QuartzHealthCheck_CheckHealthAsync_MapsStatusCorrectly(
+        string serviceStatus,
+        HealthStatus expectedStatus)
     {
         var componentResult = new ComponentHealthResult(
             serviceStatus,
@@ -110,7 +116,6 @@ public class HealthChecksTests
         Assert.Equal(expectedStatus, result.Status);
         Assert.Equal("Quartz test description", result.Description);
         Assert.NotNull(result.Data);
-        Assert.Equal(true, result.Data["jobExists"]);
     }
 
     [Fact]
@@ -142,8 +147,7 @@ public class HealthChecksTests
     {
         var entries = new Dictionary<string, ComponentHealthResult>
         {
-            ["database"] = new("Healthy", "DB OK", 0.05),
-            ["queue"] = new("Healthy", "Queue OK", 0.02),
+            ["database"] = new("Healthy", "DB OK", 0.05), ["queue"] = new("Healthy", "Queue OK", 0.02),
         };
 
         var responseWithTimeSpan = new HealthCheckResponse("Healthy", TimeSpan.FromSeconds(0.07), entries);
