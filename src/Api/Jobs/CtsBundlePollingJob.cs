@@ -18,7 +18,7 @@ public partial class CtsBundlePollingJob(
     private readonly IServiceScopeFactory scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
     private readonly ILogger<CtsBundlePollingJob> logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-    public async Task Execute(IJobExecutionContext context)
+    public async ValueTask Execute(IJobExecutionContext context, CancellationToken cancellationToken = default)
     {
         LogStartingCtsBundlePollingJobExecutionAtTime(DateTimeOffset.UtcNow);
 
@@ -26,7 +26,7 @@ public partial class CtsBundlePollingJob(
         {
             using var scope = scopeFactory.CreateScope();
             var processor = scope.ServiceProvider.GetRequiredService<ICtsBundleProcessorService>();
-            await processor.ProcessPendingBundlesAsync(context.CancellationToken);
+            await processor.ProcessPendingBundlesAsync(cancellationToken);
             LogFinishedCtsBundlePollingJobExecutionSuccessfullyAtTime(DateTimeOffset.UtcNow);
         }
 #pragma warning disable S2139

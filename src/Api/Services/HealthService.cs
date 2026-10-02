@@ -248,7 +248,7 @@ public partial class HealthService : IHealthService
                     stopwatch.Elapsed);
             }
 
-            if (scheduler.IsShutdown)
+            if (scheduler.Status == SchedulerStatus.Shutdown || scheduler.Status == SchedulerStatus.ShuttingDown)
             {
                 stopwatch.Stop();
 
@@ -259,25 +259,21 @@ public partial class HealthService : IHealthService
                     new Dictionary<string, object>
                     {
                         ["schedulerName"] = scheduler.SchedulerName,
-                        ["isStarted"] = scheduler.IsStarted,
-                        ["inStandbyMode"] = scheduler.InStandbyMode,
-                        ["isShutdown"] = scheduler.IsShutdown,
+                        ["status"] = scheduler.Status.ToString(),
                     });
             }
 
             var jobKey = new JobKey(nameof(CtsBundlePollingJob));
-            var jobExists = await scheduler.CheckExists(jobKey, linkedCts.Token);
+            var jobExists = await scheduler.Exists(jobKey, linkedCts.Token);
 
-            var triggers = await scheduler.GetTriggersOfJob(jobKey, linkedCts.Token);
-            var triggerList = triggers.ToList();
+            var triggers = await scheduler.QueryTriggers(new TriggerQuery { Job = jobKey }, linkedCts.Token);
+            var triggerList = triggers.Items;
 
             var data = new Dictionary<string, object>
             {
                 ["schedulerName"] = scheduler.SchedulerName,
                 ["schedulerInstanceId"] = scheduler.SchedulerInstanceId,
-                ["isStarted"] = scheduler.IsStarted,
-                ["inStandbyMode"] = scheduler.InStandbyMode,
-                ["isShutdown"] = scheduler.IsShutdown,
+                ["status"] = scheduler.Status.ToString(),
                 ["jobEnabled"] = ctsJobOptions.Enabled,
                 ["jobExists"] = jobExists,
                 ["triggersCount"] = triggerList.Count,
@@ -308,8 +304,8 @@ public partial class HealthService : IHealthService
             if (triggerList.Count > 0)
             {
                 var trigger = triggerList[0];
-                var triggerState = await scheduler.GetTriggerState(trigger.Key, linkedCts.Token);
-                var nextFireTimeUtc = trigger.GetNextFireTimeUtc();
+                var triggerState = trigger.State;
+                var nextFireTimeUtc = trigger.NextFireTimeUtc;
 
                 data["triggerKey"] = trigger.Key.ToString();
                 data["triggerState"] = triggerState.ToString();

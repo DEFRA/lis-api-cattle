@@ -407,16 +407,16 @@ public sealed class HealthServiceTests : IDisposable
 
         this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
             .ReturnsAsync(this.mockScheduler.Object);
-        this.mockScheduler.Setup(s => s.IsShutdown).Returns(false);
-        this.mockScheduler.Setup(s => s.CheckExists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
+        this.mockScheduler.Setup(s => s.Status).Returns(SchedulerStatus.Running);
+        this.mockScheduler.Setup(s => s.Exists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
-        var mockTrigger = new Mock<ITrigger>();
-        mockTrigger.Setup(t => t.Key).Returns(new TriggerKey("test-trigger"));
-        mockTrigger.Setup(t => t.GetNextFireTimeUtc()).Returns(DateTimeOffset.UtcNow.AddMinutes(1));
-        this.mockScheduler.Setup(s => s.GetTriggersOfJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([mockTrigger.Object]);
-        this.mockScheduler.Setup(s => s.GetTriggerState(It.IsAny<TriggerKey>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(TriggerState.Normal);
+        var header = CreateTriggerHeader(
+            new TriggerKey("test-trigger"),
+            TriggerState.Normal,
+            DateTimeOffset.UtcNow.AddMinutes(1));
+        var pagedResult = new PagedResult<TriggerHeader>([header], false);
+        this.mockScheduler.Setup(s => s.QueryTriggers(It.IsAny<TriggerQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pagedResult);
 
         var service = this.CreateHealthService(awsOptions: awsOptions);
 
@@ -444,7 +444,7 @@ public sealed class HealthServiceTests : IDisposable
 
         this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
             .ReturnsAsync(this.mockScheduler.Object);
-        this.mockScheduler.Setup(s => s.IsShutdown).Returns(false);
+        this.mockScheduler.Setup(s => s.Status).Returns(SchedulerStatus.Running);
 
         var service = this.CreateHealthService(awsOptions: awsOptions);
 
@@ -490,7 +490,7 @@ public sealed class HealthServiceTests : IDisposable
         // Arrange
         this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
             .ReturnsAsync(this.mockScheduler.Object);
-        this.mockScheduler.Setup(s => s.IsShutdown).Returns(true);
+        this.mockScheduler.Setup(s => s.Status).Returns(SchedulerStatus.Shutdown);
         this.mockScheduler.Setup(s => s.SchedulerName).Returns("TestScheduler");
 
         var service = this.CreateHealthService();
@@ -509,18 +509,14 @@ public sealed class HealthServiceTests : IDisposable
         // Arrange
         this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
             .ReturnsAsync(this.mockScheduler.Object);
-        this.mockScheduler.Setup(s => s.IsShutdown).Returns(false);
+        this.mockScheduler.Setup(s => s.Status).Returns(SchedulerStatus.Running);
         this.mockScheduler.Setup(s =>
-                s.CheckExists(It.Is<JobKey>(k => k.Name == nameof(CtsBundlePollingJob)), It.IsAny<CancellationToken>()))
+                s.Exists(It.Is<JobKey>(k => k.Name == nameof(CtsBundlePollingJob)), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
-        var mockTrigger = new Mock<ITrigger>();
-        mockTrigger.Setup(t => t.Key).Returns(new TriggerKey("test-trigger"));
         var nextFire = DateTimeOffset.UtcNow.AddMinutes(5);
-        mockTrigger.Setup(t => t.GetNextFireTimeUtc()).Returns(nextFire);
-        this.mockScheduler.Setup(s => s.GetTriggersOfJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([mockTrigger.Object]);
-        this.mockScheduler.Setup(s => s.GetTriggerState(It.IsAny<TriggerKey>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(TriggerState.Normal);
+        var header = CreateTriggerHeader(new TriggerKey("test-trigger"), TriggerState.Normal, nextFire);
+        this.mockScheduler.Setup(s => s.QueryTriggers(It.IsAny<TriggerQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedResult<TriggerHeader>([header], false));
 
         var service = this.CreateHealthService(
             ctsJobOptions: Options.Create(new CtsPollingJobOptions { Enabled = true }));
@@ -541,11 +537,11 @@ public sealed class HealthServiceTests : IDisposable
         // Arrange
         this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
             .ReturnsAsync(this.mockScheduler.Object);
-        this.mockScheduler.Setup(s => s.IsShutdown).Returns(false);
-        this.mockScheduler.Setup(s => s.CheckExists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
+        this.mockScheduler.Setup(s => s.Status).Returns(SchedulerStatus.Running);
+        this.mockScheduler.Setup(s => s.Exists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
-        this.mockScheduler.Setup(s => s.GetTriggersOfJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([]);
+        this.mockScheduler.Setup(s => s.QueryTriggers(It.IsAny<TriggerQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedResult<TriggerHeader>([], false));
 
         var service = this.CreateHealthService(
             ctsJobOptions: Options.Create(new CtsPollingJobOptions { Enabled = true }));
@@ -564,15 +560,12 @@ public sealed class HealthServiceTests : IDisposable
         // Arrange
         this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
             .ReturnsAsync(this.mockScheduler.Object);
-        this.mockScheduler.Setup(s => s.IsShutdown).Returns(false);
-        this.mockScheduler.Setup(s => s.CheckExists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
+        this.mockScheduler.Setup(s => s.Status).Returns(SchedulerStatus.Running);
+        this.mockScheduler.Setup(s => s.Exists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
-        var mockTrigger = new Mock<ITrigger>();
-        mockTrigger.Setup(t => t.Key).Returns(new TriggerKey("error-trigger"));
-        this.mockScheduler.Setup(s => s.GetTriggersOfJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([mockTrigger.Object]);
-        this.mockScheduler.Setup(s => s.GetTriggerState(It.IsAny<TriggerKey>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(TriggerState.Error);
+        var header = CreateTriggerHeader(new TriggerKey("error-trigger"), TriggerState.Error);
+        this.mockScheduler.Setup(s => s.QueryTriggers(It.IsAny<TriggerQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedResult<TriggerHeader>([header], false));
 
         var service = this.CreateHealthService(
             ctsJobOptions: Options.Create(new CtsPollingJobOptions { Enabled = true }));
@@ -630,11 +623,11 @@ public sealed class HealthServiceTests : IDisposable
         // Arrange
         this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
             .ReturnsAsync(this.mockScheduler.Object);
-        this.mockScheduler.Setup(s => s.IsShutdown).Returns(false);
-        this.mockScheduler.Setup(s => s.CheckExists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
+        this.mockScheduler.Setup(s => s.Status).Returns(SchedulerStatus.Running);
+        this.mockScheduler.Setup(s => s.Exists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
-        this.mockScheduler.Setup(s => s.GetTriggersOfJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([]);
+        this.mockScheduler.Setup(s => s.QueryTriggers(It.IsAny<TriggerQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedResult<TriggerHeader>([], false));
 
         var service = this.CreateHealthService(
             ctsJobOptions: Options.Create(new CtsPollingJobOptions { Enabled = false }));
@@ -654,11 +647,11 @@ public sealed class HealthServiceTests : IDisposable
         // Arrange
         this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
             .ReturnsAsync(this.mockScheduler.Object);
-        this.mockScheduler.Setup(s => s.IsShutdown).Returns(false);
-        this.mockScheduler.Setup(s => s.CheckExists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
+        this.mockScheduler.Setup(s => s.Status).Returns(SchedulerStatus.Running);
+        this.mockScheduler.Setup(s => s.Exists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
-        this.mockScheduler.Setup(s => s.GetTriggersOfJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([]);
+        this.mockScheduler.Setup(s => s.QueryTriggers(It.IsAny<TriggerQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedResult<TriggerHeader>([], false));
 
         var service = this.CreateHealthService(
             ctsJobOptions: Options.Create(new CtsPollingJobOptions { Enabled = true }));
@@ -677,15 +670,12 @@ public sealed class HealthServiceTests : IDisposable
         // Arrange
         this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
             .ReturnsAsync(this.mockScheduler.Object);
-        this.mockScheduler.Setup(s => s.IsShutdown).Returns(false);
-        this.mockScheduler.Setup(s => s.CheckExists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
+        this.mockScheduler.Setup(s => s.Status).Returns(SchedulerStatus.Running);
+        this.mockScheduler.Setup(s => s.Exists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
-        var mockTrigger = new Mock<ITrigger>();
-        mockTrigger.Setup(t => t.Key).Returns(new TriggerKey("paused-trigger"));
-        this.mockScheduler.Setup(s => s.GetTriggersOfJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([mockTrigger.Object]);
-        this.mockScheduler.Setup(s => s.GetTriggerState(It.IsAny<TriggerKey>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(TriggerState.Paused);
+        var header = CreateTriggerHeader(new TriggerKey("paused-trigger"), TriggerState.Paused);
+        this.mockScheduler.Setup(s => s.QueryTriggers(It.IsAny<TriggerQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedResult<TriggerHeader>([header], false));
 
         var service = this.CreateHealthService(
             ctsJobOptions: Options.Create(new CtsPollingJobOptions { Enabled = true }));
@@ -727,11 +717,11 @@ public sealed class HealthServiceTests : IDisposable
 
         this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
             .ReturnsAsync(this.mockScheduler.Object);
-        this.mockScheduler.Setup(s => s.IsShutdown).Returns(false);
-        this.mockScheduler.Setup(s => s.CheckExists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
+        this.mockScheduler.Setup(s => s.Status).Returns(SchedulerStatus.Running);
+        this.mockScheduler.Setup(s => s.Exists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
-        this.mockScheduler.Setup(s => s.GetTriggersOfJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([]);
+        this.mockScheduler.Setup(s => s.QueryTriggers(It.IsAny<TriggerQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedResult<TriggerHeader>([], false));
 
         var service = this.CreateHealthService(
             awsOptions: awsOptions,
@@ -778,6 +768,28 @@ public sealed class HealthServiceTests : IDisposable
     public void Dispose()
     {
         this.defaultDbContext.Dispose();
+    }
+
+    private static TriggerHeader CreateTriggerHeader(
+        TriggerKey key,
+        TriggerState state,
+        DateTimeOffset? nextFireTimeUtc = null)
+    {
+        return new TriggerHeader(
+            key,
+            new JobKey("test"),
+            "test-type",
+            "test-desc",
+            state,
+            DateTimeOffset.UtcNow,
+            null,
+            nextFireTimeUtc,
+            null,
+            null,
+            0,
+            null,
+            null,
+            0);
     }
 
     private HealthService CreateHealthService(

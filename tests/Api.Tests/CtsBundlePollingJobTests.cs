@@ -28,7 +28,7 @@ public class CtsBundlePollingJobTests
         var mockContext = new Mock<IJobExecutionContext>();
         mockContext.Setup(c => c.CancellationToken).Returns(TestContext.Current.CancellationToken);
 
-        await job.Execute(mockContext.Object);
+        await job.Execute(mockContext.Object, TestContext.Current.CancellationToken);
 
         mockProcessor.Verify(p => p.ProcessPendingBundlesAsync(TestContext.Current.CancellationToken), Times.Once);
     }
