@@ -37,82 +37,127 @@ public sealed class HealthServiceTests : IDisposable
     [Fact]
     public void Constructor_ThrowsArgumentNullException_WhenLoggerIsNull()
     {
-        Assert.Throws<ArgumentNullException>(() => new HealthService(
-            null!,
+        // Arrange
+        ILogger<HealthService> logger = null!;
+
+        // Act
+        var act = () => new HealthService(
+            logger,
             this.defaultDbContext,
             this.mockSqs.Object,
             this.mockSchedulerFactory.Object,
             Options.Create(new AwsMessagingOptions()),
-            Options.Create(new CtsPollingJobOptions())));
+            Options.Create(new CtsPollingJobOptions()));
+
+        // Assert
+        Assert.Throws<ArgumentNullException>(act);
     }
 
     [Fact]
     public void Constructor_ThrowsArgumentNullException_WhenDbContextIsNull()
     {
-        Assert.Throws<ArgumentNullException>(() => new HealthService(
+        // Arrange
+        PostgresDbContext dbContext = null!;
+
+        // Act
+        var act = () => new HealthService(
             this.mockLogger.Object,
-            null!,
+            dbContext,
             this.mockSqs.Object,
             this.mockSchedulerFactory.Object,
             Options.Create(new AwsMessagingOptions()),
-            Options.Create(new CtsPollingJobOptions())));
+            Options.Create(new CtsPollingJobOptions()));
+
+        // Assert
+        Assert.Throws<ArgumentNullException>(act);
     }
 
     [Fact]
     public void Constructor_ThrowsArgumentNullException_WhenSqsClientIsNull()
     {
-        Assert.Throws<ArgumentNullException>(() => new HealthService(
+        // Arrange
+        IAmazonSQS sqsClient = null!;
+
+        // Act
+        var act = () => new HealthService(
             this.mockLogger.Object,
             this.defaultDbContext,
-            null!,
+            sqsClient,
             this.mockSchedulerFactory.Object,
             Options.Create(new AwsMessagingOptions()),
-            Options.Create(new CtsPollingJobOptions())));
+            Options.Create(new CtsPollingJobOptions()));
+
+        // Assert
+        Assert.Throws<ArgumentNullException>(act);
     }
 
     [Fact]
     public void Constructor_ThrowsArgumentNullException_WhenSchedulerFactoryIsNull()
     {
-        Assert.Throws<ArgumentNullException>(() => new HealthService(
+        // Arrange
+        ISchedulerFactory schedulerFactory = null!;
+
+        // Act
+        var act = () => new HealthService(
             this.mockLogger.Object,
             this.defaultDbContext,
             this.mockSqs.Object,
-            null!,
+            schedulerFactory,
             Options.Create(new AwsMessagingOptions()),
-            Options.Create(new CtsPollingJobOptions())));
+            Options.Create(new CtsPollingJobOptions()));
+
+        // Assert
+        Assert.Throws<ArgumentNullException>(act);
     }
 
     [Fact]
     public void Constructor_ThrowsArgumentNullException_WhenAwsOptionsIsNull()
     {
-        Assert.Throws<ArgumentNullException>(() => new HealthService(
+        // Arrange
+        IOptions<AwsMessagingOptions> awsOptions = null!;
+
+        // Act
+        var act = () => new HealthService(
             this.mockLogger.Object,
             this.defaultDbContext,
             this.mockSqs.Object,
             this.mockSchedulerFactory.Object,
-            null!,
-            Options.Create(new CtsPollingJobOptions())));
+            awsOptions,
+            Options.Create(new CtsPollingJobOptions()));
+
+        // Assert
+        Assert.Throws<ArgumentNullException>(act);
     }
 
     [Fact]
     public void Constructor_ThrowsArgumentNullException_WhenCtsJobOptionsIsNull()
     {
-        Assert.Throws<ArgumentNullException>(() => new HealthService(
+        // Arrange
+        IOptions<CtsPollingJobOptions> ctsJobOptions = null!;
+
+        // Act
+        var act = () => new HealthService(
             this.mockLogger.Object,
             this.defaultDbContext,
             this.mockSqs.Object,
             this.mockSchedulerFactory.Object,
             Options.Create(new AwsMessagingOptions()),
-            null!));
+            ctsJobOptions);
+
+        // Assert
+        Assert.Throws<ArgumentNullException>(act);
     }
 
     [Fact]
     public async Task CheckDatabaseHealthAsync_WhenInMemoryDbContextCanConnect_ReturnsHealthy()
     {
+        // Arrange
         var service = this.CreateHealthService();
 
+        // Act
         var result = await service.CheckDatabaseHealthAsync(TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(nameof(HealthStatus.Healthy), result.Status);
         Assert.Contains("healthy", result.Description, StringComparison.OrdinalIgnoreCase);
     }
@@ -120,6 +165,7 @@ public sealed class HealthServiceTests : IDisposable
     [Fact]
     public async Task CheckDatabaseHealthAsync_WhenCanConnectThrowsException_ReturnsUnhealthy()
     {
+        // Arrange
         var options = new DbContextOptionsBuilder<PostgresDbContext>()
             .UseNpgsql(
                 "Host=nonexistent-host-for-health-test;Database=db;Username=u;Password=p;Timeout=1;CommandTimeout=1")
@@ -128,8 +174,10 @@ public sealed class HealthServiceTests : IDisposable
         await using var dbContext = new PostgresDbContext(options);
         var service = this.CreateHealthService(dbContext: dbContext);
 
+        // Act
         var result = await service.CheckDatabaseHealthAsync(TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(nameof(HealthStatus.Unhealthy), result.Status);
 
         Assert.True(
@@ -140,6 +188,7 @@ public sealed class HealthServiceTests : IDisposable
     [Fact]
     public async Task CheckDatabaseHealthAsync_WhenTimedOut_ReturnsUnhealthy()
     {
+        // Arrange
         var options = new DbContextOptionsBuilder<PostgresDbContext>()
             .UseNpgsql("Host=192.0.2.1;Database=db;Username=u;Password=p;Timeout=10;CommandTimeout=10")
             .Options;
@@ -149,8 +198,10 @@ public sealed class HealthServiceTests : IDisposable
             dbContext: dbContext,
             checkTimeout: TimeSpan.FromMilliseconds(20));
 
+        // Act
         var result = await service.CheckDatabaseHealthAsync(TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(nameof(HealthStatus.Unhealthy), result.Status);
 
         Assert.True(
@@ -161,12 +212,15 @@ public sealed class HealthServiceTests : IDisposable
     [Fact]
     public async Task CheckQueueHealthAsync_WhenNoQueueUrlConfigured_SkipsCheckAndReturnsHealthy()
     {
+        // Arrange
         var awsOptions = Options.Create(new AwsMessagingOptions { SubmissionValidationQueueUrl = string.Empty });
 
         var service = this.CreateHealthService(awsOptions: awsOptions);
 
+        // Act
         var result = await service.CheckQueueHealthAsync(TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(nameof(HealthStatus.Healthy), result.Status);
         Assert.Contains("skipped", result.Description, StringComparison.OrdinalIgnoreCase);
 
@@ -178,6 +232,7 @@ public sealed class HealthServiceTests : IDisposable
     [Fact]
     public async Task CheckQueueHealthAsync_WhenQueueUrlConfigured_AndGetQueueAttributesSucceeds_ReturnsHealthy()
     {
+        // Arrange
         var queueUrl = "https://sqs.eu-west-2.amazonaws.com/123/submission-validation-queue";
         var awsOptions = Options.Create(new AwsMessagingOptions { SubmissionValidationQueueUrl = queueUrl });
 
@@ -194,8 +249,10 @@ public sealed class HealthServiceTests : IDisposable
 
         var service = this.CreateHealthService(awsOptions: awsOptions);
 
+        // Act
         var result = await service.CheckQueueHealthAsync(TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(nameof(HealthStatus.Healthy), result.Status);
         Assert.NotNull(result.Data);
         Assert.Equal(queueUrl, result.Data["queueUrl"]);
@@ -205,6 +262,7 @@ public sealed class HealthServiceTests : IDisposable
     [Fact]
     public async Task CheckQueueHealthAsync_WhenQueueDoesNotExist_ReturnsUnhealthyWithoutCreatingQueue()
     {
+        // Arrange
         var queueUrl = "http://localhost:4566/000000000000/submission-validation-queue";
         var awsOptions = Options.Create(new AwsMessagingOptions
         {
@@ -220,8 +278,10 @@ public sealed class HealthServiceTests : IDisposable
 
         var service = this.CreateHealthService(awsOptions: awsOptions);
 
+        // Act
         var result = await service.CheckQueueHealthAsync(TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(nameof(HealthStatus.Unhealthy), result.Status);
         Assert.Contains("The specified queue does not exist", result.Description);
         this.mockSqs.Verify(
@@ -232,6 +292,7 @@ public sealed class HealthServiceTests : IDisposable
     [Fact]
     public async Task CheckQueueHealthAsync_WhenQueueUrlFailsWithQueueDoesNotExist_ResolvesByNameAndReturnsHealthy()
     {
+        // Arrange
         var wrongHostUrl = "http://localhost:4566/000000000000/submission-validation-queue";
         var resolvedUrl = "http://localstack:4566/000000000000/submission-validation-queue";
         var awsOptions = Options.Create(new AwsMessagingOptions
@@ -265,8 +326,10 @@ public sealed class HealthServiceTests : IDisposable
 
         var service = this.CreateHealthService(awsOptions: awsOptions);
 
+        // Act
         var result = await service.CheckQueueHealthAsync(TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(nameof(HealthStatus.Healthy), result.Status);
         Assert.Equal(resolvedUrl, result.Data?["queueUrl"]);
     }
@@ -274,6 +337,7 @@ public sealed class HealthServiceTests : IDisposable
     [Fact]
     public async Task CheckQueueHealthAsync_WhenQueueNameOnlyConfigured_ResolvesUrlAndReturnsHealthy()
     {
+        // Arrange
         var queueName = "submission_validation_queue";
         var resolvedUrl = "https://sqs.eu-west-2.amazonaws.com/123/submission_validation_queue";
         var awsOptions = Options.Create(new AwsMessagingOptions
@@ -301,8 +365,10 @@ public sealed class HealthServiceTests : IDisposable
 
         var service = this.CreateHealthService(awsOptions: awsOptions);
 
+        // Act
         var result = await service.CheckQueueHealthAsync(TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(nameof(HealthStatus.Healthy), result.Status);
         Assert.Equal(resolvedUrl, result.Data?["queueUrl"]);
     }
@@ -310,6 +376,7 @@ public sealed class HealthServiceTests : IDisposable
     [Fact]
     public async Task CheckQueueHealthAsync_WhenSqsThrowsException_ReturnsUnhealthy()
     {
+        // Arrange
         var queueUrl = "https://sqs.eu-west-2.amazonaws.com/123/submission-validation-queue";
         var awsOptions = Options.Create(new AwsMessagingOptions { SubmissionValidationQueueUrl = queueUrl });
 
@@ -319,8 +386,10 @@ public sealed class HealthServiceTests : IDisposable
 
         var service = this.CreateHealthService(awsOptions: awsOptions);
 
+        // Act
         var result = await service.CheckQueueHealthAsync(TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(nameof(HealthStatus.Unhealthy), result.Status);
         Assert.Contains("Queue not accessible", result.Description);
     }
@@ -328,6 +397,7 @@ public sealed class HealthServiceTests : IDisposable
     [Fact]
     public async Task CheckHealthAsync_WhenAllComponentsAreHealthy_ReturnsHealthy()
     {
+        // Arrange
         const string queueUrl = "https://sqs.eu-west-2.amazonaws.com/123/submission-validation-queue";
         var awsOptions = Options.Create(new AwsMessagingOptions { SubmissionValidationQueueUrl = queueUrl });
 
@@ -350,8 +420,10 @@ public sealed class HealthServiceTests : IDisposable
 
         var service = this.CreateHealthService(awsOptions: awsOptions);
 
+        // Act
         var healthCheckResponse = await service.CheckHealthAsync(TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(nameof(HealthStatus.Healthy), healthCheckResponse.Status);
         Assert.Equal(3, healthCheckResponse.Entries.Count);
         Assert.Equal(nameof(HealthStatus.Healthy), healthCheckResponse.Entries["database"].Status);
@@ -362,6 +434,7 @@ public sealed class HealthServiceTests : IDisposable
     [Fact]
     public async Task CheckHealthAsync_WhenComponentIsUnhealthy_ReturnsUnhealthy()
     {
+        // Arrange
         var queueUrl = "https://sqs.eu-west-2.amazonaws.com/123/submission-validation-queue";
         var awsOptions = Options.Create(new AwsMessagingOptions { SubmissionValidationQueueUrl = queueUrl });
 
@@ -375,8 +448,10 @@ public sealed class HealthServiceTests : IDisposable
 
         var service = this.CreateHealthService(awsOptions: awsOptions);
 
+        // Act
         var healthCheckResponse = await service.CheckHealthAsync(TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(nameof(HealthStatus.Unhealthy), healthCheckResponse.Status);
         Assert.Equal(nameof(HealthStatus.Healthy), healthCheckResponse.Entries["database"].Status);
         Assert.Equal(nameof(HealthStatus.Unhealthy), healthCheckResponse.Entries["queue"].Status);
@@ -385,6 +460,7 @@ public sealed class HealthServiceTests : IDisposable
     [Fact]
     public async Task CheckQueueHealthAsync_WhenSqsTimesOut_ReturnsUnhealthy()
     {
+        // Arrange
         const string queueUrl = "https://sqs.eu-west-2.amazonaws.com/123/submission-validation-queue";
         var awsOptions = Options.Create(new AwsMessagingOptions { SubmissionValidationQueueUrl = queueUrl });
 
@@ -400,8 +476,10 @@ public sealed class HealthServiceTests : IDisposable
             awsOptions: awsOptions,
             checkTimeout: TimeSpan.FromMilliseconds(50));
 
+        // Act
         var result = await service.CheckQueueHealthAsync(TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(nameof(HealthStatus.Unhealthy), result.Status);
         Assert.Contains("timed out", result.Description, StringComparison.OrdinalIgnoreCase);
     }
@@ -409,6 +487,7 @@ public sealed class HealthServiceTests : IDisposable
     [Fact]
     public async Task CheckQuartzHealthAsync_WhenSchedulerIsShutdown_ReturnsUnhealthy()
     {
+        // Arrange
         this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
             .ReturnsAsync(this.mockScheduler.Object);
         this.mockScheduler.Setup(s => s.IsShutdown).Returns(true);
@@ -416,8 +495,10 @@ public sealed class HealthServiceTests : IDisposable
 
         var service = this.CreateHealthService();
 
+        // Act
         var result = await service.CheckQuartzHealthAsync(TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(nameof(HealthStatus.Unhealthy), result.Status);
         Assert.Contains("shutdown", result.Description, StringComparison.OrdinalIgnoreCase);
     }
@@ -425,6 +506,7 @@ public sealed class HealthServiceTests : IDisposable
     [Fact]
     public async Task CheckQuartzHealthAsync_WhenJobEnabledAndRegisteredWithTrigger_ReturnsHealthy()
     {
+        // Arrange
         this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
             .ReturnsAsync(this.mockScheduler.Object);
         this.mockScheduler.Setup(s => s.IsShutdown).Returns(false);
@@ -443,8 +525,10 @@ public sealed class HealthServiceTests : IDisposable
         var service = this.CreateHealthService(
             ctsJobOptions: Options.Create(new CtsPollingJobOptions { Enabled = true }));
 
+        // Act
         var result = await service.CheckQuartzHealthAsync(TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(nameof(HealthStatus.Healthy), result.Status);
         Assert.Contains("scheduled", result.Description, StringComparison.OrdinalIgnoreCase);
         Assert.NotNull(result.Data);
@@ -454,6 +538,7 @@ public sealed class HealthServiceTests : IDisposable
     [Fact]
     public async Task CheckQuartzHealthAsync_WhenJobEnabledButNotRegistered_ReturnsUnhealthy()
     {
+        // Arrange
         this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
             .ReturnsAsync(this.mockScheduler.Object);
         this.mockScheduler.Setup(s => s.IsShutdown).Returns(false);
@@ -465,8 +550,10 @@ public sealed class HealthServiceTests : IDisposable
         var service = this.CreateHealthService(
             ctsJobOptions: Options.Create(new CtsPollingJobOptions { Enabled = true }));
 
+        // Act
         var result = await service.CheckQuartzHealthAsync(TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(nameof(HealthStatus.Unhealthy), result.Status);
         Assert.Contains("not registered", result.Description, StringComparison.OrdinalIgnoreCase);
     }
@@ -474,6 +561,7 @@ public sealed class HealthServiceTests : IDisposable
     [Fact]
     public async Task CheckQuartzHealthAsync_WhenTriggerInErrorState_ReturnsUnhealthy()
     {
+        // Arrange
         this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
             .ReturnsAsync(this.mockScheduler.Object);
         this.mockScheduler.Setup(s => s.IsShutdown).Returns(false);
@@ -489,8 +577,10 @@ public sealed class HealthServiceTests : IDisposable
         var service = this.CreateHealthService(
             ctsJobOptions: Options.Create(new CtsPollingJobOptions { Enabled = true }));
 
+        // Act
         var result = await service.CheckQuartzHealthAsync(TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(nameof(HealthStatus.Unhealthy), result.Status);
         Assert.Contains("Error state", result.Description, StringComparison.OrdinalIgnoreCase);
     }
@@ -498,6 +588,7 @@ public sealed class HealthServiceTests : IDisposable
     [Fact]
     public async Task CheckQuartzHealthAsync_WhenSchedulerTimesOut_ReturnsUnhealthy()
     {
+        // Arrange
         this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
             .Returns(async (CancellationToken ct) =>
             {
@@ -508,8 +599,10 @@ public sealed class HealthServiceTests : IDisposable
         var service = this.CreateHealthService(
             checkTimeout: TimeSpan.FromMilliseconds(50));
 
+        // Act
         var result = await service.CheckQuartzHealthAsync(TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(nameof(HealthStatus.Unhealthy), result.Status);
         Assert.Contains("timed out", result.Description, StringComparison.OrdinalIgnoreCase);
     }
@@ -517,13 +610,16 @@ public sealed class HealthServiceTests : IDisposable
     [Fact]
     public async Task CheckQuartzHealthAsync_WhenSchedulerFactoryReturnsNull_ReturnsUnhealthy()
     {
+        // Arrange
         this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
             .ReturnsAsync((IScheduler)null!);
 
         var service = this.CreateHealthService();
 
+        // Act
         var result = await service.CheckQuartzHealthAsync(TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(nameof(HealthStatus.Unhealthy), result.Status);
         Assert.Equal("Quartz scheduler instance could not be obtained.", result.Description);
     }
@@ -531,6 +627,7 @@ public sealed class HealthServiceTests : IDisposable
     [Fact]
     public async Task CheckQuartzHealthAsync_WhenJobDisabled_ReturnsHealthy()
     {
+        // Arrange
         this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
             .ReturnsAsync(this.mockScheduler.Object);
         this.mockScheduler.Setup(s => s.IsShutdown).Returns(false);
@@ -542,8 +639,10 @@ public sealed class HealthServiceTests : IDisposable
         var service = this.CreateHealthService(
             ctsJobOptions: Options.Create(new CtsPollingJobOptions { Enabled = false }));
 
+        // Act
         var result = await service.CheckQuartzHealthAsync(TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(nameof(HealthStatus.Healthy), result.Status);
         Assert.Contains("disabled by configuration", result.Description, StringComparison.OrdinalIgnoreCase);
         Assert.NotNull(result.Data);
@@ -552,6 +651,7 @@ public sealed class HealthServiceTests : IDisposable
     [Fact]
     public async Task CheckQuartzHealthAsync_WhenJobHasNoTriggers_ReturnsDegraded()
     {
+        // Arrange
         this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
             .ReturnsAsync(this.mockScheduler.Object);
         this.mockScheduler.Setup(s => s.IsShutdown).Returns(false);
@@ -563,8 +663,10 @@ public sealed class HealthServiceTests : IDisposable
         var service = this.CreateHealthService(
             ctsJobOptions: Options.Create(new CtsPollingJobOptions { Enabled = true }));
 
+        // Act
         var result = await service.CheckQuartzHealthAsync(TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(nameof(HealthStatus.Degraded), result.Status);
         Assert.Contains("has no triggers scheduled", result.Description, StringComparison.OrdinalIgnoreCase);
     }
@@ -572,6 +674,7 @@ public sealed class HealthServiceTests : IDisposable
     [Fact]
     public async Task CheckQuartzHealthAsync_WhenTriggerInPausedState_ReturnsDegraded()
     {
+        // Arrange
         this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
             .ReturnsAsync(this.mockScheduler.Object);
         this.mockScheduler.Setup(s => s.IsShutdown).Returns(false);
@@ -587,8 +690,10 @@ public sealed class HealthServiceTests : IDisposable
         var service = this.CreateHealthService(
             ctsJobOptions: Options.Create(new CtsPollingJobOptions { Enabled = true }));
 
+        // Act
         var result = await service.CheckQuartzHealthAsync(TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(nameof(HealthStatus.Degraded), result.Status);
         Assert.Contains("Paused", result.Description, StringComparison.OrdinalIgnoreCase);
     }
@@ -596,13 +701,16 @@ public sealed class HealthServiceTests : IDisposable
     [Fact]
     public async Task CheckQuartzHealthAsync_WhenSchedulerThrowsException_ReturnsUnhealthy()
     {
+        // Arrange
         this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("Scheduler crash"));
 
         var service = this.CreateHealthService();
 
+        // Act
         var result = await service.CheckQuartzHealthAsync(TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(nameof(HealthStatus.Unhealthy), result.Status);
         Assert.Contains("Scheduler crash", result.Description);
     }
@@ -610,6 +718,7 @@ public sealed class HealthServiceTests : IDisposable
     [Fact]
     public async Task CheckHealthAsync_WhenComponentIsDegraded_ReturnsDegradedOverall()
     {
+        // Arrange
         var queueUrl = "https://sqs.eu-west-2.amazonaws.com/123/submission-validation-queue";
         var awsOptions = Options.Create(new AwsMessagingOptions { SubmissionValidationQueueUrl = queueUrl });
         this.mockSqs.Setup(s =>
@@ -628,8 +737,10 @@ public sealed class HealthServiceTests : IDisposable
             awsOptions: awsOptions,
             ctsJobOptions: Options.Create(new CtsPollingJobOptions { Enabled = true }));
 
+        // Act
         var response = await service.CheckHealthAsync(TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(nameof(HealthStatus.Degraded), response.Status);
         Assert.Equal(nameof(HealthStatus.Healthy), response.Entries["database"].Status);
         Assert.Equal(nameof(HealthStatus.Healthy), response.Entries["queue"].Status);
@@ -639,6 +750,7 @@ public sealed class HealthServiceTests : IDisposable
     [Fact]
     public async Task CheckQueueHealthAsync_WhenAttributesDoNotContainMessageCount_DefaultsToZero()
     {
+        // Arrange
         var queueUrl = "https://sqs.eu-west-2.amazonaws.com/123/submission-validation-queue";
         var awsOptions = Options.Create(new AwsMessagingOptions { SubmissionValidationQueueUrl = queueUrl });
 
@@ -654,8 +766,10 @@ public sealed class HealthServiceTests : IDisposable
 
         var service = this.CreateHealthService(awsOptions: awsOptions);
 
+        // Act
         var result = await service.CheckQueueHealthAsync(TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(nameof(HealthStatus.Healthy), result.Status);
         Assert.NotNull(result.Data);
         Assert.Equal(0, result.Data["approximateNumberOfMessages"]);
