@@ -12,6 +12,7 @@ using Defra.Lis.Api.Endpoints.Holding;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models;
 using Defra.Lis.Api.Models.Responses;
+using Defra.Lis.Api.Tests.Authentication;
 using Defra.Lis.Entities;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
@@ -28,13 +29,15 @@ public class HoldingEndpointsTests
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
         builder.Services.AddRouting();
+        builder.Services.AddTestServiceToServiceAuthentication();
         builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
         builder.Services.AddSingleton(Mock.Of<ICattleService>());
         var app = builder.Build();
+        app.UseTestServiceToServiceAuthentication();
         app.MapHoldingEndpoints();
         await app.StartAsync(TestContext.Current.CancellationToken);
 
-        var response = await app.GetTestClient().GetAsync(requestUri, TestContext.Current.CancellationToken);
+        var response = await app.GetAuthenticatedTestClient().GetAsync(requestUri, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -45,8 +48,10 @@ public class HoldingEndpointsTests
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
         builder.Services.AddRouting();
+        builder.Services.AddTestServiceToServiceAuthentication();
         builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
         var app = builder.Build();
+        app.UseTestServiceToServiceAuthentication();
 
         var returned = app.MapHoldingEndpoints();
 
@@ -69,13 +74,15 @@ public class HoldingEndpointsTests
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
         builder.Services.AddRouting();
+        builder.Services.AddTestServiceToServiceAuthentication();
         builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
         builder.Services.AddSingleton(mockService.Object);
         var app = builder.Build();
+        app.UseTestServiceToServiceAuthentication();
         app.MapHoldingEndpoints();
         await app.StartAsync(TestContext.Current.CancellationToken);
 
-        var client = app.GetTestClient();
+        var client = app.GetAuthenticatedTestClient();
         var response = await client.GetAsync($"/v1/holdings/{cph}/cattle", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -101,13 +108,15 @@ public class HoldingEndpointsTests
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
         builder.Services.AddRouting();
+        builder.Services.AddTestServiceToServiceAuthentication();
         builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
         builder.Services.AddSingleton(mockService.Object);
         var app = builder.Build();
+        app.UseTestServiceToServiceAuthentication();
         app.MapHoldingEndpoints();
         await app.StartAsync(TestContext.Current.CancellationToken);
 
-        var client = app.GetTestClient();
+        var client = app.GetAuthenticatedTestClient();
         var response = await client.GetAsync($"/v1/holdings/{cph}/cattle", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -131,13 +140,15 @@ public class HoldingEndpointsTests
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
         builder.Services.AddRouting();
+        builder.Services.AddTestServiceToServiceAuthentication();
         builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
         builder.Services.AddSingleton(mockService.Object);
         var app = builder.Build();
+        app.UseTestServiceToServiceAuthentication();
         app.MapHoldingEndpoints();
         await app.StartAsync(TestContext.Current.CancellationToken);
 
-        var client = app.GetTestClient();
+        var client = app.GetAuthenticatedTestClient();
         var response = await client.GetAsync($"/v1/holdings/{cph}/cattle?earTag=UK2000&breed=AA&sex=female", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -168,13 +179,15 @@ public class HoldingEndpointsTests
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
         builder.Services.AddRouting();
+        builder.Services.AddTestServiceToServiceAuthentication();
         builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
         builder.Services.AddSingleton(mockKrds.Object);
         var app = builder.Build();
+        app.UseTestServiceToServiceAuthentication();
         app.MapHoldingEndpoints();
         await app.StartAsync(TestContext.Current.CancellationToken);
 
-        var client = app.GetTestClient();
+        var client = app.GetAuthenticatedTestClient();
         var response = await client.GetAsync("/v1/holdings/22/001/0001", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -196,6 +209,7 @@ public class HoldingEndpointsTests
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
         builder.Services.AddRouting();
+        builder.Services.AddTestServiceToServiceAuthentication();
         builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
         builder.Services.AddLogging();
         builder.Services.AddProblemDetails();
@@ -203,10 +217,11 @@ public class HoldingEndpointsTests
         builder.Services.AddSingleton(mockKrds.Object);
         var app = builder.Build();
         app.UseExceptionHandler();
+        app.UseTestServiceToServiceAuthentication();
         app.MapHoldingEndpoints();
         await app.StartAsync(TestContext.Current.CancellationToken);
 
-        var client = app.GetTestClient();
+        var client = app.GetAuthenticatedTestClient();
         var response = await client.GetAsync("/v1/holdings/22/050/0050", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -242,13 +257,15 @@ public class HoldingEndpointsTests
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
         builder.Services.AddRouting();
+        builder.Services.AddTestServiceToServiceAuthentication();
         builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
         builder.Services.AddSingleton(mockService.Object);
         var app = builder.Build();
+        app.UseTestServiceToServiceAuthentication();
         app.MapCattleEndpoints();
         await app.StartAsync(TestContext.Current.CancellationToken);
 
-        var client = app.GetTestClient();
+        var client = app.GetAuthenticatedTestClient();
         var response = await client.GetAsync("/v1/cattle/UK200000000001", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -272,13 +289,15 @@ public class HoldingEndpointsTests
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
         builder.Services.AddRouting();
+        builder.Services.AddTestServiceToServiceAuthentication();
         builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
         builder.Services.AddSingleton(mockService.Object);
         var app = builder.Build();
+        app.UseTestServiceToServiceAuthentication();
         app.MapCattleEndpoints();
         await app.StartAsync(TestContext.Current.CancellationToken);
 
-        var client = app.GetTestClient();
+        var client = app.GetAuthenticatedTestClient();
         var response = await client.GetAsync("/v1/cattle/UK2%200000%2000001", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -295,6 +314,7 @@ public class HoldingEndpointsTests
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
         builder.Services.AddRouting();
+        builder.Services.AddTestServiceToServiceAuthentication();
         builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
         builder.Services.AddLogging();
         builder.Services.AddProblemDetails();
@@ -302,10 +322,11 @@ public class HoldingEndpointsTests
         builder.Services.AddSingleton(mockService.Object);
         var app = builder.Build();
         app.UseExceptionHandler();
+        app.UseTestServiceToServiceAuthentication();
         app.MapCattleEndpoints();
         await app.StartAsync(TestContext.Current.CancellationToken);
 
-        var client = app.GetTestClient();
+        var client = app.GetAuthenticatedTestClient();
         var response = await client.GetAsync("/v1/cattle/UK999999999999", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -338,13 +359,15 @@ public class HoldingEndpointsTests
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
         builder.Services.AddRouting();
+        builder.Services.AddTestServiceToServiceAuthentication();
         builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
         builder.Services.AddSingleton(mockService.Object);
         var app = builder.Build();
+        app.UseTestServiceToServiceAuthentication();
         app.MapHoldingEndpoints();
         await app.StartAsync(TestContext.Current.CancellationToken);
 
-        var client = app.GetTestClient();
+        var client = app.GetAuthenticatedTestClient();
         var response = await client.GetAsync($"/v1/holdings/{cph}/bundles", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -379,13 +402,15 @@ public class HoldingEndpointsTests
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
         builder.Services.AddRouting();
+        builder.Services.AddTestServiceToServiceAuthentication();
         builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
         builder.Services.AddSingleton(mockService.Object);
         var app = builder.Build();
+        app.UseTestServiceToServiceAuthentication();
         app.MapHoldingEndpoints();
         await app.StartAsync(TestContext.Current.CancellationToken);
 
-        var client = app.GetTestClient();
+        var client = app.GetAuthenticatedTestClient();
         var response = await client.GetAsync($"/v1/holdings/{cph}/bundles", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);

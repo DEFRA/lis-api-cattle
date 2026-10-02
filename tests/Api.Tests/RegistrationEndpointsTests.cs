@@ -11,6 +11,7 @@ using Defra.Lis.Api.Endpoints.Registration;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models.Requests;
 using Defra.Lis.Api.Models.Responses;
+using Defra.Lis.Api.Tests.Authentication;
 using Defra.Lis.Entities;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
@@ -25,8 +26,10 @@ public class RegistrationEndpointsTests
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
         builder.Services.AddRouting();
+        builder.Services.AddTestServiceToServiceAuthentication();
         builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
         var app = builder.Build();
+        app.UseTestServiceToServiceAuthentication();
 
         var returned = app.MapRegistrationEndpoints();
 
@@ -100,13 +103,15 @@ public class RegistrationEndpointsTests
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
         builder.Services.AddRouting();
+        builder.Services.AddTestServiceToServiceAuthentication();
         builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
         builder.Services.AddSingleton(mockService.Object);
         var app = builder.Build();
+        app.UseTestServiceToServiceAuthentication();
         app.MapRegistrationEndpoints();
         await app.StartAsync(TestContext.Current.CancellationToken);
 
-        var response = await app.GetTestClient().PostAsJsonAsync(
+        var response = await app.GetAuthenticatedTestClient().PostAsJsonAsync(
             "/v1/registrations/",
             request,
             TestContext.Current.CancellationToken);
@@ -140,13 +145,15 @@ public class RegistrationEndpointsTests
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
         builder.Services.AddRouting();
+        builder.Services.AddTestServiceToServiceAuthentication();
         builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
         builder.Services.AddSingleton(mockValidationService.Object);
         var app = builder.Build();
+        app.UseTestServiceToServiceAuthentication();
         app.MapRegistrationEndpoints();
         await app.StartAsync(TestContext.Current.CancellationToken);
 
-        var response = await app.GetTestClient().PostAsync(
+        var response = await app.GetAuthenticatedTestClient().PostAsync(
             $"/v1/registrations/{submissionId}/validate",
             null,
             TestContext.Current.CancellationToken);
@@ -170,13 +177,15 @@ public class RegistrationEndpointsTests
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
         builder.Services.AddRouting();
+        builder.Services.AddTestServiceToServiceAuthentication();
         builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
         builder.Services.AddSingleton(mockService.Object);
         var app = builder.Build();
+        app.UseTestServiceToServiceAuthentication();
         app.MapRegistrationEndpoints();
         await app.StartAsync(TestContext.Current.CancellationToken);
 
-        var response = await app.GetTestClient().PostAsJsonAsync(
+        var response = await app.GetAuthenticatedTestClient().PostAsJsonAsync(
             "/v1/registrations/",
             new RegistrationBundleRequest(),
             TestContext.Current.CancellationToken);
@@ -200,13 +209,15 @@ public class RegistrationEndpointsTests
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
         builder.Services.AddRouting();
+        builder.Services.AddTestServiceToServiceAuthentication();
         builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
         builder.Services.AddSingleton(mockValidationService.Object);
         var app = builder.Build();
+        app.UseTestServiceToServiceAuthentication();
         app.MapRegistrationEndpoints();
         await app.StartAsync(TestContext.Current.CancellationToken);
 
-        var response = await app.GetTestClient().PostAsync(
+        var response = await app.GetAuthenticatedTestClient().PostAsync(
             $"/v1/registrations/{submissionId}/validate",
             null,
             TestContext.Current.CancellationToken);

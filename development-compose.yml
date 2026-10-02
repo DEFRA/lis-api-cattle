@@ -100,6 +100,8 @@ services:
       KrdsApi__BaseUrl: http://host.docker.internal:3000/krds/
       KrdsApi__ClientId: local-dev-krds-client
       KrdsApi__ClientSecret: local-dev-krds-secret
+      # Inbound service-to-service key; lis-be4fe-cattle-home sends it as CattleApi__ApiKey.
+      ApiKeyAuthentication__Keys__0: local-dev-cattle-api-key
       ConnectionStrings__ReadWritePostgresConnection: "User ID=lis_api_cattle_ddl;Password=postgres;Host=postgres;Database=lis_cattle;"
       ConnectionStrings__ReadOnlyPostgresConnection: "User ID=lis_api_cattle_ddl;Password=postgres;Host=postgres;Database=lis_cattle;"
     networks:
