@@ -16,7 +16,9 @@ public partial class SubmissionValidationBackgroundService(
     ILogger<SubmissionValidationBackgroundService>? logger = null)
     : BackgroundService
 {
-    private readonly IServiceProvider serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+    private readonly IServiceProvider serviceProvider =
+        serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+
     private readonly AwsMessagingOptions options = options?.Value ?? new AwsMessagingOptions();
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
