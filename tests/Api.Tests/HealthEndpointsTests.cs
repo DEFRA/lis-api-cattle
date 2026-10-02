@@ -21,20 +21,24 @@ public class HealthEndpointsTests
     [Fact]
     public void MapHealthEndpoints_MapsRoutesSuccessfully()
     {
+        // Arrange
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
         builder.Services.AddRouting();
         builder.Services.AddHealthChecks();
         var app = builder.Build();
 
+        // Act
         var returned = app.MapHealthEndpoints();
 
+        // Assert
         Assert.NotNull(returned);
     }
 
     [Fact]
     public async Task MapHealthEndpoints_DescribesRoutesForOpenApi()
     {
+        // Arrange
         var mockHealthService = new Mock<IHealthService>();
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
@@ -45,10 +49,12 @@ public class HealthEndpointsTests
         app.MapHealthEndpoints();
         await app.StartAsync(TestContext.Current.CancellationToken);
 
+        // Act
         var endpoints = app.Services.GetRequiredService<Microsoft.AspNetCore.Routing.EndpointDataSource>().Endpoints
             .OfType<Microsoft.AspNetCore.Routing.RouteEndpoint>()
             .ToList();
 
+        // Assert
         var healthEndpoint = endpoints.Single(e => e.RoutePattern.RawText == "/health");
         Assert.Equal("/health", healthEndpoint.RoutePattern.RawText);
         Assert.Equal(OpenApiMetadata.GetHealthRoute.Summary, healthEndpoint.Metadata.GetMetadata<Microsoft.AspNetCore.Http.Metadata.IEndpointSummaryMetadata>()?.Summary);
@@ -65,6 +71,7 @@ public class HealthEndpointsTests
     [Fact]
     public async Task GetHealth_WhenAllChecksPass_Returns200WithJsonResponse()
     {
+        // Arrange
         var mockHealthService = new Mock<IHealthService>();
         mockHealthService.Setup(s => s.CheckDatabaseHealthAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ComponentHealthResult(HealthStatus.Healthy.ToString(), "Database is up."));
@@ -87,8 +94,11 @@ public class HealthEndpointsTests
         await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
+
+        // Act
         var response = await client.GetAsync("/health", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var result = await response.Content.ReadFromJsonAsync<HealthCheckResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(result);
@@ -102,6 +112,7 @@ public class HealthEndpointsTests
     [Fact]
     public async Task GetHealth_WhenCheckFails_Returns503WithJsonResponse()
     {
+        // Arrange
         var mockHealthService = new Mock<IHealthService>();
         mockHealthService.Setup(s => s.CheckDatabaseHealthAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ComponentHealthResult(HealthStatus.Healthy.ToString(), "Database is up."));
@@ -121,8 +132,11 @@ public class HealthEndpointsTests
         await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
+
+        // Act
         var response = await client.GetAsync("/health", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         var result = await response.Content.ReadFromJsonAsync<HealthCheckResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(result);
@@ -134,6 +148,7 @@ public class HealthEndpointsTests
     [Fact]
     public async Task GetDetailedHealth_WhenHealthy_Returns200()
     {
+        // Arrange
         var mockHealthService = new Mock<IHealthService>();
         var healthResponse = new HealthCheckResponse(
             HealthStatus.Healthy.ToString(),
@@ -157,8 +172,11 @@ public class HealthEndpointsTests
         await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
+
+        // Act
         var response = await client.GetAsync("/health/detailed", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var result = await response.Content.ReadFromJsonAsync<HealthCheckResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(result);
@@ -168,6 +186,7 @@ public class HealthEndpointsTests
     [Fact]
     public async Task GetDetailedHealth_WhenUnhealthy_Returns503()
     {
+        // Arrange
         var mockHealthService = new Mock<IHealthService>();
         var healthResponse = new HealthCheckResponse(
             HealthStatus.Unhealthy.ToString(),
@@ -191,8 +210,11 @@ public class HealthEndpointsTests
         await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
+
+        // Act
         var response = await client.GetAsync("/health/detailed", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         var result = await response.Content.ReadFromJsonAsync<HealthCheckResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(result);
@@ -202,6 +224,7 @@ public class HealthEndpointsTests
     [Fact]
     public async Task GetDetailedHealth_WhenDegraded_Returns503()
     {
+        // Arrange
         var mockHealthService = new Mock<IHealthService>();
         var healthResponse = new HealthCheckResponse(
             HealthStatus.Degraded.ToString(),
@@ -225,8 +248,11 @@ public class HealthEndpointsTests
         await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
+
+        // Act
         var response = await client.GetAsync("/health/detailed", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         var result = await response.Content.ReadFromJsonAsync<HealthCheckResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(result);
@@ -236,6 +262,7 @@ public class HealthEndpointsTests
     [Fact]
     public async Task GetHealth_WhenCheckIsDegraded_Returns200WithDegradedJsonResponse()
     {
+        // Arrange
         var mockHealthService = new Mock<IHealthService>();
         mockHealthService.Setup(s => s.CheckDatabaseHealthAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ComponentHealthResult(HealthStatus.Healthy.ToString(), "Database is up."));
@@ -255,8 +282,11 @@ public class HealthEndpointsTests
         await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
+
+        // Act
         var response = await client.GetAsync("/health", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var result = await response.Content.ReadFromJsonAsync<HealthCheckResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(result);

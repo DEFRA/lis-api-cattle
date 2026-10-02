@@ -17,7 +17,14 @@ public class HealthChecksTests
     [Fact]
     public void DatabaseHealthCheck_Constructor_ThrowsArgumentNullException_WhenHealthServiceIsNull()
     {
-        Assert.Throws<ArgumentNullException>(() => new DatabaseHealthCheck(null!));
+        // Arrange
+        IHealthService healthService = null!;
+
+        // Act
+        var act = () => new DatabaseHealthCheck(healthService);
+
+        // Assert
+        Assert.Throws<ArgumentNullException>(act);
     }
 
     [Theory]
@@ -29,6 +36,7 @@ public class HealthChecksTests
         string serviceStatus,
         HealthStatus expectedStatus)
     {
+        // Arrange
         var componentResult = new ComponentHealthResult(
             serviceStatus,
             "Database test description",
@@ -41,8 +49,10 @@ public class HealthChecksTests
         var check = new DatabaseHealthCheck(this.mockHealthService.Object);
         var context = new HealthCheckContext();
 
+        // Act
         var result = await check.CheckHealthAsync(context, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(expectedStatus, result.Status);
         Assert.Equal("Database test description", result.Description);
         Assert.NotNull(result.Data);
@@ -52,7 +62,14 @@ public class HealthChecksTests
     [Fact]
     public void QueueHealthCheck_Constructor_ThrowsArgumentNullException_WhenHealthServiceIsNull()
     {
-        Assert.Throws<ArgumentNullException>(() => new QueueHealthCheck(null!));
+        // Arrange
+        IHealthService healthService = null!;
+
+        // Act
+        var act = () => new QueueHealthCheck(healthService);
+
+        // Assert
+        Assert.Throws<ArgumentNullException>(act);
     }
 
     [Theory]
@@ -64,6 +81,7 @@ public class HealthChecksTests
         string serviceStatus,
         HealthStatus expectedStatus)
     {
+        // Arrange
         var componentResult = new ComponentHealthResult(
             serviceStatus,
             "Queue test description",
@@ -76,8 +94,10 @@ public class HealthChecksTests
         var check = new QueueHealthCheck(this.mockHealthService.Object);
         var context = new HealthCheckContext();
 
+        // Act
         var result = await check.CheckHealthAsync(context, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(expectedStatus, result.Status);
         Assert.Equal("Queue test description", result.Description);
         Assert.NotNull(result.Data);
@@ -87,7 +107,14 @@ public class HealthChecksTests
     [Fact]
     public void QuartzHealthCheck_Constructor_ThrowsArgumentNullException_WhenHealthServiceIsNull()
     {
-        Assert.Throws<ArgumentNullException>(() => new QuartzHealthCheck(null!));
+        // Arrange
+        IHealthService healthService = null!;
+
+        // Act
+        var act = () => new QuartzHealthCheck(healthService);
+
+        // Assert
+        Assert.Throws<ArgumentNullException>(act);
     }
 
     [Theory]
@@ -99,6 +126,7 @@ public class HealthChecksTests
         string serviceStatus,
         HealthStatus expectedStatus)
     {
+        // Arrange
         var componentResult = new ComponentHealthResult(
             serviceStatus,
             "Quartz test description",
@@ -111,8 +139,10 @@ public class HealthChecksTests
         var check = new QuartzHealthCheck(this.mockHealthService.Object);
         var context = new HealthCheckContext();
 
+        // Act
         var result = await check.CheckHealthAsync(context, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(expectedStatus, result.Status);
         Assert.Equal("Quartz test description", result.Description);
         Assert.NotNull(result.Data);
@@ -121,21 +151,25 @@ public class HealthChecksTests
     [Fact]
     public void ComponentHealthResult_ConstructorsAndProperties_InitializeCorrectly()
     {
+        // Arrange
         var data = new Dictionary<string, object> { ["testKey"] = "testValue" };
 
+        // Act
         var resultWithTimeSpan = new ComponentHealthResult("Healthy", "All good", TimeSpan.FromSeconds(1.5), data);
+        var resultWithDouble = new ComponentHealthResult("Degraded", "Slow", 2.5, data);
+        var defaultResult = new ComponentHealthResult("Unhealthy");
+
+        // Assert
         Assert.Equal("Healthy", resultWithTimeSpan.Status);
         Assert.Equal("All good", resultWithTimeSpan.Description);
         Assert.Equal(1.5, resultWithTimeSpan.DurationSeconds);
         Assert.Equal(data, resultWithTimeSpan.Data);
 
-        var resultWithDouble = new ComponentHealthResult("Degraded", "Slow", 2.5, data);
         Assert.Equal("Degraded", resultWithDouble.Status);
         Assert.Equal("Slow", resultWithDouble.Description);
         Assert.Equal(2.5, resultWithDouble.DurationSeconds);
         Assert.Equal(data, resultWithDouble.Data);
 
-        var defaultResult = new ComponentHealthResult("Unhealthy");
         Assert.Equal("Unhealthy", defaultResult.Status);
         Assert.Null(defaultResult.Description);
         Assert.Equal(0, defaultResult.DurationSeconds);
@@ -145,17 +179,21 @@ public class HealthChecksTests
     [Fact]
     public void HealthCheckResponse_ConstructorsAndProperties_InitializeCorrectly()
     {
+        // Arrange
         var entries = new Dictionary<string, ComponentHealthResult>
         {
             ["database"] = new("Healthy", "DB OK", 0.05), ["queue"] = new("Healthy", "Queue OK", 0.02),
         };
 
+        // Act
         var responseWithTimeSpan = new HealthCheckResponse("Healthy", TimeSpan.FromSeconds(0.07), entries);
+        var responseWithDouble = new HealthCheckResponse("Unhealthy", 1.25, entries);
+
+        // Assert
         Assert.Equal("Healthy", responseWithTimeSpan.Status);
         Assert.Equal(0.07, responseWithTimeSpan.TotalDurationSeconds);
         Assert.Equal(2, responseWithTimeSpan.Entries.Count);
 
-        var responseWithDouble = new HealthCheckResponse("Unhealthy", 1.25, entries);
         Assert.Equal("Unhealthy", responseWithDouble.Status);
         Assert.Equal(1.25, responseWithDouble.TotalDurationSeconds);
         Assert.Equal(entries, responseWithDouble.Entries);
