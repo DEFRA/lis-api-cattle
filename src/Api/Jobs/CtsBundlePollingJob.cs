@@ -26,7 +26,7 @@ public partial class CtsBundlePollingJob(
         {
             using var scope = scopeFactory.CreateScope();
             var processor = scope.ServiceProvider.GetRequiredService<ICtsBundleProcessorService>();
-            await processor.ProcessPendingBundlesAsync(context.CancellationToken);
+            await processor.ProcessPendingBundlesAsync(cancellationToken);
             LogFinishedCtsBundlePollingJobExecutionSuccessfullyAtTime(DateTimeOffset.UtcNow);
         }
 #pragma warning disable S2139
