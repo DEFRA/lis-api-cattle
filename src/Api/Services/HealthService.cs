@@ -248,7 +248,7 @@ public partial class HealthService : IHealthService
                     stopwatch.Elapsed);
             }
 
-            if (scheduler.Status == SchedulerStatus.Shutdown || scheduler.Status == SchedulerStatus.ShuttingDown)
+            if (IsQuartzSchedulerShuttingDown(scheduler))
             {
                 stopwatch.Stop();
 
@@ -258,8 +258,7 @@ public partial class HealthService : IHealthService
                     stopwatch.Elapsed,
                     new Dictionary<string, object>
                     {
-                        ["schedulerName"] = scheduler.SchedulerName,
-                        ["status"] = scheduler.Status.ToString(),
+                        ["schedulerName"] = scheduler.SchedulerName, ["status"] = scheduler.Status.ToString(),
                     });
             }
 
@@ -370,6 +369,11 @@ public partial class HealthService : IHealthService
                 $"Quartz health check failed: {ex.Message}",
                 stopwatch.Elapsed);
         }
+    }
+
+    private static bool IsQuartzSchedulerShuttingDown(IScheduler scheduler)
+    {
+        return scheduler.Status is SchedulerStatus.Shutdown or SchedulerStatus.ShuttingDown;
     }
 
     private static void AddDataIfNotNull(Dictionary<string, object> data, string key, object? value)
