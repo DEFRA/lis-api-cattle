@@ -39,15 +39,17 @@ public sealed partial class CadsService(
 
         var results = new List<CattleResponse>();
         var page = 1;
-        CadsPaginatedResult<CadsAnimal> current;
+        CadsAnimalsOnHolding current;
+        IReadOnlyList<CadsAnimal> animals;
 
         do
         {
             current = await GetAnimalsPageAsync(cph, page, cancellationToken);
-            results.AddRange((current.Results ?? []).Where(animal => animal.IsAlive).Select(ToCattleResponse));
+            animals = current.Animals ?? [];
+            results.AddRange(animals.Select(ToCattleResponse));
             page++;
         }
-        while (current.HasNextPage && page <= current.TotalPages && page <= MaxPages);
+        while (animals.Count > 0 && (long)(page - 1) * current.PageSize < current.TotalRecords && page <= MaxPages);
 
         LogRetrievedLiveAnimalsForHolding(results.Count, page - 1, cph);
 
@@ -147,7 +149,7 @@ public sealed partial class CadsService(
         return string.IsNullOrWhiteSpace(geneticDam) ? null : GeneticDamType;
     }
 
-    private async Task<CadsPaginatedResult<CadsAnimal>> GetAnimalsPageAsync(string cph, int page, CancellationToken cancellationToken)
+    private async Task<CadsAnimalsOnHolding> GetAnimalsPageAsync(string cph, int page, CancellationToken cancellationToken)
     {
         var settings = options.Value;
 
@@ -167,7 +169,7 @@ public sealed partial class CadsService(
                 .WithQueryParameter("CPH", cph)
                 .WithQueryParameter("page", page.ToString(CultureInfo.InvariantCulture))
                 .WithQueryParameter("pageSize", settings.PageSize.ToString(CultureInfo.InvariantCulture))
-                .Execute<CadsPaginatedResult<CadsAnimal>>();
+                .Execute<CadsAnimalsOnHolding>();
         }
         catch (RestResponseException ex) when (UpstreamErrors.IsNotFound(ex))
         {

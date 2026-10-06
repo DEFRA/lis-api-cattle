@@ -23,15 +23,4 @@ public sealed record CadsAnimal(
     string? Species,
     string? Sex,
     CadsBreedCode? BreedCode,
-    string? Status)
-{
-    /// <summary>
-    /// The status value representing an alive animal in CADS.
-    /// </summary>
-    public const string AliveStatus = "Alive";
-
-    /// <summary>
-    /// Gets a value indicating whether the animal has an alive status.
-    /// </summary>
-    public bool IsAlive => string.Equals(Status, AliveStatus, StringComparison.OrdinalIgnoreCase);
-}
+    string? Status);
