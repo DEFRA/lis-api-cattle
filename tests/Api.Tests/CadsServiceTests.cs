@@ -32,7 +32,7 @@ public class CadsServiceTests
     [Fact]
     public async Task GetCattleByCphAsync_CallsAnimalsEndpointWithCphPagingAndBasicAuth()
     {
-        handler.RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000001", "Alive")], page: 1, totalPages: 1, hasNextPage: false));
+        handler.RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000001", "Passport Produced")], page: 1, totalRecords: 1));
         var service = CreateService();
 
         var result = (await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken)).ToList();
@@ -49,7 +49,7 @@ public class CadsServiceTests
     [Fact]
     public async Task GetCattleByCphAsync_MapsCadsAnimalToCattleResponse()
     {
-        handler.RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000001", "Alive")], page: 1, totalPages: 1, hasNextPage: false));
+        handler.RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000001", "Passport Produced")], page: 1, totalRecords: 1));
         var service = CreateService();
 
         var animal = (await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken)).Single();
@@ -61,16 +61,16 @@ public class CadsServiceTests
         Assert.Equal("AA", animal.BreedCode);
         Assert.Equal("Aberdeen Angus", animal.BreedName);
         Assert.Equal("Aberdeen Angus", animal.Breed);
-        Assert.Equal("Alive", animal.Status);
+        Assert.Equal("Passport Produced", animal.Status);
         Assert.Empty(animal.Errors);
     }
 
     [Fact]
-    public async Task GetCattleByCphAsync_ReadsEveryPageAndExcludesDeadAnimals()
+    public async Task GetCattleByCphAsync_ReadsEveryPageUntilTotalRecordsAreReached()
     {
         handler
-            .RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000001", "Alive"), Animal("UK200000000002", "Dead")], page: 1, totalPages: 2, hasNextPage: true))
-            .RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000003", "Alive")], page: 2, totalPages: 2, hasNextPage: false));
+            .RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000001", "Passport Produced"), Animal("UK200000000002", "Passport Produced")], page: 1, totalRecords: 3))
+            .RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000003", "Passport Produced")], page: 2, totalRecords: 3));
         var service = CreateService();
 
         var result = (await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken)).Select(c => c.EarTag).ToList();
@@ -78,17 +78,72 @@ public class CadsServiceTests
         Assert.Equal(2, handler.Requests.Count);
         Assert.Contains("page=1&pageSize=2", handler.Requests[0].RequestUri!.Query);
         Assert.Contains("page=2&pageSize=2", handler.Requests[1].RequestUri!.Query);
-        Assert.Equal(["UK200000000001", "UK200000000003"], result);
+        Assert.Equal(["UK200000000001", "UK200000000002", "UK200000000003"], result);
+    }
+
+    [Fact]
+    public async Task GetCattleByCphAsync_StopsWhenPageTimesPageSizeReachesTotalRecords()
+    {
+        handler
+            .RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000001", "Passport Produced"), Animal("UK200000000002", "Passport Produced")], page: 1, totalRecords: 4))
+            .RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000003", "Passport Produced"), Animal("UK200000000004", "Passport Produced")], page: 2, totalRecords: 4));
+        var service = CreateService();
+
+        var result = await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, handler.Requests.Count);
+        Assert.Equal(4, result.Count());
+    }
+
+    [Fact]
+    public async Task GetCattleByCphAsync_StopsOnAnEmptyPage()
+    {
+        handler
+            .RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000001", "Passport Produced"), Animal("UK200000000002", "Passport Produced")], page: 1, totalRecords: 10))
+            .RespondWith(HttpStatusCode.OK, Page([], page: 2, totalRecords: 10));
+        var service = CreateService();
+
+        var result = await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, handler.Requests.Count);
+        Assert.Equal(2, result.Count());
+    }
+
+    [Fact]
+    public async Task GetCattleByCphAsync_StopsAtMaxPages()
+    {
+        for (var i = 0; i < 101; i++)
+        {
+            handler.RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000001", "Passport Produced")], page: i + 1, totalRecords: 1_000_000));
+        }
+
+        var service = CreateService();
+
+        await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken);
+
+        Assert.Equal(100, handler.Requests.Count);
+    }
+
+    [Fact]
+    public async Task GetCattleByCphAsync_ReturnsEveryAnimalWithoutFilteringOnStatus()
+    {
+        handler.RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000001", "Passport Produced"), Animal("UK200000000002", "Registered")], page: 1, totalRecords: 2));
+        var service = CreateService();
+
+        var result = (await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken)).ToList();
+
+        Assert.Equal(["Passport Produced", "Registered"], result.Select(c => c.Status));
     }
 
     [Fact]
     public async Task GetCattleByCphAsync_ReturnsEmpty_WhenHoldingHasNoAnimals()
     {
-        handler.RespondWith(HttpStatusCode.OK, Page([], page: 1, totalPages: 0, hasNextPage: false));
+        handler.RespondWith(HttpStatusCode.OK, Page([], page: 1, totalRecords: 0));
         var service = CreateService();
 
         var result = await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken);
 
+        Assert.Single(handler.Requests);
         Assert.Empty(result);
     }
 
@@ -288,16 +343,15 @@ public class CadsServiceTests
         }
         """;
 
-    private static string Page(string[] animals, int page, int totalPages, bool hasNextPage) => $$"""
+    private static string Page(string[] animals, int page, long totalRecords) => $$"""
         {
-          "results": [{{string.Join(",", animals)}}],
-          "count": {{animals.Length}},
-          "totalCount": {{animals.Length}},
+          "resourceType": "AnimalCollection",
+          "CPH": { "schema": "uk.gov.defra.cph", "identifier": "22/001/0001" },
+          "locationName": "Oakfield Farm",
+          "animals": [{{string.Join(",", animals)}}],
+          "totalRecords": {{totalRecords}},
           "page": {{page}},
-          "pageSize": 2,
-          "totalPages": {{totalPages}},
-          "hasNextPage": {{hasNextPage.ToString().ToLowerInvariant()}},
-          "hasPreviousPage": {{(page > 1).ToString().ToLowerInvariant()}}
+          "pageSize": 2
         }
         """;
 
