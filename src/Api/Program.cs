@@ -11,6 +11,7 @@ using Asp.Versioning;
 using Defra.Database.Postgres;
 using Defra.Lis.Api.Authentication;
 using Defra.Lis.Api.Configurations;
+using Defra.Lis.Api.Correlation;
 using Defra.Lis.Api.Endpoints.Cattle;
 using Defra.Lis.Api.Endpoints.Health;
 using Defra.Lis.Api.Endpoints.Holding;
@@ -25,6 +26,7 @@ using Defra.Livestock.Sdk.Api.Strategies;
 using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Operations.Http.Rest.Client;
 using Defra.Livestock.Sdk.Api.Strategies.Operations.Http.Rest.Client;
 using Scalar.AspNetCore;
+using Serilog;
 
 #pragma warning disable S1075 // Using http protocol is insecure. Use https instead
 #pragma warning disable S5332 // Using http protocol is insecure. Use https instead
@@ -73,6 +75,9 @@ public static class Program
         bool isGeneratingOpenApi,
         IConfigurationRoot configuration)
     {
+        // Log to the CDP platform standard: ECS console output with the correlation ID on every line.
+        builder.Host.UseSerilog(CdpLogging.Configuration);
+
         builder.Services.ConfigureHttpJsonOptions(options =>
         {
             options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
@@ -116,8 +121,8 @@ public static class Program
         // Service-to-service authentication: an API key for now, AWS STS later (LREG-560).
         builder.Services.AddServiceToServiceAuthentication(builder.Configuration);
 
-        // Propagate the CDP correlation header to every outbound call (Correlation ID standard).
-        builder.Services.AddHeaderPropagation(options => options.Headers.Add(TraceHeaders.CdpRequestId));
+        // Require x-cdp-request-id and propagate it to every outbound call (Correlation ID standard).
+        builder.Services.AddCorrelationId();
 
         // Upstream connections (CADS animals and KRDS holdings, both faked by lis-fake-service for now).
         // Validated when first used rather than on start-up so the service can boot (and answer /health)
@@ -146,7 +151,7 @@ public static class Program
             builder.Services.AddHttpClient<ICtsService, FakeCtsService>(client =>
             {
                 client.BaseAddress = new Uri(builder.Configuration["CtsApi:BaseUrl"] ?? "http://cts-api/");
-            });
+            }).AddHeaderPropagation();
         }
 
         builder.Services.AddScoped<ICattleService, CattleService>();
@@ -163,8 +168,9 @@ public static class Program
         WebApplication app,
         bool isGeneratingOpenApi)
     {
+        app.UseSerilogRequestLogging();
         app.UseExceptionHandler();
-        app.UseHeaderPropagation();
+        app.UseCorrelationId();
         app.UseAuthentication();
         app.UseAuthorization();
 
@@ -173,16 +179,17 @@ public static class Program
             app.UsePostgresDatabase();
         }
 
-        app.MapOpenApi().WithDocumentPerVersion();
+        app.MapOpenApi().WithDocumentPerVersion().WithoutCorrelationIdCheck();
         app.MapScalarApiReference(options =>
         {
             foreach (var groupName in app.DescribeApiVersions().Select(description => description.GroupName))
             {
                 options.AddDocument(groupName, groupName);
             }
-        });
+        }).WithoutCorrelationIdCheck();
 
-        // Every versioned endpoint requires AuthPolicies.ServiceToService; health and OpenAPI stay anonymous.
+        // Every versioned endpoint requires AuthPolicies.ServiceToService and x-cdp-request-id; health and OpenAPI
+        // stay anonymous and need no correlation header.
         app.MapCattleEndpoints();
         app.MapHoldingEndpoints();
         app.MapRegistrationEndpoints();
