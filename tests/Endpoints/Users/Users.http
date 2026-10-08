@@ -9,6 +9,7 @@ x-cdp-request-id: {{$guid}}
 ### Get User details (unknown subject)
 GET {{host}}/users/00000000-0000-4000-8000-000000000000
 x-api-key: {{apiKey}}
+x-cdp-request-id: {{$guid}}
 Accept: application/json
 
 > ../Asserts/Should_be_404.js
@@ -16,6 +17,7 @@ Accept: application/json
 ### Get User details (subject rejected by KRDS)
 GET {{host}}/users/not-a-uuid
 x-api-key: {{apiKey}}
+x-cdp-request-id: {{$guid}}
 Accept: application/json
 
 > ../Asserts/Should_be_400_bad_request.js

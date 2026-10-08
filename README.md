@@ -65,3 +65,17 @@ endpoints only reference the `ServiceToService` authorisation policy, so STS is 
 With no key configured the service still starts and answers `/health`, but rejects every API request. Locally,
 `development-compose.yml`, `compose.override.yml` and the launch profiles use `local-dev-cattle-api-key`, and the
 `.http` files send it from `tests/Endpoints/http-client.env.json`.
+
+### Correlation ID
+
+Every versioned endpoint also requires a single `x-cdp-request-id` header (the
+[Correlation ID standard](https://eaflood.atlassian.net/wiki/spaces/LDD/pages/6438093586/Correlation+ID+standard));
+without it the request is rejected with `400` problem details carrying `"code": "missing_header"`. CDP and the
+BE4FE always send it; `/health`, the OpenAPI document and Scalar do not need it. The value is:
+
+- echoed on the response and included as `correlationId` in error problem details;
+- written as `CorrelationId` on every log line (ECS JSON in CDP, plain text locally);
+- forwarded on every upstream call (KRDS, CADS, CTS).
+
+The `.http` files send a fresh `{{$guid}}`; send your own when calling the API by hand, for example
+`-H 'x-cdp-request-id: local-test-1'`.
