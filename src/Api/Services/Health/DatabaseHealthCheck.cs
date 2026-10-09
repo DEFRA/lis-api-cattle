@@ -20,7 +20,7 @@ public class DatabaseHealthCheck : IHealthCheck
         HealthCheckContext context,
         CancellationToken cancellationToken = default)
     {
-        var result = await this.healthService.CheckDatabaseHealthAsync(cancellationToken);
+        var result = await healthService.CheckDatabaseHealthAsync(cancellationToken);
 
         return result.Status switch
         {

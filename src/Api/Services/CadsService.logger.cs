@@ -19,4 +19,10 @@ public partial class CadsService
 
     [LoggerMessage(LogLevel.Warning, "Animal {EarTag} is not known to CADS")]
     partial void LogAnimalNotKnownToCads(string earTag);
+
+    [LoggerMessage(LogLevel.Information, "Added {Count} live animals for holding {Cph} from the CADS data patch")]
+    partial void LogAddedAnimalsFromCadsDataPatch(int count, string cph);
+
+    [LoggerMessage(LogLevel.Information, "CADS data patch for holding {Cph} not found; returning CADS animals only")]
+    partial void LogCadsDataPatchUnavailable(Exception exception, string cph);
 }

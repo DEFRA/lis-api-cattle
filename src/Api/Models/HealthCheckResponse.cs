@@ -24,9 +24,9 @@ public record HealthCheckResponse
         double totalDurationSeconds,
         IReadOnlyDictionary<string, ComponentHealthResult> entries)
     {
-        this.Status = status;
-        this.TotalDurationSeconds = totalDurationSeconds;
-        this.Entries = entries;
+        Status = status;
+        TotalDurationSeconds = totalDurationSeconds;
+        Entries = entries;
     }
 
     /// <summary>

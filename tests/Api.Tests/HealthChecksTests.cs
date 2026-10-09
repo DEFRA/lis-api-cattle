@@ -43,10 +43,10 @@ public class HealthChecksTests
             TimeSpan.FromMilliseconds(50),
             new Dictionary<string, object> { ["key"] = "val" });
 
-        this.mockHealthService.Setup(s => s.CheckDatabaseHealthAsync(It.IsAny<CancellationToken>()))
+        mockHealthService.Setup(s => s.CheckDatabaseHealthAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(componentResult);
 
-        var check = new DatabaseHealthCheck(this.mockHealthService.Object);
+        var check = new DatabaseHealthCheck(mockHealthService.Object);
         var context = new HealthCheckContext();
 
         // Act
@@ -88,10 +88,10 @@ public class HealthChecksTests
             TimeSpan.FromMilliseconds(25),
             new Dictionary<string, object> { ["queueUrl"] = "http://localhost:4566/0000/test" });
 
-        this.mockHealthService.Setup(s => s.CheckQueueHealthAsync(It.IsAny<CancellationToken>()))
+        mockHealthService.Setup(s => s.CheckQueueHealthAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(componentResult);
 
-        var check = new QueueHealthCheck(this.mockHealthService.Object);
+        var check = new QueueHealthCheck(mockHealthService.Object);
         var context = new HealthCheckContext();
 
         // Act
@@ -133,10 +133,10 @@ public class HealthChecksTests
             TimeSpan.FromMilliseconds(10),
             new Dictionary<string, object> { ["jobExists"] = true });
 
-        this.mockHealthService.Setup(s => s.CheckQuartzHealthAsync(It.IsAny<CancellationToken>()))
+        mockHealthService.Setup(s => s.CheckQuartzHealthAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(componentResult);
 
-        var check = new QuartzHealthCheck(this.mockHealthService.Object);
+        var check = new QuartzHealthCheck(mockHealthService.Object);
         var context = new HealthCheckContext();
 
         // Act
@@ -182,7 +182,8 @@ public class HealthChecksTests
         // Arrange
         var entries = new Dictionary<string, ComponentHealthResult>
         {
-            ["database"] = new("Healthy", "DB OK", 0.05), ["queue"] = new("Healthy", "Queue OK", 0.02),
+            ["database"] = new("Healthy", "DB OK", 0.05),
+            ["queue"] = new("Healthy", "Queue OK", 0.02),
         };
 
         // Act

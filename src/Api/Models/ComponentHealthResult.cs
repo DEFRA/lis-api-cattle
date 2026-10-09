@@ -26,10 +26,10 @@ public record ComponentHealthResult
         double durationSeconds = 0,
         IReadOnlyDictionary<string, object>? data = null)
     {
-        this.Status = status;
-        this.Description = description;
-        this.DurationSeconds = durationSeconds;
-        this.Data = data;
+        Status = status;
+        Description = description;
+        DurationSeconds = durationSeconds;
+        Data = data;
     }
 
     /// <summary>
