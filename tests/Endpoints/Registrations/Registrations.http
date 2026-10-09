@@ -1,5 +1,5 @@
 ### Create Registration Bundle (using environment variable CPH)
-POST {{host}}/registrations
+POST {{host}}/v1/registrations
 x-api-key: {{apiKey}}
 Content-Type: application/json
 Accept: application/json
@@ -31,7 +31,7 @@ Accept: application/json
 > ../Asserts/Should_be_201_created.js
 
 ### Create Registration Bundle with surrogate dam and sire
-POST {{host}}/registrations
+POST {{host}}/v1/registrations
 x-api-key: {{apiKey}}
 Content-Type: application/json
 Accept: application/json
@@ -63,7 +63,7 @@ Accept: application/json
 > ../Asserts/Should_be_201_created.js
 
 ### Create Registration Bundle with standard dam
-POST {{host}}/registrations
+POST {{host}}/v1/registrations
 x-api-key: {{apiKey}}
 Content-Type: application/json
 Accept: application/json
@@ -90,7 +90,7 @@ Accept: application/json
 > ../Asserts/Should_be_201_created.js
 
 ### Create Registration Bundle with multiple animals
-POST {{host}}/registrations
+POST {{host}}/v1/registrations
 x-api-key: {{apiKey}}
 Content-Type: application/json
 Accept: application/json
@@ -123,7 +123,7 @@ Accept: application/json
 > ../Asserts/Should_be_201_created.js
 
 ### Create Registration Bundle without dam and sire
-POST {{host}}/registrations
+POST {{host}}/v1/registrations
 x-api-key: {{apiKey}}
 Content-Type: application/json
 Accept: application/json
@@ -146,7 +146,7 @@ Accept: application/json
 > ../Asserts/Should_be_201_created.js
 
 ### Create Registration Bundle - Invalid (missing client reference)
-POST {{host}}/registrations
+POST {{host}}/v1/registrations
 x-api-key: {{apiKey}}
 Content-Type: application/json
 Accept: application/json
@@ -161,7 +161,7 @@ Accept: application/json
 > ../Asserts/Should_be_400_bad_request.js
 
 ### Create Registration Bundle - Invalid (missing holding)
-POST {{host}}/registrations
+POST {{host}}/v1/registrations
 x-api-key: {{apiKey}}
 Content-Type: application/json
 Accept: application/json
@@ -174,7 +174,7 @@ Accept: application/json
 > ../Asserts/Should_be_400_bad_request.js
 
 ### Create Registration Bundle - Invalid (missing CPH)
-POST {{host}}/registrations
+POST {{host}}/v1/registrations
 x-api-key: {{apiKey}}
 Content-Type: application/json
 Accept: application/json

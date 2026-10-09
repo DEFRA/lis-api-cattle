@@ -20,7 +20,7 @@ public class QuartzHealthCheck : IHealthCheck
         HealthCheckContext context,
         CancellationToken cancellationToken = default)
     {
-        var result = await this.healthService.CheckQuartzHealthAsync(cancellationToken);
+        var result = await healthService.CheckQuartzHealthAsync(cancellationToken);
 
         return result.Status switch
         {

@@ -158,6 +158,17 @@ surrogate dam is recorded, otherwise `genetic` when a genetic dam is), `geneticD
 response is CADS-only, so an animal that exists solely in a local submission bundle is a 404 here
 even though it appears in the holding's cattle list.
 
+### Temporary CADS data patch (S3)
+
+Until CADS holds every animal, `GET /holdings/{county}/{parish}/{holding}/cattle` (and submission validation, which
+reads the same list) is topped up from an S3 bucket set in `CadsDataPatch__BucketName` (blank switches it off; local
+LocalStack bucket `cads-data-patch`). The bucket has one folder per CPH, named exactly as the CPH (so `22/001/0001/`),
+holding one `{earTag}.json` file per animal in the CADS animals-on-holding item shape (`identifier`, `birthDate`,
+`dateOnCPH`, `sex`, `breedCode`, `status`, ...). After every CADS page is read, any ear tag in the folder that CADS did
+not return is added if its `status` is `Alive`. The patch is best effort: an S3 failure is logged and the CADS results
+are returned on their own, and an unreadable file is skipped. It is read by `CadsDataPatchStore`
+(`src/Api/Services/CadsDataPatchStore.cs`) using the `AWS` section's region / LocalStack settings.
+
 ---
 
 ## Development & Build Commands

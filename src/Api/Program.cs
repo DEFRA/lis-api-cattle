@@ -134,6 +134,7 @@ public static class Program
         builder.Services.AddHttpClient<IRestHttpClient, RestHttpClient>().AddHeaderPropagation();
         builder.Services.AddRestStrategyFactory<CadsService>();
         builder.Services.AddRestStrategyFactory<KrdsService>();
+        builder.Services.AddCadsDataPatch(builder.Configuration);
         builder.Services.AddScoped<ICadsService, CadsService>();
         builder.Services.AddScoped<IKrdsService, KrdsService>();
 

@@ -1,5 +1,5 @@
 ### Get Holding details (using environment variable)
-GET {{host}}/holdings/{{cph}}
+GET {{host}}/v1/holdings/{{cph}}
 x-api-key: {{apiKey}}
 Accept: application/json
 x-cdp-request-id: {{$guid}}
@@ -7,35 +7,35 @@ x-cdp-request-id: {{$guid}}
 > ../Asserts/Should_be_200_OK.js
 
 ### Get Holding details (Oakfield Farm fixture in lis-fake-service)
-GET {{host}}/holdings/22/001/0001
+GET {{host}}/v1/holdings/22/001/0001
 x-api-key: {{apiKey}}
 Accept: application/json
 
 > ../Asserts/Should_be_200_OK.js
 
 ### Get Cattle for Holding (using environment variable)
-GET {{host}}/holdings/{{cph}}/cattle
+GET {{host}}/v1/holdings/{{cph}}/cattle
 x-api-key: {{apiKey}}
 Accept: application/json
 
 > ../Asserts/Should_be_200_OK.js
 
 ### Get Cattle for Holding (explicit CPH)
-GET {{host}}/holdings/12/345/6789/cattle
+GET {{host}}/v1/holdings/12/345/6789/cattle
 x-api-key: {{apiKey}}
 Accept: application/json
 
 > ../Asserts/Should_be_200_OK.js
 
 ### Search Cattle on Holding (ear tag, breed code or name, sex)
-GET {{host}}/holdings/22/001/0001/cattle?earTag=UK2000&breed=AA&sex=female
+GET {{host}}/v1/holdings/22/001/0001/cattle?earTag=UK2000&breed=AA&sex=female
 x-api-key: {{apiKey}}
 Accept: application/json
 
 > ../Asserts/Should_be_200_OK.js
 
 ### Get Cattle details (Oakfield animal fixture in lis-fake-service)
-GET {{host}}/cattle/UK200000000001
+GET {{host}}/v1/cattle/UK200000000001
 x-api-key: {{apiKey}}
 Accept: application/json
 x-cdp-request-id: {{$guid}}
@@ -43,21 +43,21 @@ x-cdp-request-id: {{$guid}}
 > ../Asserts/Should_be_200_OK.js
 
 ### Get Cattle details (unknown ear tag)
-GET {{host}}/cattle/UK999999999999
+GET {{host}}/v1/cattle/UK999999999999
 x-api-key: {{apiKey}}
 Accept: application/json
 
 > ../Asserts/Should_be_404.js
 
 ### Get Bundles for Holding (using environment variable)
-GET {{host}}/holdings/{{cph}}/bundles
+GET {{host}}/v1/holdings/{{cph}}/bundles
 x-api-key: {{apiKey}}
 Accept: application/json
 
 > ../Asserts/Should_be_200_OK.js
 
 ### Get Bundles for Holding (explicit CPH)
-GET {{host}}/holdings/12/345/6789/bundles
+GET {{host}}/v1/holdings/12/345/6789/bundles
 x-api-key: {{apiKey}}
 Accept: application/json
 
