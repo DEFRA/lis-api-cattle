@@ -5,6 +5,7 @@
 namespace Defra.Lis.Api.Services;
 
 using System.Globalization;
+using Amazon.Runtime;
 using Defra.Lis.Api.Configurations;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models;
@@ -24,6 +25,8 @@ using Microsoft.Extensions.Options;
 public sealed partial class CadsService(
     IRestStrategyFactory<CadsService> strategyFactory,
     IOptions<CadsApiOptions> options,
+    IOptions<CadsDataPatchOptions> patchOptions,
+    ICadsDataPatchStore dataPatchStore,
     ILogger<CadsService> logger)
     : ICadsService
 {
@@ -51,6 +54,12 @@ public sealed partial class CadsService(
 
         LogRetrievedLiveAnimalsForHolding(results.Count, page - 1, cph);
 
+        // Temporary data patch for CADS: only once every page is read, so an animal on a later page is not patched in twice.
+        if (patchOptions.Value.IsEnabled)
+        {
+            await EnrichData(cph, results, cancellationToken);
+        }
+
         return results;
     }
 
@@ -59,7 +68,7 @@ public sealed partial class CadsService(
         ArgumentException.ThrowIfNullOrWhiteSpace(earTag);
 
         var settings = options.Value;
-        CadsAnimalDetailResponse response;
+        CadsAnimalDetailResponse? response = null;
 
         try
         {
@@ -78,8 +87,20 @@ public sealed partial class CadsService(
         }
         catch (RestResponseException ex) when (UpstreamErrors.IsNotFound(ex))
         {
-            LogAnimalNotKnownToCads(earTag);
-            throw new NotFoundException($"Animal '{earTag}' was not found.");
+            // Temporary data patch for CADS, check in the patch cache incase.
+            if (patchOptions.Value.IsEnabled)
+            {
+                var animalDetail = await dataPatchStore.GetAnimalDetailsAsync(earTag, cancellationToken);
+                if (animalDetail != null)
+                {
+                    response = new CadsAnimalDetailResponse(null, null, null, null, animalDetail);
+                }
+            }
+            else
+            {
+                LogAnimalNotKnownToCads(earTag);
+                throw new NotFoundException($"Animal '{earTag}' was not found.");
+            }
         }
 
         if (response.AnimalDetail is null)
@@ -91,6 +112,43 @@ public sealed partial class CadsService(
         LogRetrievedAnimalDetails(earTag);
 
         return ToCattleDetailsResponse(earTag, response.AnimalDetail);
+    }
+
+    /// <summary>
+    /// Adds the live animals held in the CADS data patch for the holding whose ear tags CADS did not return.
+    /// The patch is best effort: if it cannot be read the CADS results are returned on their own.
+    /// </summary>
+    private async Task EnrichData(string cph, List<CattleResponse> results, CancellationToken cancellationToken)
+    {
+        try
+        {
+            foreach (var earTag in await dataPatchStore.GetEarTagsAsync(cph, cancellationToken))
+            {
+                var rawData = await dataPatchStore.GetAnimalAsync(cph, earTag, cancellationToken);
+                if (rawData is null)
+                {
+                    continue;
+                }
+
+                var patchData = ToCattleResponse(rawData);
+                if (string.IsNullOrWhiteSpace(patchData.EarTag))
+                {
+                    patchData.EarTag = earTag;
+                }
+
+                var sourceData = results.SingleOrDefault(x => string.Equals(x.EarTag, patchData.EarTag, StringComparison.OrdinalIgnoreCase));
+                if (sourceData != null && rawData.IsAlive)
+                {
+                    results.Remove(sourceData);
+                }
+
+                results.Add(patchData);
+            }
+        }
+        catch (AmazonServiceException ex)
+        {
+            LogCadsDataPatchUnavailable(ex, cph);
+        }
     }
 
     private static CattleResponse ToCattleResponse(CadsAnimal animal) => new()

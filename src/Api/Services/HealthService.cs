@@ -197,7 +197,8 @@ public partial class HealthService : IHealthService
                 stopwatch.Elapsed,
                 new Dictionary<string, object>
                 {
-                    ["queueUrl"] = effectiveQueueUrl, ["approximateNumberOfMessages"] = messageCount,
+                    ["queueUrl"] = effectiveQueueUrl,
+                    ["approximateNumberOfMessages"] = messageCount,
                 });
         }
         catch (OperationCanceledException ex) when (timeoutCts.IsCancellationRequested &&
@@ -258,7 +259,8 @@ public partial class HealthService : IHealthService
                     stopwatch.Elapsed,
                     new Dictionary<string, object>
                     {
-                        ["schedulerName"] = scheduler.SchedulerName, ["status"] = scheduler.Status.ToString(),
+                        ["schedulerName"] = scheduler.SchedulerName,
+                        ["status"] = scheduler.Status.ToString(),
                     });
             }
 

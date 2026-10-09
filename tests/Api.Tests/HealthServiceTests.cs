@@ -31,7 +31,7 @@ public sealed class HealthServiceTests : IDisposable
         var dbOptions = new DbContextOptionsBuilder<PostgresDbContext>()
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
-        this.defaultDbContext = new PostgresDbContext(dbOptions);
+        defaultDbContext = new PostgresDbContext(dbOptions);
     }
 
     [Fact]
@@ -43,9 +43,9 @@ public sealed class HealthServiceTests : IDisposable
         // Act
         var act = () => new HealthService(
             logger,
-            this.defaultDbContext,
-            this.mockSqs.Object,
-            this.mockSchedulerFactory.Object,
+            defaultDbContext,
+            mockSqs.Object,
+            mockSchedulerFactory.Object,
             Options.Create(new AwsMessagingOptions()),
             Options.Create(new CtsPollingJobOptions()));
 
@@ -61,10 +61,10 @@ public sealed class HealthServiceTests : IDisposable
 
         // Act
         var act = () => new HealthService(
-            this.mockLogger.Object,
+            mockLogger.Object,
             dbContext,
-            this.mockSqs.Object,
-            this.mockSchedulerFactory.Object,
+            mockSqs.Object,
+            mockSchedulerFactory.Object,
             Options.Create(new AwsMessagingOptions()),
             Options.Create(new CtsPollingJobOptions()));
 
@@ -80,10 +80,10 @@ public sealed class HealthServiceTests : IDisposable
 
         // Act
         var act = () => new HealthService(
-            this.mockLogger.Object,
-            this.defaultDbContext,
+            mockLogger.Object,
+            defaultDbContext,
             sqsClient,
-            this.mockSchedulerFactory.Object,
+            mockSchedulerFactory.Object,
             Options.Create(new AwsMessagingOptions()),
             Options.Create(new CtsPollingJobOptions()));
 
@@ -99,9 +99,9 @@ public sealed class HealthServiceTests : IDisposable
 
         // Act
         var act = () => new HealthService(
-            this.mockLogger.Object,
-            this.defaultDbContext,
-            this.mockSqs.Object,
+            mockLogger.Object,
+            defaultDbContext,
+            mockSqs.Object,
             schedulerFactory,
             Options.Create(new AwsMessagingOptions()),
             Options.Create(new CtsPollingJobOptions()));
@@ -118,10 +118,10 @@ public sealed class HealthServiceTests : IDisposable
 
         // Act
         var act = () => new HealthService(
-            this.mockLogger.Object,
-            this.defaultDbContext,
-            this.mockSqs.Object,
-            this.mockSchedulerFactory.Object,
+            mockLogger.Object,
+            defaultDbContext,
+            mockSqs.Object,
+            mockSchedulerFactory.Object,
             awsOptions,
             Options.Create(new CtsPollingJobOptions()));
 
@@ -137,10 +137,10 @@ public sealed class HealthServiceTests : IDisposable
 
         // Act
         var act = () => new HealthService(
-            this.mockLogger.Object,
-            this.defaultDbContext,
-            this.mockSqs.Object,
-            this.mockSchedulerFactory.Object,
+            mockLogger.Object,
+            defaultDbContext,
+            mockSqs.Object,
+            mockSchedulerFactory.Object,
             Options.Create(new AwsMessagingOptions()),
             ctsJobOptions);
 
@@ -152,7 +152,7 @@ public sealed class HealthServiceTests : IDisposable
     public async Task CheckDatabaseHealthAsync_WhenInMemoryDbContextCanConnect_ReturnsHealthy()
     {
         // Arrange
-        var service = this.CreateHealthService();
+        var service = CreateHealthService();
 
         // Act
         var result = await service.CheckDatabaseHealthAsync(TestContext.Current.CancellationToken);
@@ -172,7 +172,7 @@ public sealed class HealthServiceTests : IDisposable
             .Options;
 
         await using var dbContext = new PostgresDbContext(options);
-        var service = this.CreateHealthService(dbContext: dbContext);
+        var service = CreateHealthService(dbContext: dbContext);
 
         // Act
         var result = await service.CheckDatabaseHealthAsync(TestContext.Current.CancellationToken);
@@ -194,7 +194,7 @@ public sealed class HealthServiceTests : IDisposable
             .Options;
 
         await using var dbContext = new PostgresDbContext(options);
-        var service = this.CreateHealthService(
+        var service = CreateHealthService(
             dbContext: dbContext,
             checkTimeout: TimeSpan.FromMilliseconds(20));
 
@@ -215,7 +215,7 @@ public sealed class HealthServiceTests : IDisposable
         // Arrange
         var awsOptions = Options.Create(new AwsMessagingOptions { SubmissionValidationQueueUrl = string.Empty });
 
-        var service = this.CreateHealthService(awsOptions: awsOptions);
+        var service = CreateHealthService(awsOptions: awsOptions);
 
         // Act
         var result = await service.CheckQueueHealthAsync(TestContext.Current.CancellationToken);
@@ -224,7 +224,7 @@ public sealed class HealthServiceTests : IDisposable
         Assert.Equal(nameof(HealthStatus.Healthy), result.Status);
         Assert.Contains("skipped", result.Description, StringComparison.OrdinalIgnoreCase);
 
-        this.mockSqs.Verify(
+        mockSqs.Verify(
             s => s.ListQueuesAsync(It.IsAny<ListQueuesRequest>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
@@ -242,12 +242,12 @@ public sealed class HealthServiceTests : IDisposable
                 new Dictionary<string, string> { [QueueAttributeName.ApproximateNumberOfMessages] = "42", },
         };
 
-        this.mockSqs.Setup(s => s.GetQueueAttributesAsync(
+        mockSqs.Setup(s => s.GetQueueAttributesAsync(
                 It.Is<GetQueueAttributesRequest>(r => r.QueueUrl == queueUrl),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(getAttributesResponse);
 
-        var service = this.CreateHealthService(awsOptions: awsOptions);
+        var service = CreateHealthService(awsOptions: awsOptions);
 
         // Act
         var result = await service.CheckQueueHealthAsync(TestContext.Current.CancellationToken);
@@ -266,17 +266,18 @@ public sealed class HealthServiceTests : IDisposable
         var queueUrl = "http://localhost:4566/000000000000/submission-validation-queue";
         var awsOptions = Options.Create(new AwsMessagingOptions
         {
-            UseLocalStack = true, SubmissionValidationQueueUrl = queueUrl,
+            UseLocalStack = true,
+            SubmissionValidationQueueUrl = queueUrl,
         });
 
-        this.mockSqs.Setup(s =>
+        mockSqs.Setup(s =>
                 s.GetQueueAttributesAsync(It.IsAny<GetQueueAttributesRequest>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new QueueDoesNotExistException("The specified queue does not exist."));
 
-        this.mockSqs.Setup(s => s.GetQueueUrlAsync(It.IsAny<GetQueueUrlRequest>(), It.IsAny<CancellationToken>()))
+        mockSqs.Setup(s => s.GetQueueUrlAsync(It.IsAny<GetQueueUrlRequest>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new QueueDoesNotExistException("The specified queue does not exist."));
 
-        var service = this.CreateHealthService(awsOptions: awsOptions);
+        var service = CreateHealthService(awsOptions: awsOptions);
 
         // Act
         var result = await service.CheckQueueHealthAsync(TestContext.Current.CancellationToken);
@@ -284,7 +285,7 @@ public sealed class HealthServiceTests : IDisposable
         // Assert
         Assert.Equal(nameof(HealthStatus.Unhealthy), result.Status);
         Assert.Contains("The specified queue does not exist", result.Description);
-        this.mockSqs.Verify(
+        mockSqs.Verify(
             s => s.CreateQueueAsync(It.IsAny<CreateQueueRequest>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
@@ -297,22 +298,23 @@ public sealed class HealthServiceTests : IDisposable
         var resolvedUrl = "http://localstack:4566/000000000000/submission-validation-queue";
         var awsOptions = Options.Create(new AwsMessagingOptions
         {
-            UseLocalStack = false, SubmissionValidationQueueUrl = wrongHostUrl,
+            UseLocalStack = false,
+            SubmissionValidationQueueUrl = wrongHostUrl,
         });
 
-        this.mockSqs.Setup(s =>
+        mockSqs.Setup(s =>
                 s.GetQueueAttributesAsync(
                     It.Is<GetQueueAttributesRequest>(r => r.QueueUrl == wrongHostUrl),
                     It.IsAny<CancellationToken>()))
             .ThrowsAsync(new QueueDoesNotExistException("The specified queue does not exist."));
 
-        this.mockSqs.Setup(s =>
+        mockSqs.Setup(s =>
                 s.GetQueueUrlAsync(
                     It.Is<GetQueueUrlRequest>(r => r.QueueName == "submission-validation-queue"),
                     It.IsAny<CancellationToken>()))
             .ReturnsAsync(new GetQueueUrlResponse { QueueUrl = resolvedUrl });
 
-        this.mockSqs.Setup(s =>
+        mockSqs.Setup(s =>
                 s.GetQueueAttributesAsync(
                     It.Is<GetQueueAttributesRequest>(r => r.QueueUrl == resolvedUrl),
                     It.IsAny<CancellationToken>()))
@@ -324,7 +326,7 @@ public sealed class HealthServiceTests : IDisposable
                 },
             });
 
-        var service = this.CreateHealthService(awsOptions: awsOptions);
+        var service = CreateHealthService(awsOptions: awsOptions);
 
         // Act
         var result = await service.CheckQueueHealthAsync(TestContext.Current.CancellationToken);
@@ -342,16 +344,17 @@ public sealed class HealthServiceTests : IDisposable
         var resolvedUrl = "https://sqs.eu-west-2.amazonaws.com/123/submission_validation_queue";
         var awsOptions = Options.Create(new AwsMessagingOptions
         {
-            UseLocalStack = false, SubmissionValidationQueueUrl = queueName,
+            UseLocalStack = false,
+            SubmissionValidationQueueUrl = queueName,
         });
 
-        this.mockSqs.Setup(s =>
+        mockSqs.Setup(s =>
                 s.GetQueueUrlAsync(
                     It.Is<GetQueueUrlRequest>(r => r.QueueName == queueName),
                     It.IsAny<CancellationToken>()))
             .ReturnsAsync(new GetQueueUrlResponse { QueueUrl = resolvedUrl });
 
-        this.mockSqs.Setup(s =>
+        mockSqs.Setup(s =>
                 s.GetQueueAttributesAsync(
                     It.Is<GetQueueAttributesRequest>(r => r.QueueUrl == resolvedUrl),
                     It.IsAny<CancellationToken>()))
@@ -363,7 +366,7 @@ public sealed class HealthServiceTests : IDisposable
                 },
             });
 
-        var service = this.CreateHealthService(awsOptions: awsOptions);
+        var service = CreateHealthService(awsOptions: awsOptions);
 
         // Act
         var result = await service.CheckQueueHealthAsync(TestContext.Current.CancellationToken);
@@ -380,11 +383,11 @@ public sealed class HealthServiceTests : IDisposable
         var queueUrl = "https://sqs.eu-west-2.amazonaws.com/123/submission-validation-queue";
         var awsOptions = Options.Create(new AwsMessagingOptions { SubmissionValidationQueueUrl = queueUrl });
 
-        this.mockSqs.Setup(s =>
+        mockSqs.Setup(s =>
                 s.GetQueueAttributesAsync(It.IsAny<GetQueueAttributesRequest>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new AmazonSQSException("Queue not accessible"));
 
-        var service = this.CreateHealthService(awsOptions: awsOptions);
+        var service = CreateHealthService(awsOptions: awsOptions);
 
         // Act
         var result = await service.CheckQueueHealthAsync(TestContext.Current.CancellationToken);
@@ -401,24 +404,24 @@ public sealed class HealthServiceTests : IDisposable
         const string queueUrl = "https://sqs.eu-west-2.amazonaws.com/123/submission-validation-queue";
         var awsOptions = Options.Create(new AwsMessagingOptions { SubmissionValidationQueueUrl = queueUrl });
 
-        this.mockSqs.Setup(s =>
+        mockSqs.Setup(s =>
                 s.GetQueueAttributesAsync(It.IsAny<GetQueueAttributesRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new GetQueueAttributesResponse());
 
-        this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(this.mockScheduler.Object);
-        this.mockScheduler.Setup(s => s.Status).Returns(SchedulerStatus.Running);
-        this.mockScheduler.Setup(s => s.Exists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
+        mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockScheduler.Object);
+        mockScheduler.Setup(s => s.Status).Returns(SchedulerStatus.Running);
+        mockScheduler.Setup(s => s.Exists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
         var header = CreateTriggerHeader(
             new TriggerKey("test-trigger"),
             TriggerState.Normal,
             DateTimeOffset.UtcNow.AddMinutes(1));
         var pagedResult = new PagedResult<TriggerHeader>([header], false);
-        this.mockScheduler.Setup(s => s.QueryTriggers(It.IsAny<TriggerQuery>(), It.IsAny<CancellationToken>()))
+        mockScheduler.Setup(s => s.QueryTriggers(It.IsAny<TriggerQuery>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(pagedResult);
 
-        var service = this.CreateHealthService(awsOptions: awsOptions);
+        var service = CreateHealthService(awsOptions: awsOptions);
 
         // Act
         var healthCheckResponse = await service.CheckHealthAsync(TestContext.Current.CancellationToken);
@@ -438,15 +441,15 @@ public sealed class HealthServiceTests : IDisposable
         var queueUrl = "https://sqs.eu-west-2.amazonaws.com/123/submission-validation-queue";
         var awsOptions = Options.Create(new AwsMessagingOptions { SubmissionValidationQueueUrl = queueUrl });
 
-        this.mockSqs.Setup(s =>
+        mockSqs.Setup(s =>
                 s.GetQueueAttributesAsync(It.IsAny<GetQueueAttributesRequest>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new AmazonSQSException("Queue is down"));
 
-        this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(this.mockScheduler.Object);
-        this.mockScheduler.Setup(s => s.Status).Returns(SchedulerStatus.Running);
+        mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockScheduler.Object);
+        mockScheduler.Setup(s => s.Status).Returns(SchedulerStatus.Running);
 
-        var service = this.CreateHealthService(awsOptions: awsOptions);
+        var service = CreateHealthService(awsOptions: awsOptions);
 
         // Act
         var healthCheckResponse = await service.CheckHealthAsync(TestContext.Current.CancellationToken);
@@ -464,7 +467,7 @@ public sealed class HealthServiceTests : IDisposable
         const string queueUrl = "https://sqs.eu-west-2.amazonaws.com/123/submission-validation-queue";
         var awsOptions = Options.Create(new AwsMessagingOptions { SubmissionValidationQueueUrl = queueUrl });
 
-        this.mockSqs.Setup(s =>
+        mockSqs.Setup(s =>
                 s.GetQueueAttributesAsync(It.IsAny<GetQueueAttributesRequest>(), It.IsAny<CancellationToken>()))
             .Returns(async (GetQueueAttributesRequest _, CancellationToken ct) =>
             {
@@ -472,7 +475,7 @@ public sealed class HealthServiceTests : IDisposable
                 return new GetQueueAttributesResponse();
             });
 
-        var service = this.CreateHealthService(
+        var service = CreateHealthService(
             awsOptions: awsOptions,
             checkTimeout: TimeSpan.FromMilliseconds(50));
 
@@ -488,12 +491,12 @@ public sealed class HealthServiceTests : IDisposable
     public async Task CheckQuartzHealthAsync_WhenSchedulerIsShutdown_ReturnsUnhealthy()
     {
         // Arrange
-        this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(this.mockScheduler.Object);
-        this.mockScheduler.Setup(s => s.Status).Returns(SchedulerStatus.Shutdown);
-        this.mockScheduler.Setup(s => s.SchedulerName).Returns("TestScheduler");
+        mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockScheduler.Object);
+        mockScheduler.Setup(s => s.Status).Returns(SchedulerStatus.Shutdown);
+        mockScheduler.Setup(s => s.SchedulerName).Returns("TestScheduler");
 
-        var service = this.CreateHealthService();
+        var service = CreateHealthService();
 
         // Act
         var result = await service.CheckQuartzHealthAsync(TestContext.Current.CancellationToken);
@@ -507,18 +510,18 @@ public sealed class HealthServiceTests : IDisposable
     public async Task CheckQuartzHealthAsync_WhenJobEnabledAndRegisteredWithTrigger_ReturnsHealthy()
     {
         // Arrange
-        this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(this.mockScheduler.Object);
-        this.mockScheduler.Setup(s => s.Status).Returns(SchedulerStatus.Running);
-        this.mockScheduler.Setup(s =>
+        mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockScheduler.Object);
+        mockScheduler.Setup(s => s.Status).Returns(SchedulerStatus.Running);
+        mockScheduler.Setup(s =>
                 s.Exists(It.Is<JobKey>(k => k.Name == nameof(CtsBundlePollingJob)), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
         var nextFire = DateTimeOffset.UtcNow.AddMinutes(5);
         var header = CreateTriggerHeader(new TriggerKey("test-trigger"), TriggerState.Normal, nextFire);
-        this.mockScheduler.Setup(s => s.QueryTriggers(It.IsAny<TriggerQuery>(), It.IsAny<CancellationToken>()))
+        mockScheduler.Setup(s => s.QueryTriggers(It.IsAny<TriggerQuery>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PagedResult<TriggerHeader>([header], false));
 
-        var service = this.CreateHealthService(
+        var service = CreateHealthService(
             ctsJobOptions: Options.Create(new CtsPollingJobOptions { Enabled = true }));
 
         // Act
@@ -535,15 +538,15 @@ public sealed class HealthServiceTests : IDisposable
     public async Task CheckQuartzHealthAsync_WhenJobEnabledButNotRegistered_ReturnsUnhealthy()
     {
         // Arrange
-        this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(this.mockScheduler.Object);
-        this.mockScheduler.Setup(s => s.Status).Returns(SchedulerStatus.Running);
-        this.mockScheduler.Setup(s => s.Exists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
+        mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockScheduler.Object);
+        mockScheduler.Setup(s => s.Status).Returns(SchedulerStatus.Running);
+        mockScheduler.Setup(s => s.Exists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
-        this.mockScheduler.Setup(s => s.QueryTriggers(It.IsAny<TriggerQuery>(), It.IsAny<CancellationToken>()))
+        mockScheduler.Setup(s => s.QueryTriggers(It.IsAny<TriggerQuery>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PagedResult<TriggerHeader>([], false));
 
-        var service = this.CreateHealthService(
+        var service = CreateHealthService(
             ctsJobOptions: Options.Create(new CtsPollingJobOptions { Enabled = true }));
 
         // Act
@@ -558,16 +561,16 @@ public sealed class HealthServiceTests : IDisposable
     public async Task CheckQuartzHealthAsync_WhenTriggerInErrorState_ReturnsUnhealthy()
     {
         // Arrange
-        this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(this.mockScheduler.Object);
-        this.mockScheduler.Setup(s => s.Status).Returns(SchedulerStatus.Running);
-        this.mockScheduler.Setup(s => s.Exists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
+        mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockScheduler.Object);
+        mockScheduler.Setup(s => s.Status).Returns(SchedulerStatus.Running);
+        mockScheduler.Setup(s => s.Exists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
         var header = CreateTriggerHeader(new TriggerKey("error-trigger"), TriggerState.Error);
-        this.mockScheduler.Setup(s => s.QueryTriggers(It.IsAny<TriggerQuery>(), It.IsAny<CancellationToken>()))
+        mockScheduler.Setup(s => s.QueryTriggers(It.IsAny<TriggerQuery>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PagedResult<TriggerHeader>([header], false));
 
-        var service = this.CreateHealthService(
+        var service = CreateHealthService(
             ctsJobOptions: Options.Create(new CtsPollingJobOptions { Enabled = true }));
 
         // Act
@@ -582,14 +585,14 @@ public sealed class HealthServiceTests : IDisposable
     public async Task CheckQuartzHealthAsync_WhenSchedulerTimesOut_ReturnsUnhealthy()
     {
         // Arrange
-        this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
+        mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
             .Returns(async (CancellationToken ct) =>
             {
                 await Task.Delay(TimeSpan.FromSeconds(2), ct);
-                return this.mockScheduler.Object;
+                return mockScheduler.Object;
             });
 
-        var service = this.CreateHealthService(
+        var service = CreateHealthService(
             checkTimeout: TimeSpan.FromMilliseconds(50));
 
         // Act
@@ -604,10 +607,10 @@ public sealed class HealthServiceTests : IDisposable
     public async Task CheckQuartzHealthAsync_WhenSchedulerFactoryReturnsNull_ReturnsUnhealthy()
     {
         // Arrange
-        this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
+        mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
             .ReturnsAsync((IScheduler)null!);
 
-        var service = this.CreateHealthService();
+        var service = CreateHealthService();
 
         // Act
         var result = await service.CheckQuartzHealthAsync(TestContext.Current.CancellationToken);
@@ -621,15 +624,15 @@ public sealed class HealthServiceTests : IDisposable
     public async Task CheckQuartzHealthAsync_WhenJobDisabled_ReturnsHealthy()
     {
         // Arrange
-        this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(this.mockScheduler.Object);
-        this.mockScheduler.Setup(s => s.Status).Returns(SchedulerStatus.Running);
-        this.mockScheduler.Setup(s => s.Exists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
+        mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockScheduler.Object);
+        mockScheduler.Setup(s => s.Status).Returns(SchedulerStatus.Running);
+        mockScheduler.Setup(s => s.Exists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
-        this.mockScheduler.Setup(s => s.QueryTriggers(It.IsAny<TriggerQuery>(), It.IsAny<CancellationToken>()))
+        mockScheduler.Setup(s => s.QueryTriggers(It.IsAny<TriggerQuery>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PagedResult<TriggerHeader>([], false));
 
-        var service = this.CreateHealthService(
+        var service = CreateHealthService(
             ctsJobOptions: Options.Create(new CtsPollingJobOptions { Enabled = false }));
 
         // Act
@@ -645,15 +648,15 @@ public sealed class HealthServiceTests : IDisposable
     public async Task CheckQuartzHealthAsync_WhenJobHasNoTriggers_ReturnsDegraded()
     {
         // Arrange
-        this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(this.mockScheduler.Object);
-        this.mockScheduler.Setup(s => s.Status).Returns(SchedulerStatus.Running);
-        this.mockScheduler.Setup(s => s.Exists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
+        mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockScheduler.Object);
+        mockScheduler.Setup(s => s.Status).Returns(SchedulerStatus.Running);
+        mockScheduler.Setup(s => s.Exists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
-        this.mockScheduler.Setup(s => s.QueryTriggers(It.IsAny<TriggerQuery>(), It.IsAny<CancellationToken>()))
+        mockScheduler.Setup(s => s.QueryTriggers(It.IsAny<TriggerQuery>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PagedResult<TriggerHeader>([], false));
 
-        var service = this.CreateHealthService(
+        var service = CreateHealthService(
             ctsJobOptions: Options.Create(new CtsPollingJobOptions { Enabled = true }));
 
         // Act
@@ -668,16 +671,16 @@ public sealed class HealthServiceTests : IDisposable
     public async Task CheckQuartzHealthAsync_WhenTriggerInPausedState_ReturnsDegraded()
     {
         // Arrange
-        this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(this.mockScheduler.Object);
-        this.mockScheduler.Setup(s => s.Status).Returns(SchedulerStatus.Running);
-        this.mockScheduler.Setup(s => s.Exists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
+        mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockScheduler.Object);
+        mockScheduler.Setup(s => s.Status).Returns(SchedulerStatus.Running);
+        mockScheduler.Setup(s => s.Exists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
         var header = CreateTriggerHeader(new TriggerKey("paused-trigger"), TriggerState.Paused);
-        this.mockScheduler.Setup(s => s.QueryTriggers(It.IsAny<TriggerQuery>(), It.IsAny<CancellationToken>()))
+        mockScheduler.Setup(s => s.QueryTriggers(It.IsAny<TriggerQuery>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PagedResult<TriggerHeader>([header], false));
 
-        var service = this.CreateHealthService(
+        var service = CreateHealthService(
             ctsJobOptions: Options.Create(new CtsPollingJobOptions { Enabled = true }));
 
         // Act
@@ -692,10 +695,10 @@ public sealed class HealthServiceTests : IDisposable
     public async Task CheckQuartzHealthAsync_WhenSchedulerThrowsException_ReturnsUnhealthy()
     {
         // Arrange
-        this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
+        mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("Scheduler crash"));
 
-        var service = this.CreateHealthService();
+        var service = CreateHealthService();
 
         // Act
         var result = await service.CheckQuartzHealthAsync(TestContext.Current.CancellationToken);
@@ -711,19 +714,19 @@ public sealed class HealthServiceTests : IDisposable
         // Arrange
         var queueUrl = "https://sqs.eu-west-2.amazonaws.com/123/submission-validation-queue";
         var awsOptions = Options.Create(new AwsMessagingOptions { SubmissionValidationQueueUrl = queueUrl });
-        this.mockSqs.Setup(s =>
+        mockSqs.Setup(s =>
                 s.GetQueueAttributesAsync(It.IsAny<GetQueueAttributesRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new GetQueueAttributesResponse());
 
-        this.mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(this.mockScheduler.Object);
-        this.mockScheduler.Setup(s => s.Status).Returns(SchedulerStatus.Running);
-        this.mockScheduler.Setup(s => s.Exists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
+        mockSchedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockScheduler.Object);
+        mockScheduler.Setup(s => s.Status).Returns(SchedulerStatus.Running);
+        mockScheduler.Setup(s => s.Exists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
-        this.mockScheduler.Setup(s => s.QueryTriggers(It.IsAny<TriggerQuery>(), It.IsAny<CancellationToken>()))
+        mockScheduler.Setup(s => s.QueryTriggers(It.IsAny<TriggerQuery>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PagedResult<TriggerHeader>([], false));
 
-        var service = this.CreateHealthService(
+        var service = CreateHealthService(
             awsOptions: awsOptions,
             ctsJobOptions: Options.Create(new CtsPollingJobOptions { Enabled = true }));
 
@@ -749,12 +752,12 @@ public sealed class HealthServiceTests : IDisposable
             Attributes = new Dictionary<string, string> { ["SomeOtherAttribute"] = "value", },
         };
 
-        this.mockSqs.Setup(s => s.GetQueueAttributesAsync(
+        mockSqs.Setup(s => s.GetQueueAttributesAsync(
                 It.Is<GetQueueAttributesRequest>(r => r.QueueUrl == queueUrl),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(getAttributesResponse);
 
-        var service = this.CreateHealthService(awsOptions: awsOptions);
+        var service = CreateHealthService(awsOptions: awsOptions);
 
         // Act
         var result = await service.CheckQueueHealthAsync(TestContext.Current.CancellationToken);
@@ -767,7 +770,7 @@ public sealed class HealthServiceTests : IDisposable
 
     public void Dispose()
     {
-        this.defaultDbContext.Dispose();
+        defaultDbContext.Dispose();
     }
 
     private static TriggerHeader CreateTriggerHeader(
@@ -801,10 +804,10 @@ public sealed class HealthServiceTests : IDisposable
         TimeSpan? checkTimeout = null)
     {
         return new HealthService(
-            this.mockLogger.Object,
-            dbContext ?? this.defaultDbContext,
-            sqsClient ?? this.mockSqs.Object,
-            schedulerFactory ?? this.mockSchedulerFactory.Object,
+            mockLogger.Object,
+            dbContext ?? defaultDbContext,
+            sqsClient ?? mockSqs.Object,
+            schedulerFactory ?? mockSchedulerFactory.Object,
             awsOptions ?? Options.Create(new AwsMessagingOptions()),
             ctsJobOptions ?? Options.Create(new CtsPollingJobOptions()),
             checkTimeout);

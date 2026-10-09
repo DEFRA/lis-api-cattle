@@ -10,7 +10,8 @@ set -e
 # S3 buckets
 echo "Bootstrapping S3 setup..."
 
-# add buckets here
+awslocal s3 mb s3://cads-data-patch --endpoint-url=http://localhost:4567
+echo "S3 bucket created: cads-data-patch"
 
 echo "Bootstrapping SQS setup..."
 
