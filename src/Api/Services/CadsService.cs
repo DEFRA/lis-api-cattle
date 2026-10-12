@@ -117,48 +117,6 @@ public sealed partial class CadsService(
         return ToCattleDetailsResponse(earTag, response.AnimalDetail);
     }
 
-    /// <summary>
-    /// Adds the live animals held in the CADS data patch for the holding whose ear tags CADS did not return.
-    /// The patch is best effort: if it cannot be read the CADS results are returned on their own.
-    /// </summary>
-    private async Task EnrichData(string cph, List<CattleResponse> results, CancellationToken cancellationToken)
-    {
-        try
-        {
-            foreach (var earTag in await dataPatchStore.GetEarTagsAsync(cph, cancellationToken))
-            {
-                var rawData = await dataPatchStore.GetAnimalAsync(cph, earTag, cancellationToken);
-                if (rawData is null)
-                {
-                    continue;
-                }
-
-                var patchData = ToCattleResponse(rawData);
-                if (!rawData.IsAlive)
-                {
-                    continue;
-                }
-
-                if (string.IsNullOrWhiteSpace(patchData.EarTag))
-                {
-                    patchData.EarTag = earTag;
-                }
-
-                var sourceData = results.SingleOrDefault(x => string.Equals(x.EarTag, patchData.EarTag, StringComparison.OrdinalIgnoreCase));
-                if (sourceData != null && rawData.IsAlive)
-                {
-                    results.Remove(sourceData);
-                }
-
-                results.Add(patchData);
-            }
-        }
-        catch (AmazonServiceException ex)
-        {
-            LogCadsDataPatchUnavailable(ex, cph);
-        }
-    }
-
     private static CattleResponse ToCattleResponse(CadsAnimal animal) => new()
     {
         EarTag = animal.Identifier?.Identifier ?? string.Empty,
@@ -211,6 +169,48 @@ public sealed partial class CadsService(
         }
 
         return string.IsNullOrWhiteSpace(geneticDam) ? null : GeneticDamType;
+    }
+
+    /// <summary>
+    /// Adds the live animals held in the CADS data patch for the holding whose ear tags CADS did not return.
+    /// The patch is best effort: if it cannot be read the CADS results are returned on their own.
+    /// </summary>
+    private async Task EnrichData(string cph, List<CattleResponse> results, CancellationToken cancellationToken)
+    {
+        try
+        {
+            foreach (var earTag in await dataPatchStore.GetEarTagsAsync(cph, cancellationToken))
+            {
+                var rawData = await dataPatchStore.GetAnimalAsync(cph, earTag, cancellationToken);
+                if (rawData is null)
+                {
+                    continue;
+                }
+
+                var patchData = ToCattleResponse(rawData);
+                if (!rawData.IsAlive)
+                {
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(patchData.EarTag))
+                {
+                    patchData.EarTag = earTag;
+                }
+
+                var sourceData = results.SingleOrDefault(x => string.Equals(x.EarTag, patchData.EarTag, StringComparison.OrdinalIgnoreCase));
+                if (sourceData != null && rawData.IsAlive)
+                {
+                    results.Remove(sourceData);
+                }
+
+                results.Add(patchData);
+            }
+        }
+        catch (AmazonServiceException ex)
+        {
+            LogCadsDataPatchUnavailable(ex, cph);
+        }
     }
 
     private async Task<CadsPaginatedResult<CadsAnimal>> GetAnimalsPageAsync(string cph, int page, CancellationToken cancellationToken)
