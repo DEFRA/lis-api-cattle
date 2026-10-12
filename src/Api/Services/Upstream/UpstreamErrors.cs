@@ -30,4 +30,10 @@ public static class UpstreamErrors
 
     public static bool IsUnprocessableEntity(RestResponseException exception) =>
         StatusCode(exception) == HttpStatusCode.UnprocessableEntity;
+
+    public static bool IsConflict(RestResponseException exception) =>
+        StatusCode(exception) == HttpStatusCode.Conflict;
+
+    public static bool IsServiceUnavailable(RestResponseException exception) =>
+        StatusCode(exception) == HttpStatusCode.ServiceUnavailable;
 }

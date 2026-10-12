@@ -5,7 +5,10 @@
 namespace Defra.Lis.Api.Tests;
 
 using System.Net;
+using System.Text.Json;
 using Defra.Lis.Api.Configurations;
+using Defra.Lis.Api.Exceptions;
+using Defra.Lis.Api.Models.Requests;
 using Defra.Lis.Api.Services;
 using Defra.Lis.Api.Tests.Upstream;
 using Defra.Lis.Core.Exceptions;
@@ -285,6 +288,140 @@ public class KrdsServiceTests
         await Assert.ThrowsAsync<ArgumentException>(() => service.GetUserAccountAsync(subject, TestContext.Current.CancellationToken));
         Assert.Empty(handler.Requests);
     }
+
+    [Fact]
+    public async Task EnsureUserAccountAsync_PostsTheClaimsToUserAccountsWithBasicAuth()
+    {
+        handler.RespondWith(HttpStatusCode.Created, OakfieldUserAccount);
+        var service = CreateService();
+
+        await service.EnsureUserAccountAsync(OakfieldClaims(), TestContext.Current.CancellationToken);
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Post, request.Method);
+        Assert.Equal("http://fake-service.test/krds/api/v2/user-accounts", request.RequestUri!.ToString());
+        Assert.Equal("Basic", request.Headers.Authorization!.Scheme);
+        Assert.Equal(Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{TestClient}:{TestPassphrase}")), request.Headers.Authorization.Parameter);
+        using var body = JsonDocument.Parse(Assert.Single(handler.RequestBodies)!);
+        Assert.Equal(OakfieldSubject, body.RootElement.GetProperty("sub").GetString());
+        Assert.Equal("oakfield.farmer@oakhill-farms.co.uk", body.RootElement.GetProperty("email").GetString());
+        Assert.Equal("Oakfield", body.RootElement.GetProperty("given_name").GetString());
+        Assert.Equal("Farmer", body.RootElement.GetProperty("family_name").GetString());
+        Assert.Equal(4, body.RootElement.EnumerateObject().Count());
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.OK)]
+    [InlineData(HttpStatusCode.Created)]
+    public async Task EnsureUserAccountAsync_MapsTheReturnedAccount(HttpStatusCode statusCode)
+    {
+        handler.RespondWith(statusCode, OakfieldUserAccount);
+        var service = CreateService();
+
+        var user = await service.EnsureUserAccountAsync(OakfieldClaims(), TestContext.Current.CancellationToken);
+
+        Assert.Equal(OakfieldSubject, user.Subject);
+        Assert.Equal("oakfield.farmer@oakhill-farms.co.uk", user.Email);
+        Assert.Equal("Oakfield Farmer", user.DisplayName);
+        Assert.Equal(["22/001/0001", "22/002/0002"], user.Cphs.Select(cph => cph.Cph));
+    }
+
+    [Fact]
+    public async Task EnsureUserAccountAsync_TrimsTheEmail()
+    {
+        handler.RespondWith(HttpStatusCode.OK, OakfieldUserAccount);
+        var service = CreateService();
+        var claims = OakfieldClaims();
+        claims.Email = "  oakfield.farmer@oakhill-farms.co.uk ";
+
+        await service.EnsureUserAccountAsync(claims, TestContext.Current.CancellationToken);
+
+        using var body = JsonDocument.Parse(Assert.Single(handler.RequestBodies)!);
+        Assert.Equal("oakfield.farmer@oakhill-farms.co.uk", body.RootElement.GetProperty("email").GetString());
+    }
+
+    [Theory]
+    [InlineData(null, "oakfield.farmer@oakhill-farms.co.uk", "Oakfield", "Farmer")]
+    [InlineData(OakfieldSubject, " ", "Oakfield", "Farmer")]
+    [InlineData(OakfieldSubject, "oakfield.farmer@oakhill-farms.co.uk", "", "Farmer")]
+    [InlineData(OakfieldSubject, "oakfield.farmer@oakhill-farms.co.uk", "Oakfield", null)]
+    [InlineData(OakfieldSubject, "not-an-email", "Oakfield", "Farmer")]
+    [InlineData(OakfieldSubject, "@oakhill-farms.co.uk", "Oakfield", "Farmer")]
+    [InlineData(OakfieldSubject, "oakfield.farmer@", "Oakfield", "Farmer")]
+    [InlineData(OakfieldSubject, "a@b@oakhill-farms.co.uk", "Oakfield", "Farmer")]
+    public async Task EnsureUserAccountAsync_RejectsMissingOrInvalidClaimsWithoutCallingUpstream(string? sub, string? email, string? givenName, string? familyName)
+    {
+        var service = CreateService();
+        var claims = new CreateUserRequest { Sub = sub, Email = email, GivenName = givenName, FamilyName = familyName };
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.EnsureUserAccountAsync(claims, TestContext.Current.CancellationToken));
+        Assert.Empty(handler.Requests);
+    }
+
+    [Fact]
+    public async Task EnsureUserAccountAsync_RejectsOverlongClaimsWithoutCallingUpstream()
+    {
+        var service = CreateService();
+        var tooLongName = OakfieldClaims();
+        tooLongName.GivenName = new string('a', 257);
+        var tooLongEmail = OakfieldClaims();
+        tooLongEmail.Email = new string('a', 301) + "@oakhill-farms.co.uk"; // 321 characters
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.EnsureUserAccountAsync(tooLongName, TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentException>(() => service.EnsureUserAccountAsync(tooLongEmail, TestContext.Current.CancellationToken));
+        Assert.Empty(handler.Requests);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest)]
+    [InlineData(HttpStatusCode.UnprocessableEntity)]
+    public async Task EnsureUserAccountAsync_ThrowsArgumentException_WhenKrdsRejectsTheClaims(HttpStatusCode statusCode)
+    {
+        handler.RespondWith(statusCode, """{"title":"Unprocessable Entity","status":422,"errors":{"email":["email must not be null or blank."]}}""");
+        var service = CreateService();
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.EnsureUserAccountAsync(OakfieldClaims(), TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task EnsureUserAccountAsync_ThrowsConflict_WhenKrdsReturns409()
+    {
+        handler.RespondWith(HttpStatusCode.Conflict, """{"title":"Conflict","status":409,"detail":"The supplied email is already associated with a different account."}""");
+        var service = CreateService();
+
+        await Assert.ThrowsAsync<ConflictException>(() => service.EnsureUserAccountAsync(OakfieldClaims(), TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task EnsureUserAccountAsync_ThrowsServiceUnavailable_WhenKrdsReturns503()
+    {
+        handler.RespondWith(HttpStatusCode.ServiceUnavailable, """{"message":"CPH associations are not yet available. The SQLite read model cache is still loading."}""");
+        var service = CreateService();
+
+        await Assert.ThrowsAsync<ServiceUnavailableException>(() => service.EnsureUserAccountAsync(OakfieldClaims(), TestContext.Current.CancellationToken));
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    public async Task EnsureUserAccountAsync_DoesNotTranslateUpstreamAuthOrServerFailuresIntoClientErrors(HttpStatusCode statusCode)
+    {
+        handler.RespondWith(statusCode, """{"status":0}""");
+        var service = CreateService();
+
+        var exception = await Assert.ThrowsAnyAsync<Exception>(() => service.EnsureUserAccountAsync(OakfieldClaims(), TestContext.Current.CancellationToken));
+
+        Assert.False(exception is ArgumentException or ConflictException or ServiceUnavailableException or UnauthorizedAccessException);
+    }
+
+    private static CreateUserRequest OakfieldClaims() => new()
+    {
+        Sub = OakfieldSubject,
+        Email = "oakfield.farmer@oakhill-farms.co.uk",
+        GivenName = "Oakfield",
+        FamilyName = "Farmer",
+    };
 
     private KrdsService CreateService() => new(
         RestStrategyTestFactory.Create<KrdsService>(handler),
