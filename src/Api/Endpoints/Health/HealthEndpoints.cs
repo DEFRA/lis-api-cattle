@@ -6,6 +6,7 @@ namespace Defra.Lis.Api.Endpoints.Health;
 
 using System.Net.Mime;
 using System.Text.Json;
+using Defra.Lis.Api.Correlation;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models;
 using Microsoft.AspNetCore.Builder;
@@ -62,7 +63,8 @@ public static class HealthEndpoints
            .WithSummary(OpenApiMetadata.GetHealthRoute.Summary)
            .WithDescription(OpenApiMetadata.GetHealthRoute.Description)
            .WithMetadata(new ProducesResponseTypeAttribute(typeof(HealthCheckResponse), StatusCodes.Status200OK))
-           .WithMetadata(new ProducesResponseTypeAttribute(typeof(HealthCheckResponse), StatusCodes.Status503ServiceUnavailable));
+           .WithMetadata(new ProducesResponseTypeAttribute(typeof(HealthCheckResponse), StatusCodes.Status503ServiceUnavailable))
+           .WithoutCorrelationIdCheck();
 
         app.MapGet("/health/detailed", async (IHealthService healthService, CancellationToken cancellationToken) =>
         {
@@ -76,7 +78,8 @@ public static class HealthEndpoints
         .WithSummary(OpenApiMetadata.GetDetailedHealthRoute.Summary)
         .WithDescription(OpenApiMetadata.GetDetailedHealthRoute.Description)
         .Produces<HealthCheckResponse>(StatusCodes.Status200OK)
-        .Produces<HealthCheckResponse>(StatusCodes.Status503ServiceUnavailable);
+        .Produces<HealthCheckResponse>(StatusCodes.Status503ServiceUnavailable)
+        .WithoutCorrelationIdCheck();
 
         return app;
     }

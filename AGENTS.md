@@ -137,8 +137,10 @@ The services send only the API-relative paths (`api/v1/bovine/animals`, `api/v1/
 `api/v2/holdings/...`, `api/v2/user-accounts/{subject}`), so any
 route qualifier such as the fake service's `/cads` and `/krds` prefixes must be part of the base URL, never the code.
 
-All settings are validated when an upstream call is first made (not on start-up, so `/health` works before the secrets are set). The inbound `x-cdp-request-id` header is propagated to
-every upstream call (Correlation ID standard). Never log the credentials or upstream payloads.
+All settings are validated when an upstream call is first made (not on start-up, so `/health` works before the secrets are set). The inbound `x-cdp-request-id` header is required on
+every versioned endpoint (`400 missing_header` otherwise; health and OpenAPI are exempt via
+`WithoutCorrelationIdCheck()`), logged as `CorrelationId` and propagated to every upstream call (Correlation ID
+standard, `src/Api/Correlation/`). Never log the credentials or upstream payloads.
 
 Endpoints exposed for the BE4FE: `GET /holdings/{county}/{parish}/{holding}`,
 `GET /holdings/{county}/{parish}/{holding}/cattle?earTag=&breed=&sex=` (live animals only),

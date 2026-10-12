@@ -1,6 +1,7 @@
 ### Create Registration Bundle (using environment variable CPH)
 POST {{host}}/registrations
 x-api-key: {{apiKey}}
+x-cdp-request-id: {{$guid}}
 Content-Type: application/json
 Accept: application/json
 
@@ -33,6 +34,7 @@ Accept: application/json
 ### Create Registration Bundle with surrogate dam and sire
 POST {{host}}/registrations
 x-api-key: {{apiKey}}
+x-cdp-request-id: {{$guid}}
 Content-Type: application/json
 Accept: application/json
 
@@ -65,6 +67,7 @@ Accept: application/json
 ### Create Registration Bundle with standard dam
 POST {{host}}/registrations
 x-api-key: {{apiKey}}
+x-cdp-request-id: {{$guid}}
 Content-Type: application/json
 Accept: application/json
 
@@ -92,6 +95,7 @@ Accept: application/json
 ### Create Registration Bundle with multiple animals
 POST {{host}}/registrations
 x-api-key: {{apiKey}}
+x-cdp-request-id: {{$guid}}
 Content-Type: application/json
 Accept: application/json
 
@@ -125,6 +129,7 @@ Accept: application/json
 ### Create Registration Bundle without dam and sire
 POST {{host}}/registrations
 x-api-key: {{apiKey}}
+x-cdp-request-id: {{$guid}}
 Content-Type: application/json
 Accept: application/json
 
@@ -148,6 +153,7 @@ Accept: application/json
 ### Create Registration Bundle - Invalid (missing client reference)
 POST {{host}}/registrations
 x-api-key: {{apiKey}}
+x-cdp-request-id: {{$guid}}
 Content-Type: application/json
 Accept: application/json
 
@@ -163,6 +169,7 @@ Accept: application/json
 ### Create Registration Bundle - Invalid (missing holding)
 POST {{host}}/registrations
 x-api-key: {{apiKey}}
+x-cdp-request-id: {{$guid}}
 Content-Type: application/json
 Accept: application/json
 
@@ -176,6 +183,7 @@ Accept: application/json
 ### Create Registration Bundle - Invalid (missing CPH)
 POST {{host}}/registrations
 x-api-key: {{apiKey}}
+x-cdp-request-id: {{$guid}}
 Content-Type: application/json
 Accept: application/json
 

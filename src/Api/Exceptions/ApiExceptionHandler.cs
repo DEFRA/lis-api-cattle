@@ -6,7 +6,6 @@ namespace Defra.Lis.Api.Exceptions;
 
 using Defra.Lis.Api.Configurations;
 using Defra.Lis.Core.Exceptions;
-using Defra.Lis.Core.Middleware.Headers;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Serilog.Context;
@@ -28,11 +27,10 @@ public sealed partial class ApiExceptionHandler(ILogger<ApiExceptionHandler> log
             _ => (StatusCodes.Status500InternalServerError, "Internal Server Error", "https://httpstatuses.com/500"),
         };
 
-        // Put useful values into the Serilog LogContext (works with Enrich.FromLogContext()).
-        var correlationId = httpContext.Request.Headers[RequestHeaderNames.CorrelationId].ToString();
-        var cdpRequestId = httpContext.Request.Headers[TraceHeaders.CdpRequestId].ToString();
+        // Put useful values into the Serilog LogContext (works with Enrich.FromLogContext()). The correlation
+        // middleware's scope has already unwound here, so the ID is read from the header it enforced.
+        var correlationId = httpContext.Request.Headers[TraceHeaders.CdpRequestId].ToString();
         using (LogContext.PushProperty("CorrelationId", correlationId))
-        using (LogContext.PushProperty("CdpRequestId", cdpRequestId))
         using (LogContext.PushProperty("TraceId", httpContext.TraceIdentifier))
         using (LogContext.PushProperty("Path", httpContext.Request.Path.Value))
         using (LogContext.PushProperty("StatusCode", statusCode))
@@ -57,10 +55,18 @@ public sealed partial class ApiExceptionHandler(ILogger<ApiExceptionHandler> log
             Extensions =
             {
                 ["traceId"] = httpContext.TraceIdentifier,
+                ["correlationId"] = correlationId,
             },
         };
 
         httpContext.Response.StatusCode = statusCode;
+
+        // The exception handler clears response headers, so echo the correlation ID again.
+        if (!string.IsNullOrEmpty(correlationId))
+        {
+            httpContext.Response.Headers[TraceHeaders.CdpRequestId] = correlationId;
+        }
+
         await httpContext.Response.WriteAsJsonAsync(problem, cancellationToken);
 
         return true; // exception handled
