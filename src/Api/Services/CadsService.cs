@@ -91,10 +91,13 @@ public sealed partial class CadsService(
             if (patchOptions.Value.IsEnabled)
             {
                 var animalDetail = await dataPatchStore.GetAnimalDetailsAsync(earTag, cancellationToken);
-                if (animalDetail != null)
+                if (animalDetail == null)
                 {
-                    response = new CadsAnimalDetailResponse(null, null, null, null, animalDetail);
+                    LogAnimalNotKnownToCads(earTag);
+                    throw new NotFoundException($"Animal '{earTag}' was not found.");
                 }
+
+                response = new CadsAnimalDetailResponse(null, null, null, null, animalDetail);
             }
             else
             {
@@ -131,6 +134,11 @@ public sealed partial class CadsService(
                 }
 
                 var patchData = ToCattleResponse(rawData);
+                if (!rawData.IsAlive)
+                {
+                    continue;
+                }
+
                 if (string.IsNullOrWhiteSpace(patchData.EarTag))
                 {
                     patchData.EarTag = earTag;
