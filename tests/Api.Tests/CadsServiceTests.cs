@@ -5,12 +5,16 @@
 namespace Defra.Lis.Api.Tests;
 
 using System.Net;
+using Amazon.S3;
 using Defra.Lis.Api.Configurations;
+using Defra.Lis.Api.Interfaces;
+using Defra.Lis.Api.Models.Cads;
 using Defra.Lis.Api.Services;
 using Defra.Lis.Api.Tests.Upstream;
 using Defra.Lis.Core.Exceptions;
 using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Exceptions;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 
 public class CadsServiceTests
 {
@@ -27,7 +31,19 @@ public class CadsServiceTests
         PageSize = 2,
     };
 
+    private static readonly CadsDataPatchOptions DataPatchOptions = new()
+    {
+        BucketName = "cads-data-patches",
+    };
+
     private readonly StubHttpMessageHandler handler = new();
+    private readonly Mock<ICadsDataPatchStore> dataPatchStore = new();
+
+    public CadsServiceTests()
+    {
+        // No patch files unless a test sets some up.
+        dataPatchStore.Setup(s => s.GetEarTagsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync([]);
+    }
 
     [Fact]
     public async Task GetCattleByCphAsync_CallsAnimalsEndpointWithCphPagingAndBasicAuth()
@@ -117,6 +133,105 @@ public class CadsServiceTests
 
         await Assert.ThrowsAsync<ArgumentException>(() => service.GetCattleByCphAsync(" ", TestContext.Current.CancellationToken));
         Assert.Empty(handler.Requests);
+    }
+
+    [Fact]
+    public async Task GetCattleByCphAsync_AddsLiveAnimalsFromTheDataPatchThatCadsDidNotReturn()
+    {
+        handler.RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000001", "Alive")], page: 1, totalPages: 1, hasNextPage: false));
+        dataPatchStore.Setup(s => s.GetEarTagsAsync(Cph, It.IsAny<CancellationToken>())).ReturnsAsync(["UK200000000001", "UK200000000005"]);
+        dataPatchStore.Setup(s => s.GetAnimalAsync(Cph, "UK200000000001", It.IsAny<CancellationToken>())).ReturnsAsync(PatchAnimal("UK200000000001", "Alive"));
+        dataPatchStore.Setup(s => s.GetAnimalAsync(Cph, "UK200000000005", It.IsAny<CancellationToken>())).ReturnsAsync(PatchAnimal("UK200000000005", "Alive"));
+        var service = CreateService();
+
+        var result = (await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken)).ToList();
+
+        Assert.Equal(["UK200000000001", "UK200000000005"], result.Select(c => c.EarTag));
+        Assert.Equal("Aberdeen Angus", result[1].BreedName);
+    }
+
+    [Fact]
+    public async Task GetCattleByCphAsync_OverwritesSourceDataWithValuesFromPatchData()
+    {
+        handler.RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000001", "Alive")], page: 1, totalPages: 1, hasNextPage: false));
+        dataPatchStore.Setup(s => s.GetEarTagsAsync(Cph, It.IsAny<CancellationToken>())).ReturnsAsync(["UK200000000001"]);
+        dataPatchStore.Setup(s => s.GetAnimalAsync(Cph, "UK200000000001", It.IsAny<CancellationToken>())).ReturnsAsync(
+            new CadsAnimal(
+                new CadsIdentifier("uk.gov.defra.ear-tag.conventional", "UK200000000001"),
+                new DateOnly(2022, 1, 1),
+                new DateOnly(2022, 2, 1),
+                null,
+                "Cattle",
+                "Female",
+                new CadsBreedCode("cts.breed", "Highland", "HL"),
+                "Alive"));
+        var service = CreateService();
+
+        var result = (await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken)).ToList();
+
+        var animal = Assert.Single(result);
+        Assert.Equal("UK200000000001", animal.EarTag);
+        Assert.Equal(new DateOnly(2022, 1, 1), animal.DateBirth);
+        Assert.Equal(new DateOnly(2022, 2, 1), animal.DateOnCph);
+        Assert.Equal("Female", animal.Sex);
+        Assert.Equal("HL", animal.BreedCode);
+        Assert.Equal("Highland", animal.BreedName);
+        Assert.Equal("Highland", animal.Breed);
+        Assert.Equal("Alive", animal.Status);
+    }
+
+    [Fact]
+    public async Task GetCattleByCphAsync_DoesNotPatchInAnAnimalCadsReturnsOnALaterPage()
+    {
+        handler
+            .RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000001", "Alive")], page: 1, totalPages: 2, hasNextPage: true))
+            .RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000003", "Alive")], page: 2, totalPages: 2, hasNextPage: false));
+        dataPatchStore.Setup(s => s.GetEarTagsAsync(Cph, It.IsAny<CancellationToken>())).ReturnsAsync(["uk200000000003"]);
+        dataPatchStore.Setup(s => s.GetAnimalAsync(Cph, "uk200000000003", It.IsAny<CancellationToken>())).ReturnsAsync(PatchAnimal("uk200000000003", "Alive"));
+        var service = CreateService();
+
+        var result = (await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken)).Select(c => c.EarTag).ToList();
+
+        Assert.Equal(["UK200000000001", "uk200000000003"], result);
+    }
+
+    [Fact]
+    public async Task GetCattleByCphAsync_SkipsPatchedAnimalsThatAreNotAliveOrUnreadable()
+    {
+        handler.RespondWith(HttpStatusCode.OK, Page([], page: 1, totalPages: 0, hasNextPage: false));
+        dataPatchStore.Setup(s => s.GetEarTagsAsync(Cph, It.IsAny<CancellationToken>())).ReturnsAsync(["UK200000000006", "UK200000000007"]);
+        dataPatchStore.Setup(s => s.GetAnimalAsync(Cph, "UK200000000006", It.IsAny<CancellationToken>())).ReturnsAsync(PatchAnimal("UK200000000006", "Dead"));
+        dataPatchStore.Setup(s => s.GetAnimalAsync(Cph, "UK200000000007", It.IsAny<CancellationToken>())).ReturnsAsync((CadsAnimal?)null);
+        var service = CreateService();
+
+        var result = await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken);
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task GetCattleByCphAsync_TakesTheEarTagFromTheFileName_WhenThePatchedAnimalHasNone()
+    {
+        handler.RespondWith(HttpStatusCode.OK, Page([], page: 1, totalPages: 0, hasNextPage: false));
+        dataPatchStore.Setup(s => s.GetEarTagsAsync(Cph, It.IsAny<CancellationToken>())).ReturnsAsync(["UK200000000008"]);
+        dataPatchStore.Setup(s => s.GetAnimalAsync(Cph, "UK200000000008", It.IsAny<CancellationToken>())).ReturnsAsync(PatchAnimal(null, "Alive"));
+        var service = CreateService();
+
+        var animal = (await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken)).Single();
+
+        Assert.Equal("UK200000000008", animal.EarTag);
+    }
+
+    [Fact]
+    public async Task GetCattleByCphAsync_ReturnsCadsAnimalsOnly_WhenTheDataPatchCannotBeRead()
+    {
+        handler.RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000001", "Alive")], page: 1, totalPages: 1, hasNextPage: false));
+        dataPatchStore.Setup(s => s.GetEarTagsAsync(Cph, It.IsAny<CancellationToken>())).ThrowsAsync(new AmazonS3Exception("Access Denied"));
+        var service = CreateService();
+
+        var result = (await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken)).Select(c => c.EarTag).ToList();
+
+        Assert.Equal(["UK200000000001"], result);
     }
 
     [Fact]
@@ -220,6 +335,57 @@ public class CadsServiceTests
     }
 
     [Fact]
+    public async Task GetAnimalDetailsAsync_ReadsTheAnimalFromTheDataPatch_WhenCadsReturns404()
+    {
+        handler.RespondWith(HttpStatusCode.NotFound, """{"title":"Not Found","status":404}""");
+        dataPatchStore.Setup(s => s.GetAnimalDetailsAsync(EarTag, It.IsAny<CancellationToken>())).ReturnsAsync(
+            new CadsAnimalDetail(
+                "Animal",
+                new CadsIdentifier("uk.gov.defra.ear-tag.conventional", EarTag),
+                "Cattle",
+                "Female",
+                new DateOnly(2022, 1, 1),
+                new DateOnly(2022, 1, 5),
+                new DateOnly(2022, 2, 1),
+                new CadsBreedCode("cts.breed", "Highland", "HL"),
+                [],
+                "Alive",
+                "None"));
+        var service = CreateService();
+
+        var details = await service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken);
+
+        Assert.Equal(EarTag, details.EarTag);
+        Assert.Equal("Female", details.Sex);
+        Assert.Equal(new DateOnly(2022, 1, 1), details.DateBirth);
+        Assert.Equal("HL", details.BreedCode);
+        Assert.Equal("Highland", details.BreedName);
+        Assert.Equal("Alive", details.State);
+    }
+
+    [Fact]
+    public async Task GetAnimalDetailsAsync_ThrowsNotFoundWithoutReadingTheDataPatch_WhenThePatchIsSwitchedOff()
+    {
+        handler.RespondWith(HttpStatusCode.NotFound, """{"title":"Not Found","status":404}""");
+        var service = CreateService(new CadsDataPatchOptions { BucketName = " " });
+
+        await Assert.ThrowsAsync<NotFoundException>(() => service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken));
+        dataPatchStore.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task GetCattleByCphAsync_DoesNotReadTheDataPatch_WhenThePatchIsSwitchedOff()
+    {
+        handler.RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000001", "Alive")], page: 1, totalPages: 1, hasNextPage: false));
+        var service = CreateService(new CadsDataPatchOptions { BucketName = null });
+
+        var result = (await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken)).Select(c => c.EarTag).ToList();
+
+        Assert.Equal(["UK200000000001"], result);
+        dataPatchStore.Verify(s => s.GetEarTagsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task GetAnimalDetailsAsync_ThrowsNotFound_WhenTheEnvelopeCarriesNoAnimal()
     {
         handler.RespondWith(HttpStatusCode.OK, """{"resourceType":"AnimalDetail","identifier":"UK200000000001","animalDetail":null}""");
@@ -301,8 +467,20 @@ public class CadsServiceTests
         }
         """;
 
-    private CadsService CreateService() => new(
+    private static CadsAnimal PatchAnimal(string? earTag, string status) => new(
+        earTag is null ? null : new CadsIdentifier("uk.gov.defra.ear-tag.conventional", earTag),
+        new DateOnly(2023, 2, 1),
+        new DateOnly(2023, 2, 15),
+        null,
+        "Cattle",
+        "Female",
+        new CadsBreedCode("cts.breed", "Aberdeen Angus", "AA"),
+        status);
+
+    private CadsService CreateService(CadsDataPatchOptions? dataPatchOptions = null) => new(
         RestStrategyTestFactory.Create<CadsService>(handler),
         Microsoft.Extensions.Options.Options.Create(Options),
+        Microsoft.Extensions.Options.Options.Create(dataPatchOptions ?? DataPatchOptions),
+        dataPatchStore.Object,
         NullLogger<CadsService>.Instance);
 }
