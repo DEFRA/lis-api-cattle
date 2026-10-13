@@ -70,7 +70,7 @@ public sealed partial class CadsService(
         ArgumentException.ThrowIfNullOrWhiteSpace(earTag);
 
         var settings = options.Value;
-        CadsAnimalDetailResponse? response = null;
+        CadsAnimalDetailResponse? response;
 
         try
         {
@@ -145,6 +145,9 @@ public sealed partial class CadsService(
             DateBirth = detail.BirthDate,
             DateRegistered = detail.RegistrationDate,
             DateOnCph = detail.DateOnCph,
+            CurrentLocation = ToLocationResponse(detail.CurrentLocation),
+            RegisteredLocation = ToLocationResponse(detail.RegisteredLocation),
+            DeathLocation = ToLocationResponse(detail.DeathLocation),
             Breed = detail.BreedCode?.BreedName,
             BreedCode = detail.BreedCode?.Identifier,
             BreedName = detail.BreedCode?.BreedName,
@@ -157,6 +160,23 @@ public sealed partial class CadsService(
 
             // CADS does not carry a sire name; the field exists for the consuming services' contract.
             SireName = null,
+        };
+    }
+
+    private static CattleLocationResponse? ToLocationResponse(CadsLocation? location)
+    {
+        if (location is null)
+        {
+            return null;
+        }
+
+        return new CattleLocationResponse
+        {
+            Identifier = location.Identifier,
+            SubIdentifier = location.SubIdentifier,
+            FullIdentifier = location.FullIdentifier,
+            Name = location.Name,
+            PremisesType = location.PremisesType,
         };
     }
 

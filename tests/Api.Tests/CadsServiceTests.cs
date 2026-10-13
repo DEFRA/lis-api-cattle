@@ -324,6 +324,81 @@ public class CadsServiceTests
         Assert.Equal("Aberdeen Angus", details.Breed);
         Assert.Equal("Alive", details.State);
         Assert.Equal("None", details.RestrictionStatus);
+        Assert.Null(details.CurrentLocation);
+        Assert.Null(details.RegisteredLocation);
+        Assert.Null(details.DeathLocation);
+    }
+
+    [Fact]
+    public async Task GetAnimalDetailsAsync_MapsLocationsToCattleDetailsResponse()
+    {
+        const string json = """
+            {
+              "resourceType": "AnimalDetail",
+              "identifier": "UK200000000001",
+              "eventDateTime": "2026-09-24T10:00:00.000Z",
+              "source": { "system": "CTS", "schema": "animal_details", "schemaVersion": "1.0" },
+              "animalDetail": {
+                "resourceType": "Animal",
+                "identifier": { "schema": "ear-tag.conventional", "identifier": "UK200000000001" },
+                "species": "Cattle",
+                "sex": "Female",
+                "birthDate": "2023-02-01",
+                "registrationDate": "2023-02-05",
+                "dateOnCph": "2023-02-15",
+                "currentLocation": {
+                  "identifier": "22/001/0001",
+                  "subIdentifier": null,
+                  "fullIdentifier": "AH-22/001/0001",
+                  "name": "Current Holding Farm",
+                  "premisesType": "AH"
+                },
+                "registeredLocation": {
+                  "identifier": "22/002/0002",
+                  "subIdentifier": null,
+                  "fullIdentifier": "AH-22/002/0002",
+                  "name": "Birth Holding Farm",
+                  "premisesType": "AH"
+                },
+                "deathLocation": {
+                  "identifier": "22/003/0003",
+                  "subIdentifier": "SubA",
+                  "fullIdentifier": "AH-22/003/0003",
+                  "name": "Abattoir Location",
+                  "premisesType": "AB"
+                },
+                "breedCode": { "schema": "cts.breed", "breedName": "Aberdeen Angus", "identifier": "AA" },
+                "parentage": [],
+                "state": "Dead",
+                "restrictionStatus": "Restricted"
+              }
+            }
+            """;
+
+        handler.RespondWith(HttpStatusCode.OK, json);
+        var service = CreateService();
+
+        var details = await service.GetAnimalDetailsAsync("UK200000000001", TestContext.Current.CancellationToken);
+
+        Assert.NotNull(details.CurrentLocation);
+        Assert.Equal("22/001/0001", details.CurrentLocation.Identifier);
+        Assert.Null(details.CurrentLocation.SubIdentifier);
+        Assert.Equal("AH-22/001/0001", details.CurrentLocation.FullIdentifier);
+        Assert.Equal("Current Holding Farm", details.CurrentLocation.Name);
+        Assert.Equal("AH", details.CurrentLocation.PremisesType);
+
+        Assert.NotNull(details.RegisteredLocation);
+        Assert.Equal("22/002/0002", details.RegisteredLocation.Identifier);
+        Assert.Equal("AH-22/002/0002", details.RegisteredLocation.FullIdentifier);
+        Assert.Equal("Birth Holding Farm", details.RegisteredLocation.Name);
+        Assert.Equal("AH", details.RegisteredLocation.PremisesType);
+
+        Assert.NotNull(details.DeathLocation);
+        Assert.Equal("22/003/0003", details.DeathLocation.Identifier);
+        Assert.Equal("SubA", details.DeathLocation.SubIdentifier);
+        Assert.Equal("AH-22/003/0003", details.DeathLocation.FullIdentifier);
+        Assert.Equal("Abattoir Location", details.DeathLocation.Name);
+        Assert.Equal("AB", details.DeathLocation.PremisesType);
     }
 
     [Fact]
@@ -395,17 +470,17 @@ public class CadsServiceTests
         handler.RespondWith(HttpStatusCode.NotFound, """{"title":"Not Found","status":404}""");
         dataPatchStore.Setup(s => s.GetAnimalDetailsAsync(EarTag, It.IsAny<CancellationToken>())).ReturnsAsync(
             new CadsAnimalDetail(
-                "Animal",
-                new CadsIdentifier("uk.gov.defra.ear-tag.conventional", EarTag),
-                "Cattle",
-                "Female",
-                new DateOnly(2022, 1, 1),
-                new DateOnly(2022, 1, 5),
-                new DateOnly(2022, 2, 1),
-                new CadsBreedCode("cts.breed", "Highland", "HL"),
-                [],
-                "Alive",
-                "None"));
+                ResourceType: "Animal",
+                Identifier: new CadsIdentifier("uk.gov.defra.ear-tag.conventional", EarTag),
+                Species: "Cattle",
+                Sex: "Female",
+                BirthDate: new DateOnly(2022, 1, 1),
+                RegistrationDate: new DateOnly(2022, 1, 5),
+                DateOnCph: new DateOnly(2022, 2, 1),
+                BreedCode: new CadsBreedCode("cts.breed", "Highland", "HL"),
+                Parentage: [],
+                State: "Alive",
+                RestrictionStatus: "None"));
         var service = CreateService();
 
         var details = await service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken);
@@ -456,6 +531,124 @@ public class CadsServiceTests
         var service = CreateService();
 
         await Assert.ThrowsAsync<RestResponseException>(() => service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public void Deserializes_ExpandedCadsAnimalDetailResponse_WithLocations()
+    {
+        const string json = """
+            {
+                "resourceType": "AnimalDetail",
+                "identifier": "UK123456700001",
+                "eventDateTime": "2025-06-15T08:30:00Z",
+                "source": {
+                    "system": "CTS",
+                    "schema": "animal_details",
+                    "schemaVersion": "1.0"
+                },
+                "animalDetail": {
+                    "resourceType": "Animal",
+                    "identifier": {
+                        "schema": "ear-tag.conventional",
+                        "identifier": "UK123456700001"
+                    },
+                    "species": "Cattle",
+                    "sex": "Female",
+                    "birthDate": "2023-01-10",
+                    "registrationDate": "2023-01-15",
+                    "dateOnCPH": "2023-05-20",
+                    "currentLocation": {
+                        "identifier": "12/345/6789",
+                        "subIdentifier": null,
+                        "fullIdentifier": "AH-12/345/6789",
+                        "name": "TEST-FARM-LOCATION",
+                        "premisesType": "AH"
+                    },
+                    "registeredLocation": {
+                        "identifier": "11/222/3333",
+                        "subIdentifier": null,
+                        "fullIdentifier": "AH-11/222/3333",
+                        "name": "BIRTH-FARM-LOCATION",
+                        "premisesType": "AH"
+                    },
+                    "deathLocation": {
+                        "identifier": null,
+                        "subIdentifier": null,
+                        "fullIdentifier": null,
+                        "name": null,
+                        "premisesType": null
+                    },
+                    "breedCode": {
+                        "schema": "cts.breed",
+                        "breedName": "HOLSTEIN FRIESIAN",
+                        "identifier": "HF"
+                    },
+                    "parentage": [
+                        {
+                            "relationship": "GeneticDam",
+                            "animalIdentifier": {
+                                "schema": "ear-tag.conventional",
+                                "identifier": "UK123456700002"
+                            }
+                        },
+                        {
+                            "relationship": "Sire",
+                            "animalIdentifier": {
+                                "schema": "ear-tag.conventional",
+                                "identifier": "UK123456700003"
+                            }
+                        }
+                    ],
+                    "state": "Alive",
+                    "restrictionStatus": "Unrestricted"
+                }
+            }
+            """;
+
+        var response = System.Text.Json.JsonSerializer.Deserialize<CadsAnimalDetailResponse>(
+            json,
+            Defra.Lis.Api.Services.Upstream.UpstreamJson.Options);
+
+        Assert.NotNull(response);
+        Assert.Equal("AnimalDetail", response.ResourceType);
+        Assert.Equal("UK123456700001", response.Identifier);
+        Assert.NotNull(response.Source);
+        Assert.Equal("CTS", response.Source.System);
+
+        var detail = response.AnimalDetail;
+        Assert.NotNull(detail);
+        Assert.Equal("Animal", detail.ResourceType);
+        Assert.Equal("UK123456700001", detail.Identifier?.Identifier);
+        Assert.Equal("Cattle", detail.Species);
+        Assert.Equal("Female", detail.Sex);
+        Assert.Equal(new DateOnly(2023, 1, 10), detail.BirthDate);
+        Assert.Equal(new DateOnly(2023, 1, 15), detail.RegistrationDate);
+        Assert.Equal(new DateOnly(2023, 5, 20), detail.DateOnCph);
+
+        Assert.NotNull(detail.CurrentLocation);
+        Assert.Equal("12/345/6789", detail.CurrentLocation.Identifier);
+        Assert.Null(detail.CurrentLocation.SubIdentifier);
+        Assert.Equal("AH-12/345/6789", detail.CurrentLocation.FullIdentifier);
+        Assert.Equal("TEST-FARM-LOCATION", detail.CurrentLocation.Name);
+        Assert.Equal("AH", detail.CurrentLocation.PremisesType);
+
+        Assert.NotNull(detail.RegisteredLocation);
+        Assert.Equal("11/222/3333", detail.RegisteredLocation.Identifier);
+        Assert.Equal("AH-11/222/3333", detail.RegisteredLocation.FullIdentifier);
+        Assert.Equal("BIRTH-FARM-LOCATION", detail.RegisteredLocation.Name);
+        Assert.Equal("AH", detail.RegisteredLocation.PremisesType);
+
+        Assert.NotNull(detail.DeathLocation);
+        Assert.Null(detail.DeathLocation.Identifier);
+
+        Assert.NotNull(detail.BreedCode);
+        Assert.Equal("HF", detail.BreedCode.Identifier);
+        Assert.Equal("HOLSTEIN FRIESIAN", detail.BreedCode.BreedName);
+
+        Assert.NotNull(detail.Parentage);
+        Assert.Equal(2, detail.Parentage.Count);
+        Assert.Equal("Alive", detail.State);
+        Assert.Equal("Unrestricted", detail.RestrictionStatus);
     }
 
     [Fact]

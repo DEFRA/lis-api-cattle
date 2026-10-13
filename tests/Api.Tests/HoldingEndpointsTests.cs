@@ -355,6 +355,27 @@ public class HoldingEndpointsTests
             DamType = "genetic",
             GeneticDamEarTag = "UK200000000098",
             SireEarTag = "UK200000000099",
+            CurrentLocation = new CattleLocationResponse
+            {
+                Identifier = "22/001/0001",
+                FullIdentifier = "AH-22/001/0001",
+                Name = "Current Farm",
+                PremisesType = "AH",
+            },
+            RegisteredLocation = new CattleLocationResponse
+            {
+                Identifier = "22/002/0002",
+                FullIdentifier = "AH-22/002/0002",
+                Name = "Birth Farm",
+                PremisesType = "AH",
+            },
+            DeathLocation = new CattleLocationResponse
+            {
+                Identifier = "22/003/0003",
+                FullIdentifier = "AH-22/003/0003",
+                Name = "Abattoir",
+                PremisesType = "AB",
+            },
         };
 
         mockService.Setup(s => s.GetCattleDetailsAsync("UK200000000001", It.IsAny<CancellationToken>()))
@@ -383,6 +404,13 @@ public class HoldingEndpointsTests
         Assert.Equal("genetic", result.DamType);
         Assert.Equal("UK200000000098", result.GeneticDamEarTag);
         Assert.Equal("UK200000000099", result.SireEarTag);
+        Assert.NotNull(result.CurrentLocation);
+        Assert.Equal("22/001/0001", result.CurrentLocation.Identifier);
+        Assert.Equal("AH-22/001/0001", result.CurrentLocation.FullIdentifier);
+        Assert.NotNull(result.RegisteredLocation);
+        Assert.Equal("22/002/0002", result.RegisteredLocation.Identifier);
+        Assert.NotNull(result.DeathLocation);
+        Assert.Equal("22/003/0003", result.DeathLocation.Identifier);
     }
 
     [Fact]
