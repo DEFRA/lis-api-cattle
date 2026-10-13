@@ -5,6 +5,7 @@
 namespace Defra.Lis.Api.Models;
 
 using System.ComponentModel;
+using Defra.Lis.Api.Models.Responses;
 
 /// <summary>
 /// Everything known about a single animal, as returned by the cattle details endpoint. The
@@ -48,6 +49,24 @@ public class CattleDetailsResponse
     /// </summary>
     [Description("The date the animal arrived on the holding.")]
     public DateOnly? DateOnCph { get; set; }
+
+    /// <summary>
+    /// Gets or sets the current location of the animal.
+    /// </summary>
+    [Description("The current location of the animal.")]
+    public CattleLocationResponse? CurrentLocation { get; set; }
+
+    /// <summary>
+    /// Gets or sets the registered location (birth/first holding) of the animal.
+    /// </summary>
+    [Description("The registered location of the animal.")]
+    public CattleLocationResponse? RegisteredLocation { get; set; }
+
+    /// <summary>
+    /// Gets or sets the death location of the animal, if deceased.
+    /// </summary>
+    [Description("The death location of the animal.")]
+    public CattleLocationResponse? DeathLocation { get; set; }
 
     /// <summary>
     /// Gets or sets the breed of the animal.
