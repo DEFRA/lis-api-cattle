@@ -25,6 +25,7 @@ using Defra.Lis.Database;
 using Defra.Livestock.Sdk.Api.Strategies;
 using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Operations.Http.Rest.Client;
 using Defra.Livestock.Sdk.Api.Strategies.Operations.Http.Rest.Client;
+using FluentValidation;
 using Scalar.AspNetCore;
 using Serilog;
 
@@ -157,6 +158,7 @@ public static class Program
 
         builder.Services.AddScoped<ICattleService, CattleService>();
         builder.Services.AddScoped<ICtsBundleProcessorService, CtsBundleProcessorService>();
+        builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 
         if (!isGeneratingOpenApi)
         {

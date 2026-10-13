@@ -6,7 +6,6 @@ namespace Defra.Lis.Api.Models.Krds;
 
 /// <summary>
 /// The holding detail returned by the keeper-data-api V2 holdings endpoint.
-/// Only the fields this API needs are modelled; keeper contact details are deliberately not read.
 /// </summary>
 public sealed record KrdsHolding(
     string? Identifier,
@@ -15,4 +14,6 @@ public sealed record KrdsHolding(
     KrdsLocation? Location,
     IReadOnlyList<KrdsAssociation>? Associations,
     IReadOnlyList<string>? AllowedSpecies,
-    IReadOnlyList<KrdsMark>? Marks);
+    IReadOnlyList<KrdsMark>? Marks,
+    DateTimeOffset? StartDate = null,
+    DateTimeOffset? EndDate = null);

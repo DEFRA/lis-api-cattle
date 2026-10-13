@@ -26,6 +26,20 @@ public static class OpenApiMetadata
             "Retrieves the details of the holding for the given county, parish and holding number";
     }
 
+    /// <summary>Contains metadata for the search-holdings endpoint.</summary>
+    public static class SearchHoldingsRoute
+    {
+        /// <summary>Gets the endpoint route name.</summary>
+        public const string Name = "SearchHoldings";
+
+        /// <summary>Gets the endpoint summary.</summary>
+        public const string Summary = "Search holdings.";
+
+        /// <summary>Gets the endpoint description.</summary>
+        public const string Description =
+            "Retrieves a paginated list of holding details from keeper data matching the search, sorting and paging criteria.";
+    }
+
     /// <summary>Contains metadata for the multi-segment get-cattle endpoint.</summary>
     public static class GetCattleForHoldingMultiSegmentRoute
     {
