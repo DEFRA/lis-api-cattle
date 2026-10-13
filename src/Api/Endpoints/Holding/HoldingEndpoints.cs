@@ -7,7 +7,9 @@ namespace Defra.Lis.Api.Endpoints.Holding;
 using Defra.Lis.Api.Authentication;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models;
+using Defra.Lis.Api.Models.Requests;
 using Defra.Lis.Api.Models.Responses;
+using Defra.Lis.Api.Validation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
@@ -31,53 +33,80 @@ public static class HoldingEndpoints
         var group = versionOne.MapGroup(RouteNames.Holdings)
             .WithTags(OpenApiMetadata.Tag);
 
+        group.MapGet("/", SearchHoldings)
+            .WithName(OpenApiMetadata.SearchHoldingsRoute.Name)
+            .WithSummary(OpenApiMetadata.SearchHoldingsRoute.Summary)
+            .WithDescription(OpenApiMetadata.SearchHoldingsRoute.Description)
+            .AddEndpointFilter<ValidationFilter<HoldingSearchRequest>>()
+            .Produces<PaginatedResponse<HoldingResponse>>()
+            .ProducesValidationProblem();
+
         group.MapGet("/{county}/{parish}/{holding}", GetHolding)
-             .WithName(OpenApiMetadata.GetHoldingRoute.Name)
-             .WithSummary(OpenApiMetadata.GetHoldingRoute.Summary)
-             .WithDescription(OpenApiMetadata.GetHoldingRoute.Description)
-             .Produces<HoldingResponse>(StatusCodes.Status200OK)
-             .ProducesProblem(StatusCodes.Status400BadRequest)
-             .ProducesProblem(StatusCodes.Status404NotFound);
+            .WithName(OpenApiMetadata.GetHoldingRoute.Name)
+            .WithSummary(OpenApiMetadata.GetHoldingRoute.Summary)
+            .WithDescription(OpenApiMetadata.GetHoldingRoute.Description)
+            .Produces<HoldingDetailedResponse>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status404NotFound);
 
         group.MapGet(
                 "/{county}/{parish}/{holding}/cattle",
-                (string county, string parish, string holding, [AsParameters] CattleFilter filter, [FromServices] ICattleService cattleService, CancellationToken cancellationToken) =>
-                 GetCattleForHolding($"{county}/{parish}/{holding}", filter, cattleService, cancellationToken))
+                (
+                        string county,
+                        string parish,
+                        string holding,
+                        [AsParameters] CattleFilter filter,
+                        [FromServices] ICattleService cattleService,
+                        CancellationToken cancellationToken) =>
+                    GetCattleForHolding($"{county}/{parish}/{holding}", filter, cattleService, cancellationToken))
             .WithName(OpenApiMetadata.GetCattleForHoldingMultiSegmentRoute.Name)
             .WithSummary(OpenApiMetadata.GetCattleForHoldingMultiSegmentRoute.Summary)
             .WithDescription(OpenApiMetadata.GetCattleForHoldingMultiSegmentRoute.Description)
-            .Produces<IEnumerable<CattleResponse>>(StatusCodes.Status200OK)
+            .Produces<IEnumerable<CattleResponse>>()
             .ProducesProblem(StatusCodes.Status404NotFound);
 
         group.MapGet(
                 "/{cph}/cattle",
-                (string cph, [AsParameters] CattleFilter filter, [FromServices] ICattleService cattleService, CancellationToken cancellationToken) =>
-                 GetCattleForHolding(cph, filter, cattleService, cancellationToken))
+                (
+                        string cph,
+                        [AsParameters] CattleFilter filter,
+                        [FromServices] ICattleService cattleService,
+                        CancellationToken cancellationToken) =>
+                    GetCattleForHolding(cph, filter, cattleService, cancellationToken))
             .WithName(OpenApiMetadata.GetCattleForHoldingRoute.Name)
             .WithSummary(OpenApiMetadata.GetCattleForHoldingRoute.Summary)
             .WithDescription(OpenApiMetadata.GetCattleForHoldingRoute.Description)
-            .Produces<IEnumerable<CattleResponse>>(StatusCodes.Status200OK)
+            .Produces<IEnumerable<CattleResponse>>()
             .ProducesProblem(StatusCodes.Status404NotFound);
 
         group.MapGet(
                 "/{county}/{parish}/{holding}/bundles",
                 (string county, string parish, string holding, [FromServices] ICattleService cattleService) =>
-                GetBundlesForHolding($"{county}/{parish}/{holding}", cattleService))
-             .WithName(OpenApiMetadata.GetBundlesForHoldingMultiSegmentRoute.Name)
-             .WithSummary(OpenApiMetadata.GetBundlesForHoldingMultiSegmentRoute.Summary)
-             .WithDescription(OpenApiMetadata.GetBundlesForHoldingMultiSegmentRoute.Description)
-             .Produces<IEnumerable<BundleResponse>>(StatusCodes.Status200OK);
+                    GetBundlesForHolding($"{county}/{parish}/{holding}", cattleService))
+            .WithName(OpenApiMetadata.GetBundlesForHoldingMultiSegmentRoute.Name)
+            .WithSummary(OpenApiMetadata.GetBundlesForHoldingMultiSegmentRoute.Summary)
+            .WithDescription(OpenApiMetadata.GetBundlesForHoldingMultiSegmentRoute.Description)
+            .Produces<IEnumerable<BundleResponse>>();
 
         group.MapGet(
                 "/{cph}/bundles",
                 (string cph, [FromServices] ICattleService cattleService) =>
-                GetBundlesForHolding(cph, cattleService))
-             .WithName(OpenApiMetadata.GetBundlesForHoldingRoute.Name)
-             .WithSummary(OpenApiMetadata.GetBundlesForHoldingRoute.Summary)
-             .WithDescription(OpenApiMetadata.GetBundlesForHoldingRoute.Description)
-             .Produces<IEnumerable<BundleResponse>>(StatusCodes.Status200OK);
+                    GetBundlesForHolding(cph, cattleService))
+            .WithName(OpenApiMetadata.GetBundlesForHoldingRoute.Name)
+            .WithSummary(OpenApiMetadata.GetBundlesForHoldingRoute.Summary)
+            .WithDescription(OpenApiMetadata.GetBundlesForHoldingRoute.Description)
+            .Produces<IEnumerable<BundleResponse>>();
 
         return app;
+    }
+
+    private static async Task<IResult> SearchHoldings(
+        [AsParameters] HoldingSearchRequest request,
+        [FromServices] IKrdsService krdsService,
+        CancellationToken cancellationToken)
+    {
+        var response = await krdsService.SearchHoldingsAsync(request, cancellationToken);
+        return Results.Ok(response);
     }
 
     private static async Task<IResult> GetHolding(

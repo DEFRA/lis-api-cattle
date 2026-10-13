@@ -11,9 +11,12 @@ using Defra.Lis.Api.Endpoints.Cattle;
 using Defra.Lis.Api.Endpoints.Holding;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models;
+using Defra.Lis.Api.Models.Requests;
 using Defra.Lis.Api.Models.Responses;
 using Defra.Lis.Api.Tests.Authentication;
+using Defra.Lis.Api.Validation;
 using Defra.Lis.Entities;
+using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
@@ -162,15 +165,31 @@ public class HoldingEndpointsTests
     public async Task GetHolding_MatchesRouteAndReturnsHoldingDetails()
     {
         var mockKrds = new Mock<IKrdsService>();
-        var expected = new HoldingResponse
+        var expected = new HoldingDetailedResponse
         {
             Cph = "22/001/0001",
             Name = "Oakfield Farm",
             HoldingType = "AH",
             Address = ["Oakfield Farm", "Church Lane", "Shrewsbury", "SY4 1AB"],
             KeeperName = "Oakfield Farmer",
-            HerdMarks = ["UK 324537"],
+            HerdMarks =
+            [
+                new HoldingMarkResponse
+                {
+                    Mark = "UK 324537",
+                    StartDate = DateTimeOffset.Parse("2010-04-01T00:00:00Z"),
+                    Species = ["Cattle"],
+                },
+            ],
             AllowedSpecies = ["Cattle"],
+            Associations =
+            [
+                new HoldingAssociationResponse
+                {
+                    Name = "Oakfield Farmer",
+                    Roles = [new HoldingRoleResponse { Code = "Keeper", Species = ["Cattle"] }],
+                },
+            ],
         };
 
         mockKrds.Setup(s => s.GetHoldingAsync("22", "001", "0001", It.IsAny<CancellationToken>()))
@@ -191,12 +210,99 @@ public class HoldingEndpointsTests
         var response = await client.GetAsync("/v1/holdings/22/001/0001", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var result = await response.Content.ReadFromJsonAsync<HoldingResponse>(TestContext.Current.CancellationToken);
+        var result = await response.Content.ReadFromJsonAsync<HoldingDetailedResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(result);
         Assert.Equal("22/001/0001", result.Cph);
         Assert.Equal("Oakfield Farm", result.Name);
         Assert.Equal("Oakfield Farmer", result.KeeperName);
-        Assert.Equal(["UK 324537"], result.HerdMarks);
+        Assert.Single(result.HerdMarks);
+        Assert.Equal("UK 324537", result.HerdMarks[0].Mark);
+        Assert.Single(result.Associations);
+        Assert.Equal("Oakfield Farmer", result.Associations[0].Name);
+        Assert.Single(result.Associations[0].Roles);
+        Assert.Equal("Keeper", result.Associations[0].Roles[0].Code);
+    }
+
+    [Fact]
+    public async Task SearchHoldings_WithValidParameters_Returns200AndPaginatedHoldings()
+    {
+        var mockKrds = new Mock<IKrdsService>();
+        var expected = new PaginatedResponse<HoldingResponse>
+        {
+            Count = 1,
+            TotalCount = 1,
+            Page = 1,
+            PageSize = 10,
+            TotalPages = 1,
+            HasNextPage = false,
+            HasPreviousPage = false,
+            Items =
+            [
+                new HoldingResponse
+                {
+                    Cph = "22/001/0001",
+                    Name = "Oakfield Farm",
+                    HoldingType = "AH",
+                    KeeperName = "Oakfield Farmer",
+                }
+            ],
+        };
+
+        mockKrds.Setup(s => s.SearchHoldingsAsync(It.Is<HoldingSearchRequest>(r => r.Search == "Oakfield" && r.Page == 1 && r.PageSize == 10 && r.Sort == "asc" && r.Order == "name"), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(expected);
+
+        var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
+        builder.WebHost.UseTestServer();
+        builder.Services.AddRouting();
+        builder.Services.AddTestServiceToServiceAuthentication();
+        builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
+        builder.Services.AddSingleton<IValidator<HoldingSearchRequest>>(new HoldingSearchRequestValidator());
+        builder.Services.AddSingleton(mockKrds.Object);
+        var app = builder.Build();
+        app.UseTestServiceToServiceAuthentication();
+        app.MapHoldingEndpoints();
+        await app.StartAsync(TestContext.Current.CancellationToken);
+
+        var client = app.GetAuthenticatedTestClient();
+        var response = await client.GetAsync("/v1/holdings?search=Oakfield&page=1&pageSize=10&sort=asc&order=name", TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<PaginatedResponse<HoldingResponse>>(TestContext.Current.CancellationToken);
+        Assert.NotNull(result);
+        Assert.Equal(1, result.TotalCount);
+        Assert.Single(result.Items);
+        Assert.Equal("22/001/0001", result.Items[0].Cph);
+    }
+
+    [Theory]
+    [InlineData("page=0", "Page")]
+    [InlineData("pageSize=0", "PageSize")]
+    [InlineData("pageSize=101", "PageSize")]
+    [InlineData("sort=invalid", "Sort")]
+    [InlineData("order=invalid", "Order")]
+    public async Task SearchHoldings_WithInvalidParameters_ReturnsValidationProblem400(string queryString, string expectedErrorField)
+    {
+        var mockKrds = new Mock<IKrdsService>();
+
+        var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
+        builder.WebHost.UseTestServer();
+        builder.Services.AddRouting();
+        builder.Services.AddTestServiceToServiceAuthentication();
+        builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
+        builder.Services.AddSingleton<IValidator<HoldingSearchRequest>>(new HoldingSearchRequestValidator());
+        builder.Services.AddSingleton(mockKrds.Object);
+        var app = builder.Build();
+        app.UseTestServiceToServiceAuthentication();
+        app.MapHoldingEndpoints();
+        await app.StartAsync(TestContext.Current.CancellationToken);
+
+        var client = app.GetAuthenticatedTestClient();
+        var response = await client.GetAsync($"/v1/holdings?{queryString}", TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains(expectedErrorField, body, StringComparison.OrdinalIgnoreCase);
+        mockKrds.Verify(s => s.SearchHoldingsAsync(It.IsAny<HoldingSearchRequest>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

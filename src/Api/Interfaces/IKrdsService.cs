@@ -15,7 +15,15 @@ public interface IKrdsService
     /// <exception cref="ArgumentException">A CPH segment does not match the expected format.</exception>
     /// <exception cref="Defra.Lis.Core.Exceptions.NotFoundException">The CPH is not known.</exception>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-    Task<HoldingResponse> GetHoldingAsync(string county, string parish, string holding, CancellationToken cancellationToken = default);
+    Task<HoldingDetailedResponse> GetHoldingAsync(string county, string parish, string holding, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Searches holding details from the keeper data service using the provided query parameters.
+    /// </summary>
+    /// <param name="request">The search, pagination, and sorting parameters.</param>
+    /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    Task<PaginatedResponse<HoldingResponse>> SearchHoldingsAsync(HoldingSearchRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets a user's details and associated CPHs from the keeper data service, by identity provider subject.

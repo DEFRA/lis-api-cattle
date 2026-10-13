@@ -10,12 +10,15 @@ using Defra.Lis.Api.Configurations;
 using Defra.Lis.Api.Correlation;
 using Defra.Lis.Api.Endpoints.Health;
 using Defra.Lis.Api.Interfaces;
+using Defra.Lis.Api.Models.Requests;
 using Defra.Lis.Api.Services;
 using Defra.Lis.Api.Tests.Upstream;
+using Defra.Lis.Api.Validation;
 using Defra.Lis.Core.Exceptions;
 using Defra.Livestock.Sdk.Api.Strategies;
 using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Operations.Http.Rest.Client;
 using Defra.Livestock.Sdk.Api.Strategies.Operations.Http.Rest.Client;
+using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -159,6 +162,7 @@ public class CorrelationIdMiddlewareTests
                     ClientId = TestClient,
                     ClientSecret = TestPassphrase,
                 }));
+                services.AddSingleton<IValidator<HoldingSearchRequest>>(new HoldingSearchRequestValidator());
                 services.AddScoped<IKrdsService, KrdsService>();
             });
         using var request = new HttpRequestMessage(HttpMethod.Get, "/probe");

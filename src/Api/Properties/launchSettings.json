@@ -16,10 +16,10 @@
         "AWS__ServiceUrl": "http://localhost:4566",
         "AWS__SubmissionValidationQueueUrl": "http://localhost:4566/000000000000/submission_validation_queue",
         "AWS__SubmissionValidationTopicArn": "arn:aws:sns:eu-west-2:000000000000:submission_validation_topic",
-        "CadsApi__BaseUrl": "http://localhost:3010/cads/",
+        "CadsApi__BaseUrl": "http://localhost:3000/cads/",
         "CadsApi__ClientId": "local-dev-cads-client",
         "CadsApi__ClientSecret": "local-dev-cads-secret",
-        "KrdsApi__BaseUrl": "http://localhost:3010/krds/",
+        "KrdsApi__BaseUrl": "http://localhost:3000/krds/",
         "KrdsApi__ClientId": "local-dev-krds-client",
         "KrdsApi__ClientSecret": "local-dev-krds-secret",
         "ApiKeyAuthentication__Keys__0": "local-dev-cattle-api-key"

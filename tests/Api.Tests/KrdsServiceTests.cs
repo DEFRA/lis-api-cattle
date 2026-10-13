@@ -9,8 +9,10 @@ using System.Text.Json;
 using Defra.Lis.Api.Configurations;
 using Defra.Lis.Api.Exceptions;
 using Defra.Lis.Api.Models.Requests;
+using Defra.Lis.Api.Models.Responses;
 using Defra.Lis.Api.Services;
 using Defra.Lis.Api.Tests.Upstream;
+using Defra.Lis.Api.Validation;
 using Defra.Lis.Core.Exceptions;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -48,6 +50,15 @@ public class KrdsServiceTests
               "email": "oakfield.farmer@oakhill-farms.co.uk",
               "mobile": null,
               "telephone": null,
+              "address": {
+                "addressLine1": "Oakfield Farm",
+                "addressLine2": "Church Lane",
+                "addressTown": "Shrewsbury",
+                "addressLocality": "Shropshire",
+                "addressNation": "England",
+                "addressPostcode": "SY4 1AB",
+                "addressCountryCode": "GBR"
+              },
               "roles": [ { "code": "Keeper", "species": ["Cattle"] } ]
             }
           ],
@@ -56,6 +67,22 @@ public class KrdsServiceTests
             { "mark": "UK 324537", "startDate": "2010-04-01T00:00:00Z", "endDate": null, "species": ["Cattle"] },
             { "mark": "UK 111111", "startDate": "2000-01-01T00:00:00Z", "endDate": "2009-12-31T00:00:00Z", "species": ["Cattle"] }
           ]
+        }
+        """;
+
+    private const string PaginatedHoldingsResponse = $$"""
+        {
+          "count": 1,
+          "totalCount": 10,
+          "values": [
+            {{OakfieldHolding}}
+          ],
+          "page": 2,
+          "pageSize": 1,
+          "totalPages": 10,
+          "hasNextPage": true,
+          "hasPreviousPage": true,
+          "nextCursor": "cursor123"
         }
         """;
 
@@ -120,8 +147,105 @@ public class KrdsServiceTests
         Assert.Equal("AH", holding.HoldingType);
         Assert.Equal(["Oakfield Farm", "Church Lane", "Shrewsbury", "Shropshire", "SY4 1AB", "England"], holding.Address);
         Assert.Equal("Oakfield Farmer", holding.KeeperName);
-        Assert.Equal(["UK 324537"], holding.HerdMarks);
+        Assert.Single(holding.HerdMarks);
+        Assert.Equal("UK 324537", holding.HerdMarks[0].Mark);
+        Assert.Equal(DateTimeOffset.Parse("2010-04-01T00:00:00Z"), holding.HerdMarks[0].StartDate);
+        Assert.Null(holding.HerdMarks[0].EndDate);
+        Assert.Equal(["Cattle"], holding.HerdMarks[0].Species);
         Assert.Equal(["Cattle"], holding.AllowedSpecies);
+        Assert.Single(holding.Associations);
+        var association = holding.Associations[0];
+        Assert.Equal("CUST0001", association.CustomerNumber);
+        Assert.Equal("Oakfield", association.FirstName);
+        Assert.Equal("Farmer", association.LastName);
+        Assert.Equal("Oakfield Farmer", association.Name);
+        Assert.Equal("Individual", association.PartyType);
+        Assert.Equal("oakfield.farmer@oakhill-farms.co.uk", association.Email);
+        Assert.Equal(
+            ["Oakfield Farm", "Church Lane", "Shrewsbury", "Shropshire", "England", "SY4 1AB", "GBR"],
+            association.Address);
+        Assert.NotNull(association.Roles);
+        Assert.Single(association.Roles);
+        Assert.Equal("Keeper", association.Roles[0].Code);
+    }
+
+    [Fact]
+    public async Task SearchHoldingsAsync_CallsHoldingsEndpointWithBasicAuthAndQueryParameters()
+    {
+        handler.RespondWith(HttpStatusCode.OK, PaginatedHoldingsResponse);
+        var service = CreateService();
+
+        var request = new HoldingSearchRequest(
+            Search: "Oakfield",
+            Page: 2,
+            PageSize: 1,
+            Sort: "asc",
+            Order: "name");
+
+        await service.SearchHoldingsAsync(request, TestContext.Current.CancellationToken);
+
+        var sentRequest = Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Get, sentRequest.Method);
+        Assert.Equal("Basic", sentRequest.Headers.Authorization!.Scheme);
+        Assert.Equal(Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{TestClient}:{TestPassphrase}")), sentRequest.Headers.Authorization.Parameter);
+        Assert.Equal("/krds/api/v2/holdings", sentRequest.RequestUri!.AbsolutePath);
+
+        var query = System.Web.HttpUtility.ParseQueryString(sentRequest.RequestUri.Query);
+        Assert.Equal("Oakfield", query["search"]);
+        Assert.Equal("2", query["page"]);
+        Assert.Equal("1", query["pageSize"]);
+        Assert.Equal("asc", query["sort"]);
+        Assert.Equal("name", query["order"]);
+    }
+
+    [Fact]
+    public async Task SearchHoldingsAsync_MapsPaginatedHoldingsWithoutAssociations()
+    {
+        handler.RespondWith(HttpStatusCode.OK, PaginatedHoldingsResponse);
+        var service = CreateService();
+
+        var request = new HoldingSearchRequest(Search: "Oakfield");
+        var result = await service.SearchHoldingsAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, result.Count);
+        Assert.Equal(10, result.TotalCount);
+        Assert.Equal(2, result.Page);
+        Assert.Equal(1, result.PageSize);
+        Assert.Equal(10, result.TotalPages);
+        Assert.True(result.HasNextPage);
+        Assert.True(result.HasPreviousPage);
+
+        var holding = Assert.Single(result.Items);
+        Assert.Equal("22/001/0001", holding.Cph);
+        Assert.Equal("Oakfield Farm", holding.Name);
+        Assert.Equal("AH", holding.HoldingType);
+        Assert.Equal(["Oakfield Farm", "Church Lane", "Shrewsbury", "Shropshire", "SY4 1AB", "England"], holding.Address);
+        Assert.Equal("Oakfield Farmer", holding.KeeperName);
+        Assert.False(holding.GetType().GetProperty("Associations") is not null && holding is HoldingDetailedResponse);
+        Assert.False(holding.GetType().GetProperty("HerdMarks") is not null && holding is HoldingDetailedResponse);
+        Assert.False(holding.GetType().GetProperty("AllowedSpecies") is not null && holding is HoldingDetailedResponse);
+    }
+
+    [Fact]
+    public async Task SearchHoldingsAsync_HandlesEmptyHoldingsResult()
+    {
+        handler.RespondWith(HttpStatusCode.OK, """{"count":0,"totalCount":0,"values":[],"page":1,"pageSize":10,"totalPages":0,"hasNextPage":false,"hasPreviousPage":false,"nextCursor":null}""");
+        var service = CreateService();
+
+        var result = await service.SearchHoldingsAsync(new HoldingSearchRequest(), TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, result.Count);
+        Assert.Equal(0, result.TotalCount);
+        Assert.Empty(result.Items);
+    }
+
+    [Fact]
+    public async Task SearchHoldingsAsync_ThrowsArgumentException_WhenKrdsReturns400()
+    {
+        handler.RespondWith(HttpStatusCode.BadRequest, """{"title":"Bad Request","status":400}""");
+        var service = CreateService();
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.SearchHoldingsAsync(new HoldingSearchRequest(), TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -423,8 +547,22 @@ public class KrdsServiceTests
         FamilyName = "Farmer",
     };
 
+    [Theory]
+    [InlineData(0, 10)]
+    [InlineData(1, 0)]
+    [InlineData(1, 101)]
+    public async Task SearchHoldingsAsync_ThrowsValidationException_WhenPagingParametersAreInvalid(int page, int pageSize)
+    {
+        var service = CreateService();
+        var request = new HoldingSearchRequest(Page: page, PageSize: pageSize);
+
+        await Assert.ThrowsAnyAsync<Exception>(() => service.SearchHoldingsAsync(request, TestContext.Current.CancellationToken));
+        Assert.Empty(handler.Requests);
+    }
+
     private KrdsService CreateService() => new(
         RestStrategyTestFactory.Create<KrdsService>(handler),
+        new HoldingSearchRequestValidator(),
         Microsoft.Extensions.Options.Options.Create(Options),
         NullLogger<KrdsService>.Instance);
 }
