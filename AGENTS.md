@@ -134,7 +134,7 @@ Until the real services exist both point at [lis-fake-service](https://github.co
 | `KrdsApi__ClientId` / `KrdsApi__ClientSecret` | Basic credentials for KRDS (fake defaults `local-dev-krds-client` / `local-dev-krds-secret`) | dev settings; CDP secrets elsewhere |
 
 The services send only the API-relative paths (`api/v1/bovine/animals`, `api/v1/bovine/animals/{identifier}`,
-`api/v2/holdings/...`, `api/v2/user-accounts/{subject}`), so any
+`api/v2/holdings/...`, `api/v2/user-accounts/{subject}`, `POST api/v2/user-accounts`), so any
 route qualifier such as the fake service's `/cads` and `/krds` prefixes must be part of the base URL, never the code.
 
 All settings are validated when an upstream call is first made (not on start-up, so `/health` works before the secrets are set). The inbound `x-cdp-request-id` header is required on
@@ -144,8 +144,11 @@ standard, `src/Api/Correlation/`). Never log the credentials or upstream payload
 
 Endpoints exposed for the BE4FE: `GET /holdings/{county}/{parish}/{holding}`,
 `GET /holdings/{county}/{parish}/{holding}/cattle?earTag=&breed=&sex=` (live animals only),
-`GET /cattle/{earTag}` (details for one animal, 404 when CADS does not know it) and
-`GET /users/{subject}` (a user's details and associated CPHs from KRDS). See
+`GET /cattle/{earTag}` (details for one animal, 404 when CADS does not know it),
+`GET /users/{subject}` (a user's details and associated CPHs from KRDS) and
+`POST /users` (create or refresh a user account in KRDS from the identity provider claims `sub`, `email`,
+`given_name` and `family_name`; always 200 because the REST strategy does not expose KRDS's 201, 409 when
+the email belongs to another account, 503 while KRDS is temporarily unavailable). See
 `tests/Endpoints/Cattle/Cattle.http` and `tests/Endpoints/Users/Users.http`.
 
 `GET /users/{subject}` takes the identity provider (Defra ID) `sub` claim, treated as an opaque string and

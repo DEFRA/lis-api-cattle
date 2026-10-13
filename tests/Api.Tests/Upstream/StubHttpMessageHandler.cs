@@ -16,6 +16,11 @@ public sealed class StubHttpMessageHandler : HttpMessageHandler
 
     public List<HttpRequestMessage> Requests { get; } = [];
 
+    /// <summary>
+    /// Gets the request bodies, read when each request is sent (null when a request has no content).
+    /// </summary>
+    public List<string?> RequestBodies { get; } = [];
+
     public StubHttpMessageHandler RespondWith(HttpStatusCode statusCode, string? json = null)
     {
         responses.Enqueue(_ => new HttpResponseMessage(statusCode)
@@ -26,15 +31,16 @@ public sealed class StubHttpMessageHandler : HttpMessageHandler
         return this;
     }
 
-    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         Requests.Add(request);
+        RequestBodies.Add(request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken));
 
         if (responses.Count == 0)
         {
             throw new InvalidOperationException($"No stub response queued for {request.Method} {request.RequestUri}");
         }
 
-        return Task.FromResult(responses.Dequeue()(request));
+        return responses.Dequeue()(request);
     }
 }

@@ -19,4 +19,13 @@ public partial class KrdsService
 
     [LoggerMessage(LogLevel.Warning, "Subject {Subject} is not known to KRDS")]
     partial void LogUserAccountNotKnownToKrds(string subject);
+
+    [LoggerMessage(LogLevel.Information, "Ensured user account for subject {Subject} with {CphCount} CPH associations in KRDS")]
+    partial void LogEnsuredUserAccount(string subject, int cphCount);
+
+    [LoggerMessage(LogLevel.Warning, "KRDS rejected the user account for subject {Subject}: the email address belongs to another account")]
+    partial void LogUserAccountConflict(string subject);
+
+    [LoggerMessage(LogLevel.Warning, "KRDS is temporarily unavailable ({Action})")]
+    partial void LogKrdsUnavailable(string action);
 }

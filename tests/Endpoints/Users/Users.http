@@ -1,4 +1,51 @@
-### Get User details (lis-fake-service: POST the account to /krds/api/v2/user-accounts first, the store is in memory)
+### Create or refresh a user account (lis-fake-service keeps accounts in memory, so run this before the GETs)
+POST {{host}}/v1/users
+x-api-key: {{apiKey}}
+x-cdp-request-id: {{$guid}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "sub": "{{subject}}",
+  "email": "contact@test.com",
+  "given_name": "FirstName",
+  "family_name": "LastName"
+}
+
+> ../Asserts/Should_be_200_OK.js
+
+### Create a user account (missing email)
+POST {{host}}/v1/users
+x-api-key: {{apiKey}}
+x-cdp-request-id: {{$guid}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "sub": "{{subject}}",
+  "given_name": "FirstName",
+  "family_name": "LastName"
+}
+
+> ../Asserts/Should_be_400_bad_request.js
+
+### Create a user account (email already bound to another subject)
+POST {{host}}/v1/users
+x-api-key: {{apiKey}}
+x-cdp-request-id: {{$guid}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "sub": "{{$uuid}}",
+  "email": "contact@test.com",
+  "given_name": "FirstName",
+  "family_name": "LastName"
+}
+
+> ../Asserts/Should_be_409_conflict.js
+
+### Get User details
 GET {{host}}/v1/users/{{subject}}
 x-api-key: {{apiKey}}
 Accept: application/json

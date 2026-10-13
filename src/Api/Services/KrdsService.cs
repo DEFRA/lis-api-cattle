@@ -6,8 +6,10 @@ namespace Defra.Lis.Api.Services;
 
 using System.Text.RegularExpressions;
 using Defra.Lis.Api.Configurations;
+using Defra.Lis.Api.Exceptions;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models.Krds;
+using Defra.Lis.Api.Models.Requests;
 using Defra.Lis.Api.Models.Responses;
 using Defra.Lis.Api.Services.Upstream;
 using Defra.Lis.Core.Exceptions;
@@ -17,7 +19,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 /// <summary>
-/// Reads holding details and user accounts from the keeper-data-api (KRDS) V2 endpoints through a REST strategy.
+/// Reads holding details and reads or ensures user accounts through the keeper-data-api (KRDS) V2 endpoints, using
+/// a REST strategy.
 /// </summary>
 public sealed partial class KrdsService(
     IRestStrategyFactory<KrdsService> strategyFactory,
@@ -27,6 +30,8 @@ public sealed partial class KrdsService(
 {
     private const string ApiDescription = "KRDS API";
     private const string KeeperRoleCode = "Keeper";
+    private const int MaxClaimLength = 256;
+    private const int MaxEmailLength = 320;
 
     public async Task<HoldingResponse> GetHoldingAsync(string county, string parish, string holding, CancellationToken cancellationToken = default)
     {
@@ -107,6 +112,70 @@ public sealed partial class KrdsService(
         }
     }
 
+    public async Task<UserDetailsResponse> EnsureUserAccountAsync(CreateUserRequest request, CancellationToken cancellationToken = default)
+    {
+        var payload = ToEnsureUserAccountRequest(request);
+        var settings = options.Value;
+
+        try
+        {
+            var response = await strategyFactory
+                .BuildRestStrategy()
+                .WithLogger(logger)
+                .WithCancellationToken(cancellationToken)
+                .WithApiDescription(ApiDescription)
+                .WithActionDescription("Ensure user account")
+                .WithBaseUrl(settings.BaseUrl)
+                .WithResourceUrl("api/v2/user-accounts")
+                .WithBasicAuth(settings.ClientId, settings.ClientSecret)
+                .WithJsonSerializerOptions(UpstreamJson.Options)
+                .WithPost()
+                .WithPayload(payload)
+                .ExecuteAndTransform<KrdsUserAccount, UserDetailsResponse>(account => ToUserDetailsResponse(payload.Sub, account));
+
+            LogEnsuredUserAccount(payload.Sub, response.Cphs.Count);
+
+            return response;
+        }
+        catch (RestResponseException ex) when (UpstreamErrors.IsBadRequest(ex) || UpstreamErrors.IsUnprocessableEntity(ex))
+        {
+            throw new ArgumentException($"The user account for subject '{payload.Sub}' was rejected by KRDS.", nameof(request), ex);
+        }
+        catch (RestResponseException ex) when (UpstreamErrors.IsConflict(ex))
+        {
+            LogUserAccountConflict(payload.Sub);
+            throw new ConflictException("The email address is already associated with a different user account.");
+        }
+        catch (RestResponseException ex) when (UpstreamErrors.IsServiceUnavailable(ex))
+        {
+            LogKrdsUnavailable("Ensure user account");
+            throw new ServiceUnavailableException("KRDS is temporarily unavailable, try again later.", ex);
+        }
+    }
+
+    internal static KrdsEnsureUserAccountRequest ToEnsureUserAccountRequest(CreateUserRequest? request)
+    {
+        // Mirrors the keeper-data-api validation so a bad request fails here with a 400, without an upstream call.
+        // The messages name the field only, never its value, as the claims are personal data.
+        if (request is null)
+        {
+            throw new ArgumentException("A request body is required.", nameof(request));
+        }
+
+        var sub = RequireClaim(request.Sub, "sub", MaxClaimLength);
+        var email = RequireClaim(request.Email?.Trim(), "email", MaxEmailLength);
+        var givenName = RequireClaim(request.GivenName, "given_name", MaxClaimLength);
+        var familyName = RequireClaim(request.FamilyName, "family_name", MaxClaimLength);
+
+        var at = email.IndexOf('@', StringComparison.Ordinal);
+        if (at <= 0 || at != email.LastIndexOf('@') || at == email.Length - 1)
+        {
+            throw new ArgumentException("Claim 'email' must be a valid email address.", nameof(request));
+        }
+
+        return new KrdsEnsureUserAccountRequest(sub, email, givenName, familyName);
+    }
+
     internal static UserDetailsResponse ToUserDetailsResponse(string subject, KrdsUserAccount account)
     {
         ArgumentNullException.ThrowIfNull(account);
@@ -175,6 +244,21 @@ public sealed partial class KrdsService(
 
     [GeneratedRegex("^[0-9]{4}$")]
     private static partial Regex HoldingSegment();
+
+    private static string RequireClaim(string? value, string name, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new ArgumentException($"Claim '{name}' is required.", name);
+        }
+
+        if (value.Length > maxLength)
+        {
+            throw new ArgumentException($"Claim '{name}' must be {maxLength} characters or fewer.", name);
+        }
+
+        return value;
+    }
 
     private static void ValidateSegment(string value, Regex pattern, string name, string expected)
     {

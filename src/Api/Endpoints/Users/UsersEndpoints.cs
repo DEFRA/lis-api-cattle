@@ -6,13 +6,14 @@ namespace Defra.Lis.Api.Endpoints.Users;
 
 using Defra.Lis.Api.Authentication;
 using Defra.Lis.Api.Interfaces;
+using Defra.Lis.Api.Models.Requests;
 using Defra.Lis.Api.Models.Responses;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 
 /// <summary>
-/// Provides endpoint mappings for user details queries.
+/// Provides endpoint mappings for user details queries and user account creation.
 /// </summary>
 public static class UsersEndpoints
 {
@@ -39,6 +40,17 @@ public static class UsersEndpoints
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status500InternalServerError);
 
+        group.MapPost("/", CreateUser)
+            .WithName(OpenApiMetadata.CreateUserRoute.Name)
+            .WithSummary(OpenApiMetadata.CreateUserRoute.Summary)
+            .WithDescription(OpenApiMetadata.CreateUserRoute.Description)
+            .Accepts<CreateUserRequest>("application/json")
+            .Produces<UserDetailsResponse>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status500InternalServerError)
+            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
+
         return app;
     }
 
@@ -49,6 +61,22 @@ public static class UsersEndpoints
     {
         var decodedSubject = Uri.UnescapeDataString(subject);
         var details = await krdsService.GetUserAccountAsync(decodedSubject, cancellationToken);
+        return Results.Ok(details);
+    }
+
+    private static async Task<IResult> CreateUser(
+        [FromBody] CreateUserRequest? request,
+        [FromServices] IKrdsService krdsService,
+        CancellationToken cancellationToken)
+    {
+        if (request is null)
+        {
+            throw new ArgumentException("A request body is required.", nameof(request));
+        }
+
+        // KRDS answers 201 for a new account and 200 for a refreshed one, but the REST strategy does not expose the
+        // status, so both are returned as 200 (LREG-660).
+        var details = await krdsService.EnsureUserAccountAsync(request, cancellationToken);
         return Results.Ok(details);
     }
 }
