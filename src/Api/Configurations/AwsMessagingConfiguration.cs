@@ -34,7 +34,9 @@ public static class AwsMessagingConfiguration
 
             if (awsOptions.UseLocalStack && !string.IsNullOrWhiteSpace(awsOptions.ServiceUrl))
             {
+                // Setting ServiceURL clears RegionEndpoint, so the SDK would otherwise sign for us-east-1.
                 config.ServiceURL = awsOptions.ServiceUrl;
+                config.AuthenticationRegion = awsOptions.Region;
             }
 
             return new AmazonSQSClient(config);
@@ -50,7 +52,9 @@ public static class AwsMessagingConfiguration
 
             if (awsOptions.UseLocalStack && !string.IsNullOrWhiteSpace(awsOptions.ServiceUrl))
             {
+                // Setting ServiceURL clears RegionEndpoint, so the SDK would otherwise sign for us-east-1.
                 config.ServiceURL = awsOptions.ServiceUrl;
+                config.AuthenticationRegion = awsOptions.Region;
             }
 
             return new AmazonSimpleNotificationServiceClient(config);

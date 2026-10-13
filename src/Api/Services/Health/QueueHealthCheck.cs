@@ -20,7 +20,7 @@ public class QueueHealthCheck : IHealthCheck
         HealthCheckContext context,
         CancellationToken cancellationToken = default)
     {
-        var result = await this.healthService.CheckQueueHealthAsync(cancellationToken);
+        var result = await healthService.CheckQueueHealthAsync(cancellationToken);
 
         return result.Status switch
         {
