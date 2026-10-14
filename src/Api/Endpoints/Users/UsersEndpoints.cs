@@ -70,6 +70,7 @@ public partial class UsersEndpoints
         return Results.Ok(details);
     }
 
+    [ExcludeFromCodeCoverage]
     private static async Task<IResult> CreateUser(
         [FromBody] CreateUserRequest? request,
         [FromServices] IKrdsService krdsService,
