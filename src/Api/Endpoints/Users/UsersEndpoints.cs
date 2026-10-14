@@ -83,13 +83,33 @@ public partial class UsersEndpoints
 
         // KRDS answers 201 for a new account and 200 for a refreshed one, but the REST strategy does not expose the
         // status, so both are returned as 200 (LREG-660).
-        var tmp = await krdsService.GetHoldingAsync("10", "123", "1234", cancellationToken);
-        LogTmpTmp(logger, tmp);
+        try
+        {
+            logger.LogInformation("Pre get holding");
+            var tmp = await krdsService.GetHoldingAsync("10", "123", "1234", cancellationToken);
+            LogTmpTmp(logger, tmp);
+            logger.LogInformation("Post get holding");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error getting holding");
+        }
 
-        var details = await krdsService.EnsureUserAccountAsync(request, cancellationToken);
+        UserDetailsResponse details = new UserDetailsResponse();
+        try
+        {
+            logger.LogInformation("Pre update user");
+            details = await krdsService.EnsureUserAccountAsync(request, cancellationToken);
+            logger.LogInformation("Post update user");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error update user");
+        }
+
         return Results.Ok(details);
     }
 
-    [LoggerMessage(LogLevel.Information, "tmp {Tmp}")]
+    [LoggerMessage(LogLevel.Information, "{{Message: {Tmp}}}")]
     static partial void LogTmpTmp(ILogger<UsersEndpoints> logger, HoldingDetailedResponse tmp);
 }
