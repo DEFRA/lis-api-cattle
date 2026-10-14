@@ -11,9 +11,9 @@ public sealed record KrdsHolding(
     string? Identifier,
     string? HoldingType,
     string? Name,
+    DateTimeOffset? StartDate,
+    DateTimeOffset? EndDate,
     KrdsLocation? Location,
     IReadOnlyList<KrdsAssociation>? Associations,
     IReadOnlyList<string>? AllowedSpecies,
-    IReadOnlyList<KrdsMark>? Marks,
-    DateTimeOffset? StartDate = null,
-    DateTimeOffset? EndDate = null);
+    IReadOnlyList<KrdsMark>? Marks);

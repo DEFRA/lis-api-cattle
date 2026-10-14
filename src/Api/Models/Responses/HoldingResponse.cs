@@ -4,6 +4,7 @@
 
 namespace Defra.Lis.Api.Models.Responses;
 
+using System;
 using System.ComponentModel;
 
 /// <summary>
@@ -28,6 +29,24 @@ public class HoldingResponse
     /// </summary>
     [Description("The type of the holding.")]
     public string? HoldingType { get; init; }
+
+    /// <summary>
+    /// Gets the start date of the holding.
+    /// </summary>
+    [Description("The start date of the holding.")]
+    public DateTimeOffset? StartDate { get; init; }
+
+    /// <summary>
+    /// Gets the end date of the holding.
+    /// </summary>
+    [Description("The end date of the holding.")]
+    public DateTimeOffset? EndDate { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether the holding is active.
+    /// </summary>
+    [Description("Indicates whether the holding is active.")]
+    public bool Active { get; init; }
 
     /// <summary>
     /// Gets the address of the holding.
