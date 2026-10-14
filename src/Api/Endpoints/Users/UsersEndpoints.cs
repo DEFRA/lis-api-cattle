@@ -8,7 +8,6 @@ using Defra.Lis.Api.Authentication;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models.Requests;
 using Defra.Lis.Api.Models.Responses;
-using Elastic.CommonSchema;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
