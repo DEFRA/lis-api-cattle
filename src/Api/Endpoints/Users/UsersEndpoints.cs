@@ -4,6 +4,7 @@
 
 namespace Defra.Lis.Api.Endpoints.Users;
 
+using System.Diagnostics.CodeAnalysis;
 using Defra.Lis.Api.Authentication;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models.Requests;
@@ -17,6 +18,7 @@ using Microsoft.AspNetCore.Routing;
 /// </summary>
 public partial class UsersEndpoints
 {
+    [ExcludeFromCodeCoverage]
     protected UsersEndpoints()
     {
     }
