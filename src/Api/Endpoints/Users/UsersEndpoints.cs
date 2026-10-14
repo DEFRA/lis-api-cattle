@@ -95,18 +95,9 @@ public partial class UsersEndpoints
             logger.LogError(ex, "Error getting holding");
         }
 
-        UserDetailsResponse details = new UserDetailsResponse();
-        try
-        {
-            logger.LogInformation("Pre update user");
-            details = await krdsService.EnsureUserAccountAsync(request, cancellationToken);
-            logger.LogInformation("Post update user");
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Error update user");
-        }
-
+        logger.LogInformation("Pre update user");
+        var details = await krdsService.EnsureUserAccountAsync(request, cancellationToken);
+        logger.LogInformation("Post update user");
         return Results.Ok(details);
     }
 
