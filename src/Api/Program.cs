@@ -196,7 +196,7 @@ public static class Program
         app.MapCattleEndpoints();
         app.MapHoldingEndpoints();
         app.MapRegistrationEndpoints();
-        app.MapUserEndpoints();
+        UsersEndpoints.MapUserEndpoints(app);
         app.MapHealthEndpoints();
 
         return app;

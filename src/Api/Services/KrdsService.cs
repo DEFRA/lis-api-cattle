@@ -181,9 +181,6 @@ public sealed partial class KrdsService : IKrdsService
 
         try
         {
-            var tmp = await GetHoldingAsync("10", "123", "1234", cancellationToken);
-            logger.LogInformation("tmp: {Tmp}", tmp);
-
             var response = await strategyFactory
                 .BuildRestStrategy()
                 .WithCancellationToken(cancellationToken)

@@ -109,7 +109,7 @@ public class ServiceToServiceEndpointsTests
         app.MapCattleEndpoints();
         app.MapHoldingEndpoints();
         app.MapRegistrationEndpoints();
-        app.MapUserEndpoints();
+        UsersEndpoints.MapUserEndpoints(app);
         await app.StartAsync(TestContext.Current.CancellationToken);
         return app;
     }

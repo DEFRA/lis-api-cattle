@@ -15,14 +15,14 @@ using Microsoft.AspNetCore.Routing;
 /// <summary>
 /// Provides endpoint mappings for user details queries and user account creation.
 /// </summary>
-public static class UsersEndpoints
+public class UsersEndpoints
 {
     /// <summary>
     /// Maps the user endpoints onto the supplied route builder.
     /// </summary>
     /// <param name="app">The endpoint route builder to which the endpoints are added.</param>
     /// <returns>The supplied endpoint route builder.</returns>
-    public static IEndpointRouteBuilder MapUserEndpoints(this IEndpointRouteBuilder app)
+    public static IEndpointRouteBuilder MapUserEndpoints(IEndpointRouteBuilder app)
     {
         var registrationApi = app.NewVersionedApi(OpenApiMetadata.Tag);
         var versionOne = registrationApi.MapGroup(RouteNames.ApiVersionRoot)
@@ -67,6 +67,7 @@ public static class UsersEndpoints
     private static async Task<IResult> CreateUser(
         [FromBody] CreateUserRequest? request,
         [FromServices] IKrdsService krdsService,
+        [FromServices] ILogger<UsersEndpoints> logger,
         CancellationToken cancellationToken)
     {
         if (request is null)
@@ -76,6 +77,9 @@ public static class UsersEndpoints
 
         // KRDS answers 201 for a new account and 200 for a refreshed one, but the REST strategy does not expose the
         // status, so both are returned as 200 (LREG-660).
+        var tmp = await krdsService.GetHoldingAsync("10", "123", "1234", cancellationToken);
+        logger.LogInformation("tmp {Tmp}", tmp);
+
         var details = await krdsService.EnsureUserAccountAsync(request, cancellationToken);
         return Results.Ok(details);
     }

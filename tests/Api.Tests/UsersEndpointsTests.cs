@@ -229,7 +229,7 @@ public class UsersEndpointsTests
         var app = builder.Build();
         app.UseExceptionHandler();
         app.UseTestServiceToServiceAuthentication();
-        app.MapUserEndpoints();
+        UsersEndpoints.MapUserEndpoints(app);
         await app.StartAsync(TestContext.Current.CancellationToken);
         return app;
     }
