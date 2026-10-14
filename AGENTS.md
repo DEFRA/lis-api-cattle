@@ -132,6 +132,7 @@ Until the real services exist both point at [lis-fake-service](https://github.co
 | `CadsApi__PageSize` | Page size used when reading animals (all pages are read) | 100 |
 | `KrdsApi__BaseUrl` | Base URL of the keeper-data-api, including any path prefix (fake: `http://localhost:3000/krds/`) | `appsettings.Development.json` |
 | `KrdsApi__ClientId` / `KrdsApi__ClientSecret` | Basic credentials for KRDS (fake defaults `local-dev-krds-client` / `local-dev-krds-secret`) | dev settings; CDP secrets elsewhere |
+| `CadsApi__GatewayApiKey` / `KrdsApi__GatewayApiKey` | Optional CDP developer API key, sent as `x-api-key` next to the Basic credentials, only when calling CDP dev through the `ephemeral-protected` gateway from a developer machine. Leave unset in CDP and against the fake. | unset |
 
 The services send only the API-relative paths (`api/v1/bovine/animals`, `api/v1/bovine/animals/{identifier}`,
 `api/v2/holdings/...`, `api/v2/user-accounts/{subject}`, `POST api/v2/user-accounts`), so any
@@ -162,6 +163,16 @@ surrogate dam is recorded, otherwise `genetic` when a genetic dam is), `geneticD
 `surrogateDamEarTag` and `sireEarTag`. `sireName` is always null: CADS does not carry one. The
 response is CADS-only, so an animal that exists solely in a local submission bundle is a 404 here
 even though it appears in the holding's cattle list.
+
+### Running locally against CDP dev
+
+Point the upstream settings at the `ephemeral-protected` gateway (`https://ephemeral-protected.api.dev.cdp-int.defra.cloud/ls-keeper-data-api/`
+and `.../cads-data-service/`, each with a trailing slash), set the KRDS and CADS Basic credentials and the CDP developer
+API key in `KrdsApi__GatewayApiKey` / `CadsApi__GatewayApiKey`, as environment variables or an untracked file, never in
+committed settings. Run with `--no-launch-profile`, because the `http` launch profile's fake-service settings override exported
+variables. `GatewayApiKey` is applied per call by `WithGatewayApiKey` (`src/Api/Services/Upstream/GatewayApiKey.cs`)
+and must never be logged. `tests/Endpoints/Upstreams/OperationalDev.http` smoke-tests KRDS and CADS directly with the
+`dev-operational` environment; keys go in the gitignored `tests/Endpoints/http-client.private.env.json`. See the README.
 
 ### Temporary CADS data patch (S3)
 

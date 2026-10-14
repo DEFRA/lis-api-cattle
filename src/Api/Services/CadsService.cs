@@ -83,6 +83,7 @@ public sealed partial class CadsService(
                 .WithBaseUrl(settings.BaseUrl)
                 .WithResourceUrl($"{AnimalsResource}/{Uri.EscapeDataString(earTag)}")
                 .WithBasicAuth(settings.ClientId, settings.ClientSecret)
+                .WithGatewayApiKey(settings.GatewayApiKey)
                 .WithJsonSerializerOptions(UpstreamJson.Options)
                 .WithGet()
                 .Execute<CadsAnimalDetailResponse>();
@@ -250,6 +251,7 @@ public sealed partial class CadsService(
                 .WithBaseUrl(settings.BaseUrl)
                 .WithResourceUrl(AnimalsResource)
                 .WithBasicAuth(settings.ClientId, settings.ClientSecret)
+                .WithGatewayApiKey(settings.GatewayApiKey)
                 .WithJsonSerializerOptions(UpstreamJson.Options)
                 .WithGet()
                 .WithQueryParameter("CPH", cph)

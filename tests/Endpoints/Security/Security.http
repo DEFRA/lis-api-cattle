@@ -1,0 +1,41 @@
+### Get Holding details (no x-api-key)
+GET {{host}}/v1/holdings/{{cph}}
+x-cdp-request-id: {{$guid}}
+Accept: application/json
+
+> ../Asserts/Should_be_401_unauthorized.js
+
+### Get Holding details (wrong x-api-key)
+GET {{host}}/v1/holdings/{{cph}}
+x-api-key: not-a-valid-key
+x-cdp-request-id: {{$guid}}
+Accept: application/json
+
+> ../Asserts/Should_be_401_unauthorized.js
+
+### Get Holding details (no x-cdp-request-id)
+GET {{host}}/v1/holdings/{{cph}}
+x-api-key: {{apiKey}}
+Accept: application/json
+
+> ../Asserts/Should_be_400_missing_header.js
+
+### Get User details (no x-api-key)
+GET {{host}}/v1/users/{{subject}}
+x-cdp-request-id: {{$guid}}
+Accept: application/json
+
+> ../Asserts/Should_be_401_unauthorized.js
+
+### Get Cattle details (no x-cdp-request-id)
+GET {{host}}/v1/cattle/{{earTag}}
+x-api-key: {{apiKey}}
+Accept: application/json
+
+> ../Asserts/Should_be_400_missing_header.js
+
+### Health stays open (no x-api-key or x-cdp-request-id)
+GET {{host}}/health
+Accept: application/json
+
+> ../Asserts/Should_be_200_OK.js

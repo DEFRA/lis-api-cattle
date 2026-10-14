@@ -79,3 +79,45 @@ BE4FE always send it; `/health`, the OpenAPI document and Scalar do not need it.
 
 The `.http` files send a fresh `{{$guid}}`; send your own when calling the API by hand, for example
 `-H 'x-cdp-request-id: local-test-1'`.
+
+### Running locally against CDP dev
+
+To test the API from a developer machine against the operational KRDS and CADS services in CDP dev, call them through
+the `ephemeral-protected` gateway. Every gateway call needs a
+[CDP developer API key](https://eaflood.atlassian.net/wiki/spaces/LDD/pages/6449987795/CDP+developer+API+key)
+(from the CDP portal) as `x-api-key`, as well as the usual KRDS or CADS Basic credentials. Set `GatewayApiKey` and the
+service sends the header on every upstream call. Leave it unset in CDP, where services call each other directly, and
+against lis-fake-service.
+
+Export the settings in your shell, or keep them in an untracked file you `source`. Never commit them. Run without a
+launch profile: the `http` profile sets the fake-service URLs and credentials, and they override exported variables.
+Postgres and LocalStack must be running, as for any local run.
+
+```bash
+export ASPNETCORE_ENVIRONMENT=Development
+export ApiKeyAuthentication__Keys__0=local-dev-cattle-api-key
+export KrdsApi__BaseUrl=https://ephemeral-protected.api.dev.cdp-int.defra.cloud/ls-keeper-data-api/
+export KrdsApi__ClientId=<KRDS ACL client id>
+export KrdsApi__ClientSecret=<KRDS ACL client secret>
+export KrdsApi__GatewayApiKey=<CDP developer API key>
+export CadsApi__BaseUrl=https://ephemeral-protected.api.dev.cdp-int.defra.cloud/cads-data-service/
+export CadsApi__ClientId=<CADS client id>
+export CadsApi__ClientSecret=<CADS client secret>
+export CadsApi__GatewayApiKey=<CDP developer API key>
+dotnet run --project src/Api --no-launch-profile -- --urls http://localhost:5019
+```
+
+Each base URL keeps its trailing slash, because the services append API-relative paths. Port 5019 is the one
+the BE4FE's development settings call (`CattleApi__BaseUrl`). Then use the `.http` files with
+the `dev-operational` environment in `tests/Endpoints/http-client.env.json`:
+
+- `Upstreams/OperationalDev.http` calls KRDS and CADS directly, to check the credentials and test data before
+  involving the cattle API.
+- `Cattle`, `Users` and `Registrations` call the local cattle API, which calls dev.
+- `Security/Security.http` checks that a missing or wrong `x-api-key` gives `401` and a missing `x-cdp-request-id` gives
+  `400 missing_header`.
+
+Put `cdpDeveloperApiKey`, `krdsClientId`, `krdsClientSecret`, `cadsClientId` and `cadsClientSecret` in
+`tests/Endpoints/http-client.private.env.json` under `dev-operational`. The file is gitignored. Replace the
+placeholder `cph`, `earTag` and `subject` with identifiers that exist in dev. Do not commit responses: they contain
+real keeper data.

@@ -22,6 +22,12 @@ public sealed class CadsApiOptions
     [Required]
     public string ClientSecret { get; init; } = string.Empty;
 
+    /// <summary>
+    /// Gets the CDP developer API key, sent as x-api-key, for calling CADS through the ephemeral-protected gateway
+    /// from a developer machine. Leave empty in CDP, where services call each other directly.
+    /// </summary>
+    public string? GatewayApiKey { get; init; }
+
     [Range(1, 1000)]
     public int PageSize { get; init; } = 100;
 }

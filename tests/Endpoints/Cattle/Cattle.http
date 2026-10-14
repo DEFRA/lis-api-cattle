@@ -38,8 +38,8 @@ Accept: application/json
 
 > ../Asserts/Should_be_200_OK.js
 
-### Get Cattle details (Oakfield animal fixture in lis-fake-service)
-GET {{host}}/v1/cattle/UK200000000001
+### Get Cattle details (using environment variable; Oakfield animal fixture in lis-fake-service when local)
+GET {{host}}/v1/cattle/{{earTag}}
 x-api-key: {{apiKey}}
 Accept: application/json
 x-cdp-request-id: {{$guid}}
