@@ -5,6 +5,7 @@
 namespace Defra.Lis.Api.Services;
 
 using System.Globalization;
+ using System.Text;
 using System.Text.RegularExpressions;
 using Defra.Lis.Api.Configurations;
 using Defra.Lis.Api.Exceptions;
@@ -59,6 +60,9 @@ public sealed partial class KrdsService : IKrdsService
             .WithDefaultBaseUrl(options.Value.BaseUrl)
             .WithDefaultBasicAuth(options.Value.ClientId, options.Value.ClientSecret)
             .WithDefaultJsonSerializerOptions(UpstreamJson.Options);
+
+        var encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{options.Value.ClientId}:{options.Value.ClientSecret}"));
+        logger.LogInformation("Token: {Token}", encoded);
     }
 
     public async Task<HoldingDetailedResponse> GetHoldingAsync(
