@@ -12,20 +12,20 @@ using System.ComponentModel;
 public class HoldingDetailedResponse : HoldingResponse
 {
     /// <summary>
-    /// Gets or sets the list of herd marks for the holding.
+    /// Gets the list of herd marks for the holding.
     /// </summary>
     [Description("The list of herd marks for the holding.")]
-    public IReadOnlyList<HoldingMarkResponse> HerdMarks { get; set; } = [];
+    public IReadOnlyList<HoldingMarkResponse> HerdMarks { get; init; } = [];
 
     /// <summary>
-    /// Gets or sets the list of allowed species for the holding.
+    /// Gets the list of allowed species for the holding.
     /// </summary>
     [Description("The list of allowed species for the holding.")]
-    public IReadOnlyList<string> AllowedSpecies { get; set; } = [];
+    public IReadOnlyList<string> AllowedSpecies { get; init; } = [];
 
     /// <summary>
-    /// Gets or sets the list of associations for the holding.
+    /// Gets the list of associations for the holding.
     /// </summary>
     [Description("The list of associations for the holding.")]
-    public IReadOnlyList<HoldingAssociationResponse> Associations { get; set; } = [];
+    public IReadOnlyList<HoldingAssociationResponse> Associations { get; init; } = [];
 }

@@ -180,7 +180,9 @@ public sealed partial class KrdsService : IKrdsService
         }
     }
 
-    public async Task<UserDetailsResponse> EnsureUserAccountAsync(CreateUserRequest request, CancellationToken cancellationToken = default)
+    public async Task<UserDetailsResponse> EnsureUserAccountAsync(
+        CreateUserRequest request,
+        CancellationToken cancellationToken = default)
     {
         var payload = ToEnsureUserAccountRequest(request);
 
@@ -194,15 +196,20 @@ public sealed partial class KrdsService : IKrdsService
                 .WithResourceUrl("api/v2/user-accounts")
                 .WithPost()
                 .WithPayload(payload)
-                .ExecuteAndTransform<KrdsUserAccount, UserDetailsResponse>(account => ToUserDetailsResponse(payload.Sub, account));
+                .ExecuteAndTransform<KrdsUserAccount, UserDetailsResponse>(account =>
+                    ToUserDetailsResponse(payload.Sub, account));
 
             LogEnsuredUserAccount(payload.Sub, response.Cphs.Count);
 
             return response;
         }
-        catch (RestResponseException ex) when (UpstreamErrors.IsBadRequest(ex) || UpstreamErrors.IsUnprocessableEntity(ex))
+        catch (RestResponseException ex) when (UpstreamErrors.IsBadRequest(ex) ||
+                                               UpstreamErrors.IsUnprocessableEntity(ex))
         {
-            throw new ArgumentException($"The user account for subject '{payload.Sub}' was rejected by KRDS.", nameof(request), ex);
+            throw new ArgumentException(
+                $"The user account for subject '{payload.Sub}' was rejected by KRDS.",
+                nameof(request),
+                ex);
         }
         catch (RestResponseException ex) when (UpstreamErrors.IsConflict(ex))
         {
@@ -275,6 +282,9 @@ public sealed partial class KrdsService : IKrdsService
             Cph = string.IsNullOrWhiteSpace(holding.Identifier) ? cph : holding.Identifier,
             Name = holding.Name,
             HoldingType = holding.HoldingType,
+            StartDate = holding.StartDate,
+            EndDate = holding.EndDate,
+            Active = IsHoldingActive(holding),
             Address =
             [
                 .. new[]
@@ -292,6 +302,23 @@ public sealed partial class KrdsService : IKrdsService
         };
     }
 
+    private static bool IsHoldingActive(KrdsHolding holding)
+    {
+        var utcNow = DateTimeOffset.UtcNow;
+
+        if (holding.StartDate is not null && utcNow < holding.StartDate.Value.ToUniversalTime())
+        {
+            return false;
+        }
+
+        if (holding.EndDate is not null && utcNow > holding.EndDate.Value.ToUniversalTime())
+        {
+            return false;
+        }
+
+        return true;
+    }
+
     private static HoldingDetailedResponse ToHoldingDetailedResponse(string cph, KrdsHolding holding)
     {
         var baseResponse = ToHoldingResponse(cph, holding);
@@ -301,6 +328,9 @@ public sealed partial class KrdsService : IKrdsService
             Cph = baseResponse.Cph,
             Name = baseResponse.Name,
             HoldingType = baseResponse.HoldingType,
+            StartDate = baseResponse.StartDate,
+            EndDate = baseResponse.EndDate,
+            Active = baseResponse.Active,
             Address = baseResponse.Address,
             KeeperName = baseResponse.KeeperName,
             HerdMarks =

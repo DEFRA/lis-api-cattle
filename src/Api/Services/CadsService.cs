@@ -22,21 +22,43 @@ using Microsoft.Extensions.Options;
 /// Reads animals on a holding, and the details of a single animal, from the CADS bovine API
 /// through a REST strategy.
 /// </summary>
-public sealed partial class CadsService(
-    IRestStrategyFactory<CadsService> strategyFactory,
-    IOptions<CadsApiOptions> options,
-    IOptions<CadsDataPatchOptions> patchOptions,
-    ICadsDataPatchStore dataPatchStore,
-    ILogger<CadsService> logger)
-    : ICadsService
+public sealed partial class CadsService : ICadsService
 {
-    private const string ApiDescription = "CADS bovine animals API";
     private const string AnimalsResource = "api/v1/bovine/animals";
-    private const int MaxPages = 100;
     private const string GeneticDamType = "genetic";
     private const string SurrogateDamType = "surrogate";
+    private const int MaxPages = 100;
 
-    public async Task<IEnumerable<CattleResponse>> GetCattleByCphAsync(string cph, CancellationToken cancellationToken = default)
+    private readonly IRestStrategyFactory<CadsService> strategyFactory;
+    private readonly IOptions<CadsApiOptions> options;
+    private readonly IOptions<CadsDataPatchOptions> patchOptions;
+    private readonly ICadsDataPatchStore dataPatchStore;
+    private readonly ILogger<CadsService> logger;
+
+    public CadsService(
+        IRestStrategyFactory<CadsService> strategyFactory,
+        IOptions<CadsApiOptions> options,
+        IOptions<CadsDataPatchOptions> patchOptions,
+        ICadsDataPatchStore dataPatchStore,
+        ILogger<CadsService> logger)
+    {
+        this.strategyFactory = strategyFactory;
+        this.options = options;
+        this.patchOptions = patchOptions;
+        this.dataPatchStore = dataPatchStore;
+        this.logger = logger;
+
+        this.strategyFactory
+            .WithDefaultLogger(logger)
+            .WithDefaultApiDescription("CADS bovine animals API")
+            .WithDefaultBaseUrl(options.Value.BaseUrl)
+            .WithDefaultBasicAuth(options.Value.ClientId, options.Value.ClientSecret)
+            .WithDefaultJsonSerializerOptions(UpstreamJson.Options);
+    }
+
+    public async Task<IEnumerable<CattleResponse>> GetCattleByCphAsync(
+        string cph,
+        CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(cph);
 
@@ -47,7 +69,7 @@ public sealed partial class CadsService(
 
         do
         {
-            current = await GetAnimalsPageAsync(cph, page, cancellationToken);
+            current = await GetAnimalsPagedAsync(cph, page, options.Value.PageSize, cancellationToken);
             animals = current.Animals ?? [];
             results.AddRange(animals.Select(ToCattleResponse));
             page++;
@@ -65,26 +87,22 @@ public sealed partial class CadsService(
         return results;
     }
 
-    public async Task<CattleDetailsResponse> GetAnimalDetailsAsync(string earTag, CancellationToken cancellationToken = default)
+    public async Task<CattleDetailsResponse> GetAnimalDetailsAsync(
+        string earTag,
+        CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(earTag);
 
-        var settings = options.Value;
         CadsAnimalDetailResponse? response;
 
         try
         {
             response = await strategyFactory
                 .BuildRestStrategy()
-                .WithLogger(logger)
+                .WithGatewayApiKey(options.Value.GatewayApiKey)
                 .WithCancellationToken(cancellationToken)
-                .WithApiDescription(ApiDescription)
                 .WithActionDescription("Get animal details")
-                .WithBaseUrl(settings.BaseUrl)
                 .WithResourceUrl($"{AnimalsResource}/{Uri.EscapeDataString(earTag)}")
-                .WithBasicAuth(settings.ClientId, settings.ClientSecret)
-                .WithGatewayApiKey(settings.GatewayApiKey)
-                .WithJsonSerializerOptions(UpstreamJson.Options)
                 .WithGet()
                 .Execute<CadsAnimalDetailResponse>();
         }
@@ -221,7 +239,8 @@ public sealed partial class CadsService(
                     patchData.EarTag = earTag;
                 }
 
-                var sourceData = results.SingleOrDefault(x => string.Equals(x.EarTag, patchData.EarTag, StringComparison.OrdinalIgnoreCase));
+                var sourceData = results.SingleOrDefault(x =>
+                    string.Equals(x.EarTag, patchData.EarTag, StringComparison.OrdinalIgnoreCase));
                 if (sourceData != null && rawData.IsAlive)
                 {
                     results.Remove(sourceData);
@@ -236,27 +255,24 @@ public sealed partial class CadsService(
         }
     }
 
-    private async Task<CadsAnimalsOnHolding> GetAnimalsPageAsync(string cph, int page, CancellationToken cancellationToken)
+    private async Task<CadsAnimalsOnHolding> GetAnimalsPagedAsync(
+        string cph,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken)
     {
-        var settings = options.Value;
-
         try
         {
             return await strategyFactory
                 .BuildRestStrategy()
-                .WithLogger(logger)
+                .WithGatewayApiKey(options.Value.GatewayApiKey)
                 .WithCancellationToken(cancellationToken)
-                .WithApiDescription(ApiDescription)
                 .WithActionDescription("Get animals on holding")
-                .WithBaseUrl(settings.BaseUrl)
                 .WithResourceUrl(AnimalsResource)
-                .WithBasicAuth(settings.ClientId, settings.ClientSecret)
-                .WithGatewayApiKey(settings.GatewayApiKey)
-                .WithJsonSerializerOptions(UpstreamJson.Options)
                 .WithGet()
                 .WithQueryParameter("CPH", cph)
                 .WithQueryParameter("page", page.ToString(CultureInfo.InvariantCulture))
-                .WithQueryParameter("pageSize", settings.PageSize.ToString(CultureInfo.InvariantCulture))
+                .WithQueryParameter("pageSize", pageSize.ToString(CultureInfo.InvariantCulture))
                 .Execute<CadsAnimalsOnHolding>();
         }
         catch (RestResponseException ex) when (UpstreamErrors.IsNotFound(ex))
