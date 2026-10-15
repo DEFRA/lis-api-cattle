@@ -111,6 +111,7 @@ public class KrdsServiceTests
 
     private const string TestClient = "krds-client";
     private const string TestPassphrase = "krds-passphrase";
+    private const string TestGatewayKey = "krds-gateway-key";
 
     private static readonly KrdsApiOptions Options = new()
     {
@@ -134,6 +135,52 @@ public class KrdsServiceTests
         Assert.Equal(
             Convert.ToBase64String(UTF8.GetBytes($"{TestClient}:{TestPassphrase}")),
             request.Headers.Authorization.Parameter);
+    }
+
+    [Fact]
+    public async Task GetHoldingAsync_SendsGatewayApiKeyAlongsideBasicAuthWhenConfigured()
+    {
+        handler.RespondWith(HttpStatusCode.OK, OakfieldHolding);
+        var service = CreateService(WithGatewayKey());
+
+        await service.GetHoldingAsync("22", "001", "0001", TestContext.Current.CancellationToken);
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal(TestGatewayKey, Assert.Single(request.Headers.GetValues("x-api-key")));
+        Assert.Equal("Basic", request.Headers.Authorization!.Scheme);
+    }
+
+    [Fact]
+    public async Task GetHoldingAsync_SendsNoGatewayApiKeyWhenNotConfigured()
+    {
+        handler.RespondWith(HttpStatusCode.OK, OakfieldHolding);
+        var service = CreateService();
+
+        await service.GetHoldingAsync("22", "001", "0001", TestContext.Current.CancellationToken);
+
+        Assert.False(Assert.Single(handler.Requests).Headers.Contains("x-api-key"));
+    }
+
+    [Fact]
+    public async Task GetUserAccountAsync_SendsGatewayApiKeyWhenConfigured()
+    {
+        handler.RespondWith(HttpStatusCode.OK, OakfieldUserAccount);
+        var service = CreateService(WithGatewayKey());
+
+        await service.GetUserAccountAsync(OakfieldSubject, TestContext.Current.CancellationToken);
+
+        Assert.Equal(TestGatewayKey, Assert.Single(Assert.Single(handler.Requests).Headers.GetValues("x-api-key")));
+    }
+
+    [Fact]
+    public async Task EnsureUserAccountAsync_SendsGatewayApiKeyWhenConfigured()
+    {
+        handler.RespondWith(HttpStatusCode.OK, OakfieldUserAccount);
+        var service = CreateService(WithGatewayKey());
+
+        await service.EnsureUserAccountAsync(OakfieldClaims(), TestContext.Current.CancellationToken);
+
+        Assert.Equal(TestGatewayKey, Assert.Single(Assert.Single(handler.Requests).Headers.GetValues("x-api-key")));
     }
 
     [Fact]
@@ -729,9 +776,17 @@ public class KrdsServiceTests
         FamilyName = "Farmer",
     };
 
-    private KrdsService CreateService() => new(
+    private static KrdsApiOptions WithGatewayKey() => new()
+    {
+        BaseUrl = Options.BaseUrl,
+        ClientId = Options.ClientId,
+        ClientSecret = Options.ClientSecret,
+        GatewayApiKey = TestGatewayKey,
+    };
+
+    private KrdsService CreateService(KrdsApiOptions? apiOptions = null) => new(
         RestStrategyTestFactory.Create<KrdsService>(handler),
         new HoldingSearchRequestValidator(),
-        Microsoft.Extensions.Options.Options.Create(Options),
+        Microsoft.Extensions.Options.Options.Create(apiOptions ?? Options),
         NullLogger<KrdsService>.Instance);
 }

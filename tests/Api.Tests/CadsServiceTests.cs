@@ -22,6 +22,7 @@ public class CadsServiceTests
     private const string EarTag = "UK200000000001";
     private const string TestClient = "cads-client";
     private const string TestPassphrase = "cads-passphrase";
+    private const string TestGatewayKey = "cads-gateway-key";
 
     private static readonly CadsApiOptions Options = new()
     {
@@ -303,6 +304,43 @@ public class CadsServiceTests
         Assert.Equal("http://fake-service.test/cads/api/v1/bovine/animals/UK200000000001", request.RequestUri!.ToString());
         Assert.Equal("Basic", request.Headers.Authorization!.Scheme);
         Assert.Equal(Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{TestClient}:{TestPassphrase}")), request.Headers.Authorization.Parameter);
+    }
+
+    [Fact]
+    public async Task GetCattleByCphAsync_SendsGatewayApiKeyAlongsideBasicAuthWhenConfigured()
+    {
+        handler.RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000001", "Passport Produced")], page: 1, totalRecords: 1));
+        var service = CreateService(apiOptions: WithGatewayKey());
+
+        await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken);
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal(TestGatewayKey, Assert.Single(request.Headers.GetValues("x-api-key")));
+        Assert.Equal("Basic", request.Headers.Authorization!.Scheme);
+    }
+
+    [Fact]
+    public async Task GetAnimalDetailsAsync_SendsGatewayApiKeyAlongsideBasicAuthWhenConfigured()
+    {
+        handler.RespondWith(HttpStatusCode.OK, Detail("UK200000000001"));
+        var service = CreateService(apiOptions: WithGatewayKey());
+
+        await service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken);
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal(TestGatewayKey, Assert.Single(request.Headers.GetValues("x-api-key")));
+        Assert.Equal("Basic", request.Headers.Authorization!.Scheme);
+    }
+
+    [Fact]
+    public async Task GetAnimalDetailsAsync_SendsNoGatewayApiKeyWhenNotConfigured()
+    {
+        handler.RespondWith(HttpStatusCode.OK, Detail("UK200000000001"));
+        var service = CreateService();
+
+        await service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken);
+
+        Assert.False(Assert.Single(handler.Requests).Headers.Contains("x-api-key"));
     }
 
     [Fact]
@@ -724,9 +762,18 @@ public class CadsServiceTests
         new CadsBreedCode("cts.breed", "Aberdeen Angus", "AA"),
         status);
 
-    private CadsService CreateService(CadsDataPatchOptions? dataPatchOptions = null) => new(
+    private static CadsApiOptions WithGatewayKey() => new()
+    {
+        BaseUrl = Options.BaseUrl,
+        ClientId = Options.ClientId,
+        ClientSecret = Options.ClientSecret,
+        PageSize = Options.PageSize,
+        GatewayApiKey = TestGatewayKey,
+    };
+
+    private CadsService CreateService(CadsDataPatchOptions? dataPatchOptions = null, CadsApiOptions? apiOptions = null) => new(
         RestStrategyTestFactory.Create<CadsService>(handler),
-        Microsoft.Extensions.Options.Options.Create(Options),
+        Microsoft.Extensions.Options.Options.Create(apiOptions ?? Options),
         Microsoft.Extensions.Options.Options.Create(dataPatchOptions ?? DataPatchOptions),
         dataPatchStore.Object,
         NullLogger<CadsService>.Instance);

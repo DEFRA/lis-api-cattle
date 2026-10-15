@@ -32,6 +32,7 @@ public sealed partial class KrdsService : IKrdsService
     private const int MaxEmailLength = 320;
 
     private readonly IRestStrategyFactory<KrdsService> strategyFactory;
+    private readonly string? gatewayApiKey;
     private readonly IValidator<HoldingSearchRequest> holdingSearchRequestValidator;
     private readonly ILogger<KrdsService> logger;
 
@@ -50,6 +51,7 @@ public sealed partial class KrdsService : IKrdsService
         ILogger<KrdsService> logger)
     {
         this.strategyFactory = strategyFactory;
+        gatewayApiKey = options.Value.GatewayApiKey;
         this.holdingSearchRequestValidator = holdingSearchRequestValidator;
         this.logger = logger;
 
@@ -77,6 +79,7 @@ public sealed partial class KrdsService : IKrdsService
         {
             var response = await strategyFactory
                 .BuildRestStrategy()
+                .WithGatewayApiKey(gatewayApiKey)
                 .WithCancellationToken(cancellationToken)
                 .WithActionDescription("Get holding details")
                 .WithResourceUrl($"api/v2/holdings/{county}/{parish}/{holding}")
@@ -109,6 +112,7 @@ public sealed partial class KrdsService : IKrdsService
         {
             var response = await strategyFactory
                 .BuildRestStrategy()
+                .WithGatewayApiKey(gatewayApiKey)
                 .WithCancellationToken(cancellationToken)
                 .WithActionDescription("Search holdings")
                 .WithRequestValidation(() => holdingSearchRequestValidator.ValidateAsync(request, cancellationToken))
@@ -152,6 +156,7 @@ public sealed partial class KrdsService : IKrdsService
         {
             var response = await strategyFactory
                 .BuildRestStrategy()
+                .WithGatewayApiKey(gatewayApiKey)
                 .WithCancellationToken(cancellationToken)
                 .WithActionDescription("Get user account")
                 .WithResourceUrl($"api/v2/user-accounts/{Uri.EscapeDataString(subject)}")
@@ -185,6 +190,7 @@ public sealed partial class KrdsService : IKrdsService
         {
             var response = await strategyFactory
                 .BuildRestStrategy()
+                .WithGatewayApiKey(gatewayApiKey)
                 .WithCancellationToken(cancellationToken)
                 .WithActionDescription("Ensure user account")
                 .WithResourceUrl("api/v2/user-accounts")

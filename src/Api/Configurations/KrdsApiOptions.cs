@@ -21,4 +21,10 @@ public sealed class KrdsApiOptions
 
     [Required]
     public string ClientSecret { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the CDP developer API key, sent as x-api-key, for calling KRDS through the ephemeral-protected gateway
+    /// from a developer machine. Leave empty in CDP, where services call each other directly.
+    /// </summary>
+    public string? GatewayApiKey { get; init; }
 }

@@ -282,3 +282,6 @@ coverage/
 /liquibase/**
 /liquibase_libs/**
 liquibase.json
+
+# JetBrains HTTP client private environment (CDP developer key, KRDS/CADS credentials)
+http-client.private.env.json

@@ -99,6 +99,7 @@ public sealed partial class CadsService : ICadsService
         {
             response = await strategyFactory
                 .BuildRestStrategy()
+                .WithGatewayApiKey(options.Value.GatewayApiKey)
                 .WithCancellationToken(cancellationToken)
                 .WithActionDescription("Get animal details")
                 .WithResourceUrl($"{AnimalsResource}/{Uri.EscapeDataString(earTag)}")
@@ -264,6 +265,7 @@ public sealed partial class CadsService : ICadsService
         {
             return await strategyFactory
                 .BuildRestStrategy()
+                .WithGatewayApiKey(options.Value.GatewayApiKey)
                 .WithCancellationToken(cancellationToken)
                 .WithActionDescription("Get animals on holding")
                 .WithResourceUrl(AnimalsResource)

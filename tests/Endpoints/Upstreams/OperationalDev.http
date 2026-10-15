@@ -1,0 +1,73 @@
+# Smoke tests that call KRDS and CADS in CDP dev directly through the ephemeral-protected gateway, before
+# involving the cattle API. Run with the dev-operational environment; the credentials and the CDP developer
+# API key come from http-client.private.env.json (gitignored). Each call needs Basic auth and x-api-key.
+
+### KRDS - Get holding
+GET {{krdsBaseUrl}}api/v2/holdings/{{cph}}
+Authorization: Basic {{krdsClientId}} {{krdsClientSecret}}
+x-api-key: {{cdpDeveloperApiKey}}
+x-cdp-request-id: {{$guid}}
+Accept: application/json
+
+> ../Asserts/Should_be_200_OK.js
+
+### KRDS - Get user account
+GET {{krdsBaseUrl}}api/v2/user-accounts/{{subject}}
+Authorization: Basic {{krdsClientId}} {{krdsClientSecret}}
+x-api-key: {{cdpDeveloperApiKey}}
+x-cdp-request-id: {{$guid}}
+Accept: application/json
+
+> ../Asserts/Should_be_200_OK.js
+
+### KRDS - Get holding (wrong Basic credentials)
+GET {{krdsBaseUrl}}api/v2/holdings/{{cph}}
+Authorization: Basic not-a-client not-a-secret
+x-api-key: {{cdpDeveloperApiKey}}
+x-cdp-request-id: {{$guid}}
+Accept: application/json
+
+> ../Asserts/Should_be_401_unauthorized.js
+
+### KRDS - Get holding (developer key only, no Basic credentials)
+GET {{krdsBaseUrl}}api/v2/holdings/{{cph}}
+x-api-key: {{cdpDeveloperApiKey}}
+x-cdp-request-id: {{$guid}}
+Accept: application/json
+
+> ../Asserts/Should_be_401_unauthorized.js
+
+### KRDS - Get holding (Basic credentials only, no developer key)
+GET {{krdsBaseUrl}}api/v2/holdings/{{cph}}
+Authorization: Basic {{krdsClientId}} {{krdsClientSecret}}
+x-cdp-request-id: {{$guid}}
+Accept: application/json
+
+> ../Asserts/Should_be_401_unauthorized.js
+
+### CADS - Get animals on holding
+GET {{cadsBaseUrl}}api/v1/bovine/animals?CPH={{cph}}&page=1&pageSize=10
+Authorization: Basic {{cadsClientId}} {{cadsClientSecret}}
+x-api-key: {{cdpDeveloperApiKey}}
+x-cdp-request-id: {{$guid}}
+Accept: application/json
+
+> ../Asserts/Should_be_200_OK.js
+
+### CADS - Get animal details
+GET {{cadsBaseUrl}}api/v1/bovine/animals/{{earTag}}
+Authorization: Basic {{cadsClientId}} {{cadsClientSecret}}
+x-api-key: {{cdpDeveloperApiKey}}
+x-cdp-request-id: {{$guid}}
+Accept: application/json
+
+> ../Asserts/Should_be_200_OK.js
+
+### CADS - Get animal details (wrong Basic credentials)
+GET {{cadsBaseUrl}}api/v1/bovine/animals/{{earTag}}
+Authorization: Basic not-a-client not-a-secret
+x-api-key: {{cdpDeveloperApiKey}}
+x-cdp-request-id: {{$guid}}
+Accept: application/json
+
+> ../Asserts/Should_be_401_unauthorized.js
