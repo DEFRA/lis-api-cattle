@@ -147,6 +147,9 @@ public class KrdsServiceTests
         Assert.Equal("22/001/0001", holding.Cph);
         Assert.Equal("Oakfield Farm", holding.Name);
         Assert.Equal("AH", holding.HoldingType);
+        Assert.Equal(DateTimeOffset.Parse("2010-04-01T00:00:00Z"), holding.StartDate);
+        Assert.Null(holding.EndDate);
+        Assert.True(holding.Active);
         Assert.Equal(
             ["Oakfield Farm", "Church Lane", "Shrewsbury", "Shropshire", "SY4 1AB", "England"],
             holding.Address);
@@ -225,6 +228,9 @@ public class KrdsServiceTests
         Assert.Equal("22/001/0001", holding.Cph);
         Assert.Equal("Oakfield Farm", holding.Name);
         Assert.Equal("AH", holding.HoldingType);
+        Assert.Equal(DateTimeOffset.Parse("2010-04-01T00:00:00Z"), holding.StartDate);
+        Assert.Null(holding.EndDate);
+        Assert.True(holding.Active);
         Assert.Equal(
             ["Oakfield Farm", "Church Lane", "Shrewsbury", "Shropshire", "SY4 1AB", "England"],
             holding.Address);
@@ -274,8 +280,110 @@ public class KrdsServiceTests
         Assert.Null(holding.Name);
         Assert.Empty(holding.Address);
         Assert.Null(holding.KeeperName);
+        Assert.Null(holding.StartDate);
+        Assert.Null(holding.EndDate);
+        Assert.True(holding.Active);
         Assert.Empty(holding.HerdMarks);
         Assert.Empty(holding.AllowedSpecies);
+    }
+
+    [Fact]
+    public async Task GetHoldingAsync_SetsActiveFalse_WhenStartDateIsInTheFuture()
+    {
+        handler.RespondWith(
+            HttpStatusCode.OK,
+            """{"identifier":"22/099/0099","holdingType":"AH","name":"Future Start Farm","startDate":"2099-01-01T00:00:00Z","endDate":null,"location":null,"associations":[],"allowedSpecies":[],"marks":[]}""");
+        var service = CreateService();
+
+        var holding = await service.GetHoldingAsync("22", "099", "0099", TestContext.Current.CancellationToken);
+
+        Assert.Equal("22/099/0099", holding.Cph);
+        Assert.Equal(DateTimeOffset.Parse("2099-01-01T00:00:00Z"), holding.StartDate);
+        Assert.Null(holding.EndDate);
+        Assert.False(holding.Active);
+    }
+
+    [Fact]
+    public async Task GetHoldingAsync_SetsActiveFalse_WhenEndDateIsInThePast()
+    {
+        handler.RespondWith(
+            HttpStatusCode.OK,
+            """{"identifier":"22/099/0099","holdingType":"AH","name":"Old Farm","startDate":"2010-01-01T00:00:00Z","endDate":"2020-01-01T00:00:00Z","location":null,"associations":[],"allowedSpecies":[],"marks":[]}""");
+        var service = CreateService();
+
+        var holding = await service.GetHoldingAsync("22", "099", "0099", TestContext.Current.CancellationToken);
+
+        Assert.Equal("22/099/0099", holding.Cph);
+        Assert.Equal(DateTimeOffset.Parse("2010-01-01T00:00:00Z"), holding.StartDate);
+        Assert.Equal(DateTimeOffset.Parse("2020-01-01T00:00:00Z"), holding.EndDate);
+        Assert.False(holding.Active);
+    }
+
+    [Fact]
+    public async Task GetHoldingAsync_SetsActiveTrue_WhenEndDateIsInTheFuture()
+    {
+        handler.RespondWith(
+            HttpStatusCode.OK,
+            """{"identifier":"22/099/0099","holdingType":"AH","name":"Future Farm","startDate":"2010-01-01T00:00:00Z","endDate":"2099-12-31T23:59:59Z","location":null,"associations":[],"allowedSpecies":[],"marks":[]}""");
+        var service = CreateService();
+
+        var holding = await service.GetHoldingAsync("22", "099", "0099", TestContext.Current.CancellationToken);
+
+        Assert.Equal("22/099/0099", holding.Cph);
+        Assert.Equal(DateTimeOffset.Parse("2010-01-01T00:00:00Z"), holding.StartDate);
+        Assert.Equal(DateTimeOffset.Parse("2099-12-31T23:59:59Z"), holding.EndDate);
+        Assert.True(holding.Active);
+    }
+
+    [Fact]
+    public async Task SearchHoldingsAsync_MapsActiveFlagCorrectly()
+    {
+        handler.RespondWith(
+            HttpStatusCode.OK,
+#pragma warning disable SA1118
+            """
+            {
+              "count": 3,
+              "totalCount": 3,
+              "values": [
+                {
+                  "identifier": "22/001/0001",
+                  "holdingType": "AH",
+                  "name": "Past Holding",
+                  "startDate": "2010-01-01T00:00:00Z",
+                  "endDate": "2020-01-01T00:00:00Z"
+                },
+                {
+                  "identifier": "22/001/0002",
+                  "holdingType": "AH",
+                  "name": "Future Start Holding",
+                  "startDate": "2099-01-01T00:00:00Z",
+                  "endDate": null
+                },
+                {
+                  "identifier": "22/001/0003",
+                  "holdingType": "AH",
+                  "name": "Active Holding",
+                  "startDate": "2010-01-01T00:00:00Z",
+                  "endDate": "2099-12-31T23:59:59Z"
+                }
+              ],
+              "page": 1,
+              "pageSize": 10,
+              "totalPages": 1,
+              "hasNextPage": false,
+              "hasPreviousPage": false
+            }
+            """);
+#pragma warning restore SA1118
+        var service = CreateService();
+
+        var result = await service.SearchHoldingsAsync(new HoldingSearchRequest(), TestContext.Current.CancellationToken);
+
+        Assert.Equal(3, result.Count);
+        Assert.False(result.Items[0].Active);
+        Assert.False(result.Items[1].Active);
+        Assert.True(result.Items[2].Active);
     }
 
     [Fact]
