@@ -340,6 +340,7 @@ public class KrdsServiceTests
     {
         handler.RespondWith(
             HttpStatusCode.OK,
+#pragma warning disable SA1118
             """
             {
               "count": 3,
@@ -374,6 +375,7 @@ public class KrdsServiceTests
               "hasPreviousPage": false
             }
             """);
+#pragma warning restore SA1118
         var service = CreateService();
 
         var result = await service.SearchHoldingsAsync(new HoldingSearchRequest(), TestContext.Current.CancellationToken);
