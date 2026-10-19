@@ -157,16 +157,6 @@ jobs:
           aws s3 cp output/migrations.metadata.json "$destination/migrations.metadata.json"
           echo "Published database schema migration version \`$VERSION\`." >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Keep the database migration for the release
-        if: steps.database-changes.outputs.changed == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: database-migration-${{ github.sha }}
-          path: output
-          retention-days: 1
-          if-no-files-found: error
-          overwrite: true
-
   publish-image:
     name: 'Publish Tested Container Image'
     needs: [validate-release, package-database]
@@ -276,41 +266,3 @@ jobs:
             docker tag "$SOURCE_IMAGE" "$latest_image"
             docker push "$latest_image"
           fi
-
-  publish-release:
-    name: 'Publish GitHub Release'
-    # Stable versions only, like the Docker Hub image. Runs last so a release
-    # only exists once the image and the migration package have both shipped.
-    if: ${{ !contains(needs.validate-release.outputs.version, '-') }}
-    needs: [validate-release, package-database, publish-image]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Download the database migration
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: database-migration-${{ github.sha }}
-          path: output
-
-      - name: Attach the database migration to a GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          VERSION: ${{ needs.validate-release.outputs.version }}
-          IS_LATEST: ${{ needs.validate-release.outputs.is-latest }}
-        shell: bash
-        run: |
-          # lis-dev downloads this package to run the migrations locally, so it
-          # has to be reachable without credentials: release assets on a public
-          # repository are. GitHub's "latest" release follows the newest stable
-          # version, the same rule as the latest image tag.
-          # Created as a draft and published once the assets are on it, so the
-          # "latest" release never resolves to one without a package.
-          if ! gh release view "$VERSION" --json tagName >/dev/null 2>&1; then
-            gh release create "$VERSION" --verify-tag --draft --title "$VERSION" \
-              --notes "Database migrations for \`$VERSION\` are attached as \`migrations.tgz\`."
-          fi
-          gh release upload "$VERSION" --clobber output/migrations.tgz output/migrations.metadata.json
-          gh release edit "$VERSION" --draft=false --latest="$IS_LATEST"
-          echo "Attached the database schema migration to release \`$VERSION\`." >> "$GITHUB_STEP_SUMMARY"
