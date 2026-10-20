@@ -6,6 +6,7 @@ namespace Defra.Lis.Api.Tests;
 
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Asp.Versioning;
 using Defra.Lis.Api.Endpoints.Users;
 using Defra.Lis.Api.Exceptions;
@@ -71,21 +72,23 @@ public class UsersEndpointsTests
     public async Task GetUserDetails_ReturnsProblemDetails404_WhenTheSubjectIsUnknown()
     {
         krdsService.Setup(s => s.GetUserAccountAsync(Subject, It.IsAny<CancellationToken>()))
-                   .ThrowsAsync(new NotFoundException($"User '{Subject}' was not found."));
+                   .ThrowsAsync(new NotFoundException("The user was not found."));
         await using var app = await StartAppAsync();
 
         var response = await app.GetAuthenticatedTestClient().GetAsync($"/v1/users/{Subject}", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        Assert.Contains(Subject, body);
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        var detail = problem.RootElement.GetProperty("detail").GetString();
+        Assert.Equal("The user was not found.", detail);
+        Assert.DoesNotContain(Subject, detail!, StringComparison.Ordinal);
     }
 
     [Fact]
     public async Task GetUserDetails_ReturnsProblemDetails400_WhenTheSubjectIsRejected()
     {
         krdsService.Setup(s => s.GetUserAccountAsync("not-a-subject", It.IsAny<CancellationToken>()))
-                   .ThrowsAsync(new ArgumentException("User 'not-a-subject' is not a valid subject."));
+                   .ThrowsAsync(new ArgumentException("The subject is not valid."));
         await using var app = await StartAppAsync();
 
         var response = await app.GetAuthenticatedTestClient().GetAsync("/v1/users/not-a-subject", TestContext.Current.CancellationToken);
