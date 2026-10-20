@@ -9,6 +9,8 @@ using Defra.Lis.Entities;
 
 public class SubmissionConfiguration : IEntityTypeConfiguration<Submission>
 {
+    public const string RowVersion = "RowVersion";
+
     public void Configure(EntityTypeBuilder<Submission> builder)
     {
         builder.ToTable("submissions", "public");
@@ -37,6 +39,12 @@ public class SubmissionConfiguration : IEntityTypeConfiguration<Submission>
             .HasColumnName(nameof(Submission.CreatedAt).ToSnakeCase())
             .HasDefaultValueSql("now()")
             .IsRequired();
+
+        // Postgres row version (the xmin system column), so a save that overwrites another writer's change fails.
+        builder.Property<uint>(RowVersion)
+            .HasColumnName("xmin")
+            .HasColumnType("xid")
+            .IsRowVersion();
 
         builder.HasIndex(e => e.ClientReference)
             .HasDatabaseName("submission_client_reference_index");

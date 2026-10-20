@@ -164,13 +164,13 @@ public sealed partial class KrdsService : IKrdsService
                 .ExecuteAndTransform<KrdsUserAccount, UserDetailsResponse>(account =>
                     ToUserDetailsResponse(subject, account));
 
-            LogRetrievedUserAccount(subject, response.Cphs.Count);
+            LogRetrievedUserAccount(response.Cphs.Count);
 
             return response;
         }
         catch (RestResponseException ex) when (UpstreamErrors.IsNotFound(ex))
         {
-            LogUserAccountNotKnownToKrds(subject);
+            LogUserAccountNotKnownToKrds();
             throw new NotFoundException($"User '{subject}' was not found.");
         }
         catch (RestResponseException ex) when (UpstreamErrors.IsBadRequest(ex) ||
@@ -199,7 +199,7 @@ public sealed partial class KrdsService : IKrdsService
                 .ExecuteAndTransform<KrdsUserAccount, UserDetailsResponse>(account =>
                     ToUserDetailsResponse(payload.Sub, account));
 
-            LogEnsuredUserAccount(payload.Sub, response.Cphs.Count);
+            LogEnsuredUserAccount(response.Cphs.Count);
 
             return response;
         }
@@ -213,7 +213,7 @@ public sealed partial class KrdsService : IKrdsService
         }
         catch (RestResponseException ex) when (UpstreamErrors.IsConflict(ex))
         {
-            LogUserAccountConflict(payload.Sub);
+            LogUserAccountConflict();
             throw new ConflictException("The email address is already associated with a different user account.");
         }
         catch (RestResponseException ex) when (UpstreamErrors.IsServiceUnavailable(ex))

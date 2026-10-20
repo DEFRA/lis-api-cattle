@@ -7,6 +7,7 @@ namespace Defra.Lis.Api.Services;
 using Defra.Database.Postgres;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models;
+using Defra.Lis.Database.Claims;
 using Defra.Lis.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -14,19 +15,23 @@ using Microsoft.Extensions.Options;
 
 public partial class CtsBundleProcessorService(
     DbContext dbContext,
+    ISubmissionBatchClaimer claimer,
     ICtsService ctsService,
     IOptions<CtsPollingJobOptions> options,
     ILogger<CtsBundleProcessorService> logger)
     : ICtsBundleProcessorService
 {
+    private static readonly string[] TargetStatuses = [Statuses.Submitted, Statuses.Processing, Statuses.Error, Statuses.Pending];
+
     private readonly CtsPollingJobOptions options = options.Value;
 
     public CtsBundleProcessorService(
         PostgresDbContext dbContext,
+        ISubmissionBatchClaimer claimer,
         ICtsService ctsService,
         IOptions<CtsPollingJobOptions> options,
         ILogger<CtsBundleProcessorService> logger)
-        : this((DbContext)dbContext, ctsService, options, logger)
+        : this((DbContext)dbContext, claimer, ctsService, options, logger)
     {
     }
 
@@ -34,21 +39,22 @@ public partial class CtsBundleProcessorService(
     {
         var batchSize = options.BatchSize > 0 ? options.BatchSize : 10;
 
-        var targetStatuses = new[] { Statuses.Submitted, Statuses.Processing, Statuses.Error, Statuses.Pending };
+        // Claim the batch so that other instances of the service skip these rows until this one commits.
+        await using var claim = await claimer.ClaimAsync(dbContext, batchSize, TargetStatuses, cancellationToken);
 
-        var bundles = await dbContext.Set<Submission>()
-            .Include(s => s.Animals)
-                .ThenInclude(a => a.Errors)
-            .Where(s => targetStatuses.Contains(s.Status))
-            .OrderBy(s => s.CreatedAt)
-            .Take(batchSize)
-            .ToListAsync(cancellationToken);
-
-        if (bundles.Count == 0)
+        if (claim.SubmissionIds.Count == 0)
         {
             LogNoPendingBundlesFoundToProcess();
             return;
         }
+
+        var claimedIds = claim.SubmissionIds;
+        var bundles = await dbContext.Set<Submission>()
+            .Include(s => s.Animals)
+                .ThenInclude(a => a.Errors)
+            .Where(s => claimedIds.Contains(s.Id))
+            .OrderBy(s => s.CreatedAt)
+            .ToListAsync(cancellationToken);
 
         LogFoundCountBundlesToProcessWithCts(bundles.Count);
 
@@ -69,7 +75,18 @@ public partial class CtsBundleProcessorService(
             }
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await claim.CommitAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            // Another writer changed a claimed submission; disposing the claim rolls this batch back for the next run.
+            var conflicts = ex.Entries.Select(e => e.Entity).OfType<Submission>().Select(s => s.Id);
+            LogBatchConflictedWithAnotherWriter(string.Join(',', conflicts));
+            dbContext.ChangeTracker.Clear();
+        }
     }
 
     private async Task ProcessBundleAsync(Submission bundle, CancellationToken cancellationToken)

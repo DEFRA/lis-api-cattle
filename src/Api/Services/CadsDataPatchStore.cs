@@ -96,16 +96,14 @@ public sealed partial class CadsDataPatchStore(
 
         try
         {
-            var request = new ListObjectsV2Request { BucketName = bucket, };
-            var listResponse = await s3.ListObjectsV2Async(request, cancellationToken);
-            var animalObject = listResponse.S3Objects.SingleOrDefault(x => x.Key.EndsWith($"{earTag}.json"));
-            if (animalObject != null)
+            var animalObject = await FindAnimalObjectAsync(bucket, earTag, cancellationToken);
+            if (animalObject is null)
             {
-                using var response = await s3.GetObjectAsync(bucket, animalObject.Key, cancellationToken);
-                return await JsonSerializer.DeserializeAsync<CadsAnimalDetail>(response.ResponseStream, UpstreamJson.Options, cancellationToken);
+                return null;
             }
 
-            return null;
+            using var response = await s3.GetObjectAsync(bucket, animalObject.Key, cancellationToken);
+            return await JsonSerializer.DeserializeAsync<CadsAnimalDetail>(response.ResponseStream, UpstreamJson.Options, cancellationToken);
         }
         catch (AmazonS3Exception ex) when (ex.StatusCode == HttpStatusCode.NotFound)
         {
@@ -118,5 +116,44 @@ public sealed partial class CadsDataPatchStore(
         }
     }
 
+    private static bool IsAnimalFile(string key, string fileName)
+    {
+        // Keys are {cph}/{earTag}.json, and a CPH holds slashes itself (22/001/0001). The file name after the last
+        // slash must match exactly, so UK123 does not match XUK123.json.
+        var slash = key.LastIndexOf('/');
+        return slash > 0 && key.AsSpan(slash + 1).Equals(fileName, StringComparison.Ordinal);
+    }
+
     private static string FolderOf(string cph) => $"{cph.Trim().Trim('/')}/";
+
+    /// <summary>
+    /// Finds the file for an ear tag in whichever CPH folder holds it. The bucket is listed page by page, as the
+    /// layout does not allow a prefix on the ear tag. When an animal has files under more than one holding (it
+    /// has moved), the most recently written file wins.
+    /// </summary>
+    private async Task<S3Object?> FindAnimalObjectAsync(string bucket, string earTag, CancellationToken cancellationToken)
+    {
+        var fileName = $"{earTag.Trim()}{FileExtension}";
+        var request = new ListObjectsV2Request { BucketName = bucket, };
+        var matches = new List<S3Object>();
+        ListObjectsV2Response response;
+
+        do
+        {
+            response = await s3.ListObjectsV2Async(request, cancellationToken);
+            matches.AddRange((response.S3Objects ?? []).Where(item => IsAnimalFile(item.Key, fileName)));
+            request.ContinuationToken = response.NextContinuationToken;
+        }
+        while (response.IsTruncated == true);
+
+        if (matches.Count > 1)
+        {
+            LogDuplicatePatchFiles(earTag, matches.Count);
+        }
+
+        return matches
+            .OrderByDescending(item => item.LastModified ?? DateTime.MinValue)
+            .ThenBy(item => item.Key, StringComparer.Ordinal)
+            .FirstOrDefault();
+    }
 }

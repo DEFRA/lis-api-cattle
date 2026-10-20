@@ -144,17 +144,7 @@ public static class Program
         builder.Services.AddScoped<ICadsService, CadsService>();
         builder.Services.AddScoped<IKrdsService, KrdsService>();
 
-        if (builder.Configuration.GetValue("CtsApi:UseFake", true))
-        {
-            builder.Services.AddSingleton<ICtsService, FakeCtsService>();
-        }
-        else
-        {
-            builder.Services.AddHttpClient<ICtsService, FakeCtsService>(client =>
-            {
-                client.BaseAddress = new Uri(builder.Configuration["CtsApi:BaseUrl"] ?? "http://cts-api/");
-            }).AddHeaderPropagation();
-        }
+        builder.Services.AddCtsServices(builder.Configuration);
 
         builder.Services.AddScoped<ICattleService, CattleService>();
         builder.Services.AddScoped<ICtsBundleProcessorService, CtsBundleProcessorService>();
