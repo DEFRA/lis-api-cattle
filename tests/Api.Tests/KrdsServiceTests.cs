@@ -560,8 +560,11 @@ public class KrdsServiceTests
             """{"title":"Not Found","status":404,"detail":"The subject is not recognised."}""");
         var service = CreateService();
 
-        await Assert.ThrowsAsync<NotFoundException>(() =>
+        var exception = await Assert.ThrowsAsync<NotFoundException>(() =>
             service.GetUserAccountAsync(OakfieldSubject, TestContext.Current.CancellationToken));
+
+        // The message is logged and returned as the problem detail, so it must not carry the subject.
+        Assert.DoesNotContain(OakfieldSubject, exception.ToString(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -572,8 +575,10 @@ public class KrdsServiceTests
             """{"title":"Unprocessable Entity","status":422,"errors":{"subject":["subject must be a valid identity provider subject claim."]}}""");
         var service = CreateService();
 
-        await Assert.ThrowsAsync<ArgumentException>(() =>
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
             service.GetUserAccountAsync("not-a-uuid", TestContext.Current.CancellationToken));
+
+        Assert.DoesNotContain("not-a-uuid", exception.ToString(), StringComparison.Ordinal);
     }
 
     [Theory]
@@ -707,8 +712,10 @@ public class KrdsServiceTests
             """{"title":"Unprocessable Entity","status":422,"errors":{"email":["email must not be null or blank."]}}""");
         var service = CreateService();
 
-        await Assert.ThrowsAsync<ArgumentException>(() =>
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
             service.EnsureUserAccountAsync(OakfieldClaims(), TestContext.Current.CancellationToken));
+
+        Assert.DoesNotContain(OakfieldSubject, exception.ToString(), StringComparison.Ordinal);
     }
 
     [Fact]

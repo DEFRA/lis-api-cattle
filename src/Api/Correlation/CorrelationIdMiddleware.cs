@@ -5,6 +5,7 @@
 namespace Defra.Lis.Api.Correlation;
 
 using Defra.Lis.Api.Configurations;
+using Defra.Lis.Api.Logging;
 using Serilog.Context;
 
 /// <summary>
@@ -34,7 +35,7 @@ public sealed partial class CorrelationIdMiddleware(
         var correlationId = values.Count == 1 ? values.ToString() : null;
         if (string.IsNullOrWhiteSpace(correlationId))
         {
-            LogMissingCorrelationId(context.Request.Method, context.Request.Path);
+            LogMissingCorrelationId(context.Request.Method, LoggableRequestPath.For(context));
             await WriteMissingHeaderAsync(context);
             return;
         }
