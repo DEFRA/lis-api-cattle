@@ -9,6 +9,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Encodings.Web;
 using Defra.Lis.Api.Configurations;
+using Defra.Lis.Api.Logging;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
 
@@ -39,7 +40,7 @@ public sealed partial class ApiKeyAuthenticationHandler(
         var keys = Options.Keys.Where(key => !string.IsNullOrWhiteSpace(key)).ToArray();
         if (keys.Length == 0)
         {
-            LogNoApiKeysConfigured(Logger, Request.Path, CdpRequestId);
+            LogNoApiKeysConfigured(Logger, LoggableRequestPath.For(Context), CdpRequestId);
             return Task.FromResult(AuthenticateResult.Fail("No API keys are configured."));
         }
 
@@ -58,7 +59,7 @@ public sealed partial class ApiKeyAuthenticationHandler(
     protected override async Task HandleChallengeAsync(AuthenticationProperties properties)
     {
         var reason = Request.Headers.ContainsKey(Options.HeaderName) ? "invalid" : "missing";
-        LogApiKeyRejected(Logger, reason, Request.Method, Request.Path, CdpRequestId);
+        LogApiKeyRejected(Logger, reason, Request.Method, LoggableRequestPath.For(Context), CdpRequestId);
 
         Response.StatusCode = StatusCodes.Status401Unauthorized;
         Response.Headers.WWWAuthenticate = $"{Scheme.Name} header=\"{Options.HeaderName}\"";

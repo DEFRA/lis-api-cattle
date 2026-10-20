@@ -164,19 +164,19 @@ public sealed partial class KrdsService : IKrdsService
                 .ExecuteAndTransform<KrdsUserAccount, UserDetailsResponse>(account =>
                     ToUserDetailsResponse(subject, account));
 
-            LogRetrievedUserAccount(subject, response.Cphs.Count);
+            LogRetrievedUserAccount(response.Cphs.Count);
 
             return response;
         }
         catch (RestResponseException ex) when (UpstreamErrors.IsNotFound(ex))
         {
-            LogUserAccountNotKnownToKrds(subject);
-            throw new NotFoundException($"User '{subject}' was not found.");
+            LogUserAccountNotKnownToKrds();
+            throw new NotFoundException("The user was not found.");
         }
         catch (RestResponseException ex) when (UpstreamErrors.IsBadRequest(ex) ||
                                                UpstreamErrors.IsUnprocessableEntity(ex))
         {
-            throw new ArgumentException($"User '{subject}' is not a valid subject.", nameof(subject), ex);
+            throw new ArgumentException("The subject is not valid.", nameof(subject), ex);
         }
     }
 
@@ -199,7 +199,7 @@ public sealed partial class KrdsService : IKrdsService
                 .ExecuteAndTransform<KrdsUserAccount, UserDetailsResponse>(account =>
                     ToUserDetailsResponse(payload.Sub, account));
 
-            LogEnsuredUserAccount(payload.Sub, response.Cphs.Count);
+            LogEnsuredUserAccount(response.Cphs.Count);
 
             return response;
         }
@@ -207,13 +207,13 @@ public sealed partial class KrdsService : IKrdsService
                                                UpstreamErrors.IsUnprocessableEntity(ex))
         {
             throw new ArgumentException(
-                $"The user account for subject '{payload.Sub}' was rejected by KRDS.",
+                "The user account was rejected by KRDS.",
                 nameof(request),
                 ex);
         }
         catch (RestResponseException ex) when (UpstreamErrors.IsConflict(ex))
         {
-            LogUserAccountConflict(payload.Sub);
+            LogUserAccountConflict();
             throw new ConflictException("The email address is already associated with a different user account.");
         }
         catch (RestResponseException ex) when (UpstreamErrors.IsServiceUnavailable(ex))

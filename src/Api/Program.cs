@@ -77,6 +77,7 @@ public static class Program
         IConfigurationRoot configuration)
     {
         // Log to the CDP platform standard: ECS console output with the correlation ID on every line.
+        builder.Services.AddHttpContextAccessor();
         builder.Host.UseSerilog(CdpLogging.Configuration);
 
         builder.Services.ConfigureHttpJsonOptions(options =>
@@ -171,7 +172,7 @@ public static class Program
         WebApplication app,
         bool isGeneratingOpenApi)
     {
-        app.UseSerilogRequestLogging();
+        app.UseCdpRequestLogging();
         app.UseExceptionHandler();
         app.UseCorrelationId();
         app.UseAuthentication();

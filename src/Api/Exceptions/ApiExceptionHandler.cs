@@ -5,6 +5,7 @@
 namespace Defra.Lis.Api.Exceptions;
 
 using Defra.Lis.Api.Configurations;
+using Defra.Lis.Api.Logging;
 using Defra.Lis.Core.Exceptions;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
@@ -31,18 +32,21 @@ public sealed partial class ApiExceptionHandler(ILogger<ApiExceptionHandler> log
         // Put useful values into the Serilog LogContext (works with Enrich.FromLogContext()). The correlation
         // middleware's scope has already unwound here, so the ID is read from the header it enforced.
         var correlationId = httpContext.Request.Headers[TraceHeaders.CdpRequestId].ToString();
+
+        // Log the route template, not the raw path, which can carry personal data such as the Defra ID subject.
+        var path = LoggableRequestPath.For(httpContext);
         using (LogContext.PushProperty("CorrelationId", correlationId))
         using (LogContext.PushProperty("TraceId", httpContext.TraceIdentifier))
-        using (LogContext.PushProperty("Path", httpContext.Request.Path.Value))
+        using (LogContext.PushProperty("Path", path))
         using (LogContext.PushProperty("StatusCode", statusCode))
         {
             if (statusCode >= 500)
             {
-                LogUnhandledExceptionWhileProcessingRequestMethodPath(httpContext.Request.Method, httpContext.Request.Path, exception);
+                LogUnhandledExceptionWhileProcessingRequestMethodPath(httpContext.Request.Method, path, exception);
             }
             else
             {
-                LogRequestFailedWithStatusCodeTitleForMethodPath(statusCode, title, httpContext.Request.Method, httpContext.Request.Path, exception);
+                LogRequestFailedWithStatusCodeTitleForMethodPath(statusCode, title, httpContext.Request.Method, path, exception);
             }
         }
 
