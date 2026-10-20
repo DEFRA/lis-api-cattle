@@ -44,8 +44,16 @@ public sealed class PostgresFixture : IAsyncLifetime
 
     public ValueTask DisposeAsync() => container.DisposeAsync();
 
-    public CattleDbContext CreateDbContext() => new(
-        new DbContextOptionsBuilder<CattleDbContext>().UseNpgsql(ConnectionString).Options);
+    public CattleDbContext CreateDbContext() => CreateDbContext(ConnectionString);
+
+    /// <summary>
+    /// A context on the template1 database, which has none of the service's tables.
+    /// </summary>
+    public CattleDbContext CreateDbContextWithoutSchema() => CreateDbContext(
+        new NpgsqlConnectionStringBuilder(ConnectionString) { Database = "template1" }.ConnectionString);
+
+    private static CattleDbContext CreateDbContext(string connectionString) => new(
+        new DbContextOptionsBuilder<CattleDbContext>().UseNpgsql(connectionString).Options);
 
     /// <summary>
     /// The production entity configurations on a plain context, standing in for PostgresDbContext (which

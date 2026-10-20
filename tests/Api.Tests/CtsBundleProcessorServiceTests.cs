@@ -202,6 +202,27 @@ public class CtsBundleProcessorServiceTests
         Assert.True(claimer.Disposed);
     }
 
+    [Fact]
+    public async Task ProcessPendingBundlesAsync_DoesNotCommit_WhenAnotherWriterChangedTheBatch()
+    {
+        var submission = new Submission("REF7", "10/100/1000", "testUser", status: Statuses.Submitted);
+        submission.AddAnimal("UK100001", status: Statuses.Submitted);
+        context.Set<Submission>().Add(submission);
+        await context.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        mockCtsService.Setup(s => s.SubmitAnimalRegistrationAsync(It.IsAny<SubmissionAnimal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CtsAnimalStatusResponse { Status = Statuses.Processing });
+
+        var claimer = new InMemoryClaimer { CommitFailure = new DbUpdateConcurrencyException("Row version changed") };
+        var service = new CtsBundleProcessorService(context, claimer, mockCtsService.Object, Options.Create(new CtsPollingJobOptions { BatchSize = 10 }), NullLogger<CtsBundleProcessorService>.Instance);
+
+        await service.ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
+
+        Assert.False(claimer.Committed);
+        Assert.True(claimer.Disposed);
+        Assert.Empty(context.ChangeTracker.Entries());
+    }
+
     private class TestDbContext(DbContextOptions<TestDbContext> options)
         : DbContext(options)
     {
@@ -248,6 +269,8 @@ public class CtsBundleProcessorServiceTests
 
         public bool Disposed { get; private set; }
 
+        public Exception? CommitFailure { get; init; }
+
         public async Task<ISubmissionBatchClaim> ClaimAsync(DbContext dbContext, int batchSize, IReadOnlyCollection<string> statuses, CancellationToken cancellationToken = default)
         {
             RequestedBatchSize = batchSize;
@@ -260,6 +283,11 @@ public class CtsBundleProcessorServiceTests
 
         public Task CommitAsync(CancellationToken cancellationToken = default)
         {
+            if (CommitFailure is not null)
+            {
+                return Task.FromException(CommitFailure);
+            }
+
             Committed = true;
             return Task.CompletedTask;
         }

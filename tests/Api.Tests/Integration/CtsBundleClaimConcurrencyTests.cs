@@ -15,6 +15,7 @@ using Defra.Lis.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Npgsql;
 
 /// <summary>
 /// Two instances of the service polling one database: each submission must reach CTS exactly once.
@@ -79,6 +80,17 @@ public sealed class CtsBundleClaimConcurrencyTests(PostgresFixture postgres) : I
 
         await using var check = postgres.CreateDbContext();
         Assert.Equal(Statuses.Submitted, (await check.Set<Submission>().SingleAsync(s => s.Id == seeded[0], TestContext.Current.CancellationToken)).Status);
+    }
+
+    [Fact]
+    public async Task ClaimAsync_ReleasesItsTransaction_WhenTheClaimQueryFails()
+    {
+        await using var db = postgres.CreateDbContextWithoutSchema();
+
+        await Assert.ThrowsAsync<PostgresException>(() =>
+            claimer.ClaimAsync(db, 1, [Statuses.Submitted], TestContext.Current.CancellationToken));
+
+        Assert.Null(db.Database.CurrentTransaction);
     }
 
     private async Task RunInstanceAsync(ICtsService cts)
