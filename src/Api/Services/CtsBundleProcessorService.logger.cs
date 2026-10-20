@@ -14,4 +14,7 @@ public partial class CtsBundleProcessorService
 
     [LoggerMessage(LogLevel.Error, "Error processing bundle {BundleId}")]
     partial void LogErrorProcessingBundleBundleid(Guid bundleId, Exception exception);
+
+    [LoggerMessage(LogLevel.Warning, "Bundles {BundleIds} were changed by another writer while being processed; the batch was rolled back and will be retried")]
+    partial void LogBatchConflictedWithAnotherWriter(string bundleIds);
 }

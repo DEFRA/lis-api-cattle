@@ -8,6 +8,7 @@ using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models;
 using Defra.Lis.Api.Models.Responses;
 using Defra.Lis.Api.Services;
+using Defra.Lis.Database.Claims;
 using Defra.Lis.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -46,7 +47,7 @@ public class CtsBundleProcessorServiceTests
             .ReturnsAsync(new CtsAnimalStatusResponse { Status = Statuses.Processing });
 
         var options = Options.Create(new CtsPollingJobOptions { BatchSize = 10 });
-        var service = new CtsBundleProcessorService(context, mockCtsService.Object, options, NullLogger<CtsBundleProcessorService>.Instance);
+        var service = new CtsBundleProcessorService(context, new InMemoryClaimer(), mockCtsService.Object, options, NullLogger<CtsBundleProcessorService>.Instance);
 
         // Act
         await service.ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
@@ -73,7 +74,7 @@ public class CtsBundleProcessorServiceTests
             .ReturnsAsync(new CtsAnimalStatusResponse { Status = "clean" });
 
         var options = Options.Create(new CtsPollingJobOptions { BatchSize = 10 });
-        var service = new CtsBundleProcessorService(context, mockCtsService.Object, options, NullLogger<CtsBundleProcessorService>.Instance);
+        var service = new CtsBundleProcessorService(context, new InMemoryClaimer(), mockCtsService.Object, options, NullLogger<CtsBundleProcessorService>.Instance);
 
         // Act
         await service.ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
@@ -106,7 +107,7 @@ public class CtsBundleProcessorServiceTests
             });
 
         var options = Options.Create(new CtsPollingJobOptions { BatchSize = 10 });
-        var service = new CtsBundleProcessorService(context, mockCtsService.Object, options, NullLogger<CtsBundleProcessorService>.Instance);
+        var service = new CtsBundleProcessorService(context, new InMemoryClaimer(), mockCtsService.Object, options, NullLogger<CtsBundleProcessorService>.Instance);
 
         // Act
         await service.ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
@@ -139,7 +140,7 @@ public class CtsBundleProcessorServiceTests
             .ReturnsAsync(new CtsAnimalStatusResponse { Status = "clean" });
 
         var options = Options.Create(new CtsPollingJobOptions { BatchSize = 10 });
-        var service = new CtsBundleProcessorService(context, mockCtsService.Object, options, NullLogger<CtsBundleProcessorService>.Instance);
+        var service = new CtsBundleProcessorService(context, new InMemoryClaimer(), mockCtsService.Object, options, NullLogger<CtsBundleProcessorService>.Instance);
 
         // Act
         await service.ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
@@ -155,12 +156,71 @@ public class CtsBundleProcessorServiceTests
     public async Task ProcessPendingBundlesAsync_WhenNoPendingBundles_CompletesGracefully()
     {
         var options = Options.Create(new CtsPollingJobOptions { BatchSize = 10 });
-        var service = new CtsBundleProcessorService(context, mockCtsService.Object, options, NullLogger<CtsBundleProcessorService>.Instance);
+        var service = new CtsBundleProcessorService(context, new InMemoryClaimer(), mockCtsService.Object, options, NullLogger<CtsBundleProcessorService>.Instance);
 
         await service.ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
 
         mockCtsService.Verify(s => s.SubmitAnimalRegistrationAsync(It.IsAny<SubmissionAnimal>(), It.IsAny<CancellationToken>()), Times.Never);
         mockCtsService.Verify(s => s.CheckAnimalStatusAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ProcessPendingBundlesAsync_OnlyProcessesTheBundlesItClaimed()
+    {
+        var claimed = new Submission("REF5", "10/100/1000", "testUser", status: Statuses.Submitted);
+        claimed.AddAnimal("UK100001", status: Statuses.Submitted);
+        var heldElsewhere = new Submission("REF6", "10/100/1000", "testUser", status: Statuses.Submitted);
+        heldElsewhere.AddAnimal("UK100002", status: Statuses.Submitted);
+        context.Set<Submission>().AddRange(claimed, heldElsewhere);
+        await context.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        mockCtsService.Setup(s => s.SubmitAnimalRegistrationAsync(It.IsAny<SubmissionAnimal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CtsAnimalStatusResponse { Status = Statuses.Processing });
+
+        var claimer = new InMemoryClaimer(claimed.Id);
+        var service = new CtsBundleProcessorService(context, claimer, mockCtsService.Object, Options.Create(new CtsPollingJobOptions { BatchSize = 10 }), NullLogger<CtsBundleProcessorService>.Instance);
+
+        await service.ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
+
+        mockCtsService.Verify(s => s.SubmitAnimalRegistrationAsync(It.Is<SubmissionAnimal>(a => a.EarTag == "UK100001"), It.IsAny<CancellationToken>()), Times.Once);
+        mockCtsService.Verify(s => s.SubmitAnimalRegistrationAsync(It.Is<SubmissionAnimal>(a => a.EarTag == "UK100002"), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.True(claimer.Committed);
+        Assert.True(claimer.Disposed);
+    }
+
+    [Fact]
+    public async Task ProcessPendingBundlesAsync_ClaimsTheConfiguredBatchOfTargetStatuses()
+    {
+        var claimer = new InMemoryClaimer();
+        var service = new CtsBundleProcessorService(context, claimer, mockCtsService.Object, Options.Create(new CtsPollingJobOptions { BatchSize = 25 }), NullLogger<CtsBundleProcessorService>.Instance);
+
+        await service.ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(25, claimer.RequestedBatchSize);
+        Assert.Equal([Statuses.Submitted, Statuses.Processing, Statuses.Error, Statuses.Pending], claimer.RequestedStatuses);
+        Assert.False(claimer.Committed);
+        Assert.True(claimer.Disposed);
+    }
+
+    [Fact]
+    public async Task ProcessPendingBundlesAsync_DoesNotCommit_WhenAnotherWriterChangedTheBatch()
+    {
+        var submission = new Submission("REF7", "10/100/1000", "testUser", status: Statuses.Submitted);
+        submission.AddAnimal("UK100001", status: Statuses.Submitted);
+        context.Set<Submission>().Add(submission);
+        await context.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        mockCtsService.Setup(s => s.SubmitAnimalRegistrationAsync(It.IsAny<SubmissionAnimal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CtsAnimalStatusResponse { Status = Statuses.Processing });
+
+        var claimer = new InMemoryClaimer { CommitFailure = new DbUpdateConcurrencyException("Row version changed") };
+        var service = new CtsBundleProcessorService(context, claimer, mockCtsService.Object, Options.Create(new CtsPollingJobOptions { BatchSize = 10 }), NullLogger<CtsBundleProcessorService>.Instance);
+
+        await service.ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
+
+        Assert.False(claimer.Committed);
+        Assert.True(claimer.Disposed);
+        Assert.Empty(context.ChangeTracker.Entries());
     }
 
     private class TestDbContext(DbContextOptions<TestDbContext> options)
@@ -190,6 +250,52 @@ public class CtsBundleProcessorServiceTests
                 builder.HasKey(e => e.Id);
                 builder.Property(e => e.Id).ValueGeneratedNever();
             });
+        }
+    }
+
+    /// <summary>
+    /// Stands in for the Postgres claimer, which needs FOR UPDATE SKIP LOCKED: claims the given submissions,
+    /// or every submission in a target status when none are given.
+    /// </summary>
+    private sealed class InMemoryClaimer(params Guid[] onlyThese) : ISubmissionBatchClaimer, ISubmissionBatchClaim
+    {
+        public IReadOnlyList<Guid> SubmissionIds { get; private set; } = [];
+
+        public int RequestedBatchSize { get; private set; }
+
+        public IReadOnlyCollection<string> RequestedStatuses { get; private set; } = [];
+
+        public bool Committed { get; private set; }
+
+        public bool Disposed { get; private set; }
+
+        public Exception? CommitFailure { get; init; }
+
+        public async Task<ISubmissionBatchClaim> ClaimAsync(DbContext dbContext, int batchSize, IReadOnlyCollection<string> statuses, CancellationToken cancellationToken = default)
+        {
+            RequestedBatchSize = batchSize;
+            RequestedStatuses = statuses;
+            SubmissionIds = onlyThese.Length > 0
+                ? onlyThese
+                : await dbContext.Set<Submission>().Where(s => statuses.Contains(s.Status)).OrderBy(s => s.CreatedAt).Take(batchSize).Select(s => s.Id).ToListAsync(cancellationToken);
+            return this;
+        }
+
+        public Task CommitAsync(CancellationToken cancellationToken = default)
+        {
+            if (CommitFailure is not null)
+            {
+                return Task.FromException(CommitFailure);
+            }
+
+            Committed = true;
+            return Task.CompletedTask;
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            Disposed = true;
+            return ValueTask.CompletedTask;
         }
     }
 }

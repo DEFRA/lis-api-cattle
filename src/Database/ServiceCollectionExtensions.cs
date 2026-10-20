@@ -5,6 +5,7 @@
 namespace Defra.Lis.Database;
 
 using Defra.Database.Postgres;
+using Defra.Lis.Database.Claims;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -23,6 +24,8 @@ public static class ServiceCollectionExtensions
             options.ReplaceService<IModelCustomizer, CattleModelCustomizer>();
             options.EnableSensitiveDataLogging(false);
         });
+
+        services.AddSingleton<ISubmissionBatchClaimer, PostgresSubmissionBatchClaimer>();
 
         return services;
     }

@@ -13,4 +13,7 @@ public partial class CadsDataPatchStore
 
     [LoggerMessage(LogLevel.Warning, "CADS data patch file for animal {EarTag} was not found")]
     partial void LogInvalidPatchFile(string earTag);
+
+    [LoggerMessage(LogLevel.Warning, "CADS data patch holds {Count} files for animal {EarTag}; the most recent was used")]
+    partial void LogDuplicatePatchFiles(string earTag, int count);
 }

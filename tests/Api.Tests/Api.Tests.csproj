@@ -4,6 +4,10 @@
     <InterceptorsNamespaces>$(InterceptorsNamespaces);Microsoft.AspNetCore.OpenApi.Generated</InterceptorsNamespaces>
   </PropertyGroup>
   <ItemGroup>
+    <!-- The Liquibase schema, applied to the Testcontainers Postgres by the integration tests. -->
+    <None Include="..\..\changelog\schema\**\*.sql" LinkBase="changelog\schema" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Api\Api.csproj" />
     <ProjectReference Include="..\..\src\Database\Database.csproj" />
     <ProjectReference Include="..\..\src\Entities\Entities.csproj" />
@@ -13,6 +17,8 @@
     <PackageReference Include="Moq" VersionOverride="4.21.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" VersionOverride="10.0.12" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" VersionOverride="10.0.12" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
     <PackageReference Update="coverlet.msbuild">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
