@@ -23,7 +23,7 @@ Accept: application/json
 > ../Asserts/Should_be_200_OK.js
 
 ### Get Cattle for Holding (explicit CPH)
-GET {{host}}/v1/holdings/12/345/6789/cattle
+GET {{host}}/v1/holdings/02/202/0021/cattle
 x-api-key: {{apiKey}}
 x-cdp-request-id: {{$guid}}
 Accept: application/json

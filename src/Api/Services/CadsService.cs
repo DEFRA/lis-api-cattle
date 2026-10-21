@@ -220,7 +220,7 @@ public sealed partial class CadsService : ICadsService
     {
         try
         {
-            foreach (var earTag in await dataPatchStore.GetEarTagsAsync(cph, cancellationToken))
+            foreach (var earTag in await dataPatchStore.GetCphEarTagsAsync(cph, cancellationToken))
             {
                 var rawData = await dataPatchStore.GetAnimalAsync(cph, earTag, cancellationToken);
                 if (rawData is null)

@@ -4,10 +4,9 @@
 
 namespace Defra.Lis.Api.Services;
 
-using System.Net;
+using System.Text;
 using System.Text.Json;
-using Amazon.S3;
-using Amazon.S3.Model;
+using System.Text.RegularExpressions;
 using Defra.Lis.Api.Configurations;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models.Cads;
@@ -16,18 +15,16 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 /// <summary>
-/// Reads the temporary CADS data patch from S3. Each holding has a folder named after its CPH
-/// (<c>{cph}/</c>) holding one <c>{earTag}.json</c> file per animal, in the CADS animals-on-holding shape.
+/// Manages the temporary CADS patch, with one {cph}/{earTag}.json file per animal.
 /// </summary>
 public sealed partial class CadsDataPatchStore(
-    IAmazonS3 s3,
+    IS3FileStore s3FileStore,
     IOptions<CadsDataPatchOptions> options,
-    ILogger<CadsDataPatchStore> logger)
-    : ICadsDataPatchStore
+    ILogger<CadsDataPatchStore> logger) : ICadsDataPatchStore
 {
     private const string FileExtension = ".json";
 
-    public async Task<IReadOnlyList<string>> GetEarTagsAsync(string cph, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<string>> GetCphListAsync(CancellationToken cancellationToken = default)
     {
         var bucket = options.Value.BucketName;
         if (string.IsNullOrWhiteSpace(bucket))
@@ -35,49 +32,96 @@ public sealed partial class CadsDataPatchStore(
             return [];
         }
 
+        var keys = await s3FileStore.ListAsync(bucket, cancellationToken: cancellationToken);
+        return
+        [
+            .. keys
+                .Where(key => PatchKeyPattern().IsMatch(key))
+                .Select(key => key[..key.LastIndexOf('/')])
+                .Distinct(StringComparer.Ordinal)
+                .Order(StringComparer.Ordinal)
+        ];
+    }
+
+    public async Task<IReadOnlyList<string>> GetCphEarTagsAsync(string cph, CancellationToken cancellationToken = default)
+    {
         var prefix = FolderOf(cph);
-        var earTags = new List<string>();
-        var request = new ListObjectsV2Request { BucketName = bucket, Prefix = prefix, };
-        ListObjectsV2Response response;
-
-        do
+        var bucket = options.Value.BucketName;
+        if (string.IsNullOrWhiteSpace(bucket))
         {
-            response = await s3.ListObjectsV2Async(request, cancellationToken);
-
-            foreach (var item in response.S3Objects ?? [])
-            {
-                var name = item.Key[prefix.Length..];
-
-                // Only files directly in the CPH folder; nested folders and other file types are ignored.
-                if (!name.Contains('/', StringComparison.Ordinal) && name.EndsWith(FileExtension, StringComparison.OrdinalIgnoreCase))
-                {
-                    earTags.Add(name[..^FileExtension.Length]);
-                }
-            }
-
-            request.ContinuationToken = response.NextContinuationToken;
+            return [];
         }
-        while (response.IsTruncated == true);
 
-        return earTags;
+        var keys = await s3FileStore.ListAsync(bucket, prefix, cancellationToken);
+        return
+        [
+            .. keys
+                .Where(key => key.StartsWith(prefix, StringComparison.Ordinal) && PatchKeyPattern().IsMatch(key))
+                .Select(key => key[prefix.Length..^FileExtension.Length])
+        ];
+    }
+
+    public async Task<bool> UpsertAnimalAsync(string cph, string earTag, string json, CancellationToken cancellationToken = default)
+    {
+        var key = AnimalKey(cph, earTag);
+        ArgumentException.ThrowIfNullOrWhiteSpace(json);
+        CadsAnimal? animal;
+        try
+        {
+            animal = JsonSerializer.Deserialize<CadsAnimal>(json, UpstreamJson.Options);
+        }
+        catch (JsonException ex)
+        {
+            throw new ArgumentException("The file must contain a valid CADS animal JSON object.", nameof(json), ex);
+        }
+
+        if (!string.Equals(animal?.Identifier?.Identifier, earTag, StringComparison.Ordinal))
+        {
+            throw new ArgumentException("The animal identifier must match the ear tag in the path.", nameof(json));
+        }
+
+        var bucket = options.Value.BucketName;
+        if (string.IsNullOrWhiteSpace(bucket))
+        {
+            return false;
+        }
+
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
+        await s3FileStore.UpsertAsync(bucket, key, stream, cancellationToken);
+        return true;
+    }
+
+    public async Task<bool> DeleteAnimalAsync(string cph, string earTag, CancellationToken cancellationToken = default)
+    {
+        var key = AnimalKey(cph, earTag);
+        var bucket = options.Value.BucketName;
+        if (string.IsNullOrWhiteSpace(bucket))
+        {
+            return false;
+        }
+
+        await s3FileStore.DeleteAsync(bucket, key, cancellationToken);
+        return true;
     }
 
     public async Task<CadsAnimal?> GetAnimalAsync(string cph, string earTag, CancellationToken cancellationToken = default)
     {
+        var key = AnimalKey(cph, earTag);
         var bucket = options.Value.BucketName;
         if (string.IsNullOrWhiteSpace(bucket))
         {
             return null;
         }
 
-        try
-        {
-            using var response = await s3.GetObjectAsync(bucket, $"{FolderOf(cph)}{earTag}{FileExtension}", cancellationToken);
-            return await JsonSerializer.DeserializeAsync<CadsAnimal>(response.ResponseStream, UpstreamJson.Options, cancellationToken);
-        }
-        catch (AmazonS3Exception ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        using var stream = await s3FileStore.GetAsync(bucket, key, cancellationToken);
+        if (stream is null)
         {
             return null;
+        }
+
+        try
+        {
+            return await JsonSerializer.DeserializeAsync<CadsAnimal>(stream, UpstreamJson.Options, cancellationToken);
         }
         catch (JsonException)
         {
@@ -88,26 +132,34 @@ public sealed partial class CadsDataPatchStore(
 
     public async Task<CadsAnimalDetail?> GetAnimalDetailsAsync(string earTag, CancellationToken cancellationToken = default)
     {
+        ValidateEarTag(earTag);
         var bucket = options.Value.BucketName;
         if (string.IsNullOrWhiteSpace(bucket))
         {
             return null;
         }
 
-        try
-        {
-            var animalObject = await FindAnimalObjectAsync(bucket, earTag, cancellationToken);
-            if (animalObject is null)
-            {
-                return null;
-            }
+        var keys = await s3FileStore.ListAsync(bucket, cancellationToken: cancellationToken);
 
-            using var response = await s3.GetObjectAsync(bucket, animalObject.Key, cancellationToken);
-            return await JsonSerializer.DeserializeAsync<CadsAnimalDetail>(response.ResponseStream, UpstreamJson.Options, cancellationToken);
-        }
-        catch (AmazonS3Exception ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        var key = keys
+            .Where(key =>
+                PatchKeyPattern().IsMatch(key) &&
+                string.Equals(key[(key.LastIndexOf('/') + 1)..^FileExtension.Length], earTag, StringComparison.Ordinal))
+            .Order(StringComparer.Ordinal).FirstOrDefault();
+        if (key is null)
         {
             return null;
+        }
+
+        using var stream = await s3FileStore.GetAsync(bucket, key, cancellationToken);
+        if (stream is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return await JsonSerializer.DeserializeAsync<CadsAnimalDetail>(stream, UpstreamJson.Options, cancellationToken);
         }
         catch (JsonException)
         {
@@ -116,44 +168,35 @@ public sealed partial class CadsDataPatchStore(
         }
     }
 
-    private static bool IsAnimalFile(string key, string fileName)
+    private static string FolderOf(string cph)
     {
-        // Keys are {cph}/{earTag}.json, and a CPH holds slashes itself (22/001/0001). The file name after the last
-        // slash must match exactly, so UK123 does not match XUK123.json.
-        var slash = key.LastIndexOf('/');
-        return slash > 0 && key.AsSpan(slash + 1).Equals(fileName, StringComparison.Ordinal);
-    }
-
-    private static string FolderOf(string cph) => $"{cph.Trim().Trim('/')}/";
-
-    /// <summary>
-    /// Finds the file for an ear tag in whichever CPH folder holds it. The bucket is listed page by page, as the
-    /// layout does not allow a prefix on the ear tag. When an animal has files under more than one holding (it
-    /// has moved), the most recently written file wins.
-    /// </summary>
-    private async Task<S3Object?> FindAnimalObjectAsync(string bucket, string earTag, CancellationToken cancellationToken)
-    {
-        var fileName = $"{earTag.Trim()}{FileExtension}";
-        var request = new ListObjectsV2Request { BucketName = bucket, };
-        var matches = new List<S3Object>();
-        ListObjectsV2Response response;
-
-        do
+        ArgumentException.ThrowIfNullOrWhiteSpace(cph);
+        if (!CphPattern().IsMatch(cph))
         {
-            response = await s3.ListObjectsV2Async(request, cancellationToken);
-            matches.AddRange((response.S3Objects ?? []).Where(item => IsAnimalFile(item.Key, fileName)));
-            request.ContinuationToken = response.NextContinuationToken;
-        }
-        while (response.IsTruncated == true);
-
-        if (matches.Count > 1)
-        {
-            LogDuplicatePatchFiles(earTag, matches.Count);
+            throw new ArgumentException("CPH must have the format 22/001/0001.", nameof(cph));
         }
 
-        return matches
-            .OrderByDescending(item => item.LastModified ?? DateTime.MinValue)
-            .ThenBy(item => item.Key, StringComparer.Ordinal)
-            .FirstOrDefault();
+        return $"{cph}/";
     }
+
+    private static string AnimalKey(string cph, string earTag)
+    {
+        ValidateEarTag(earTag);
+        return $"{FolderOf(cph)}{earTag}{FileExtension}";
+    }
+
+    private static void ValidateEarTag(string earTag)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(earTag);
+        if (earTag.IndexOfAny(['/', '\\']) >= 0 || earTag is "." or "..")
+        {
+            throw new ArgumentException("The ear tag must be a single file name without path separators.", nameof(earTag));
+        }
+    }
+
+    [GeneratedRegex(@"\A[0-9]{2}/[0-9]{3}/[0-9]{4}\z")]
+    private static partial Regex CphPattern();
+
+    [GeneratedRegex(@"\A[0-9]{2}/[0-9]{3}/[0-9]{4}/[^/\\]+\.json\z", RegexOptions.IgnoreCase)]
+    private static partial Regex PatchKeyPattern();
 }

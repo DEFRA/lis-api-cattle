@@ -21,7 +21,7 @@ public class CadsDataPatchStoreTests
     private readonly Mock<IAmazonS3> s3 = new();
 
     [Fact]
-    public async Task GetEarTagsAsync_ListsJsonFilesInTheCphFolderAcrossPages()
+    public async Task GetCphEarTagsAsync_ListsJsonFilesInTheCphFolderAcrossPages()
     {
         s3.Setup(c => c.ListObjectsV2Async(It.Is<ListObjectsV2Request>(r => r.ContinuationToken == null), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Listing("next", $"{Cph}/UK200000000001.json", $"{Cph}/readme.txt", $"{Cph}/archive/UK200000000009.json"));
@@ -29,18 +29,18 @@ public class CadsDataPatchStoreTests
             .ReturnsAsync(Listing(null, $"{Cph}/UK200000000002.JSON"));
         var store = CreateStore(Bucket);
 
-        var earTags = await store.GetEarTagsAsync(Cph, TestContext.Current.CancellationToken);
+        var earTags = await store.GetCphEarTagsAsync(Cph, TestContext.Current.CancellationToken);
 
         Assert.Equal(["UK200000000001", "UK200000000002"], earTags);
         s3.Verify(c => c.ListObjectsV2Async(It.Is<ListObjectsV2Request>(r => r.BucketName == Bucket && r.Prefix == $"{Cph}/"), It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
     [Fact]
-    public async Task GetEarTagsAsync_ReturnsNothingWithoutCallingS3_WhenNoBucketIsConfigured()
+    public async Task GetCphEarTagsAsync_ReturnsNothingWithoutCallingS3_WhenNoBucketIsConfigured()
     {
         var store = CreateStore(bucket: null);
 
-        var earTags = await store.GetEarTagsAsync(Cph, TestContext.Current.CancellationToken);
+        var earTags = await store.GetCphEarTagsAsync(Cph, TestContext.Current.CancellationToken);
 
         Assert.Empty(earTags);
         s3.VerifyNoOtherCalls();
@@ -91,13 +91,13 @@ public class CadsDataPatchStoreTests
     }
 
     [Fact]
-    public async Task GetEarTagsAsync_ReturnsNothing_WhenTheCphFolderIsEmpty()
+    public async Task GetCphEarTagsAsync_ReturnsNothing_WhenTheCphFolderIsEmpty()
     {
         s3.Setup(c => c.ListObjectsV2Async(It.IsAny<ListObjectsV2Request>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ListObjectsV2Response { S3Objects = null, IsTruncated = false });
         var store = CreateStore(Bucket);
 
-        Assert.Empty(await store.GetEarTagsAsync(Cph, TestContext.Current.CancellationToken));
+        Assert.Empty(await store.GetCphEarTagsAsync(Cph, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -183,69 +183,99 @@ public class CadsDataPatchStoreTests
     }
 
     [Fact]
-    public async Task GetAnimalDetailsAsync_FindsTheEarTagFileOnALaterPage()
+    public async Task GetCphListAsync_ReturnsDistinctHoldingsAcrossPagesAndIgnoresUnrelatedKeys()
     {
-        s3.Setup(c => c.ListObjectsV2Async(It.Is<ListObjectsV2Request>(r => r.ContinuationToken == null), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Listing("page-2", $"{Cph}/UK200000000002.json"));
-        s3.Setup(c => c.ListObjectsV2Async(It.Is<ListObjectsV2Request>(r => r.ContinuationToken == "page-2"), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Listing(null, "33/002/0002/UK200000000001.json"));
-        s3.Setup(c => c.GetObjectAsync(Bucket, "33/002/0002/UK200000000001.json", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Object(AnimalDetail("UK200000000001", "Male")));
-        var store = CreateStore(Bucket);
+        s3.SetupSequence(c => c.ListObjectsV2Async(It.IsAny<ListObjectsV2Request>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Listing("next", $"{Cph}/UK1.json", $"{Cph}/UK2.json", "readme.txt"))
+            .ReturnsAsync(Listing(null, "33/002/0002/UK3.json", $"{Cph}/archive/UK4.json", "22/001/0003/"));
 
-        var animal = await store.GetAnimalDetailsAsync("UK200000000001", TestContext.Current.CancellationToken);
+        var result = await CreateStore(Bucket).GetCphListAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal("UK200000000001", animal?.Identifier?.Identifier);
-        s3.Verify(c => c.ListObjectsV2Async(It.IsAny<ListObjectsV2Request>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
+        Assert.Equal([Cph, "33/002/0002"], result);
     }
 
     [Fact]
-    public async Task GetAnimalDetailsAsync_DoesNotMatchAnEarTagThatOnlyEndsWithTheRequestedOne()
+    public async Task GetCphListAsync_ReturnsEmptyWhenDisabled()
     {
-        s3.Setup(c => c.ListObjectsV2Async(It.IsAny<ListObjectsV2Request>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Listing(null, $"{Cph}/XUK200000000001.json", $"{Cph}/UK200000000001.json.bak", "UK200000000001.json"));
-        var store = CreateStore(Bucket);
-
-        Assert.Null(await store.GetAnimalDetailsAsync("UK200000000001", TestContext.Current.CancellationToken));
-        s3.Verify(c => c.GetObjectAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.Empty(await CreateStore(null).GetCphListAsync(TestContext.Current.CancellationToken));
+        s3.VerifyNoOtherCalls();
     }
 
     [Fact]
-    public async Task GetAnimalDetailsAsync_ReadsTheMostRecentFile_WhenTheEarTagIsUnderMoreThanOneHolding()
+    public async Task UpsertAnimalAsync_WritesJsonUnderTheHoldingAndReplacesExistingContent()
     {
-        s3.Setup(c => c.ListObjectsV2Async(It.IsAny<ListObjectsV2Request>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ListObjectsV2Response
+        const string json = """{"identifier":{"identifier":"UK1"},"status":"Alive"}""";
+        string? uploaded = null;
+        s3.Setup(c => c.PutObjectAsync(It.IsAny<PutObjectRequest>(), It.IsAny<CancellationToken>()))
+            .Callback<PutObjectRequest, CancellationToken>((request, _) =>
             {
-                S3Objects =
-                [
-                    new S3Object { Key = $"{Cph}/UK200000000001.json", LastModified = new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc) },
-                    new S3Object { Key = "33/002/0002/UK200000000001.json", LastModified = new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc) },
-                ],
-                IsTruncated = false,
-            });
-        s3.Setup(c => c.GetObjectAsync(Bucket, "33/002/0002/UK200000000001.json", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Object(AnimalDetail("UK200000000001", "Female")));
-        var store = CreateStore(Bucket);
+                using var reader = new StreamReader(request.InputStream, leaveOpen: true);
+                uploaded = reader.ReadToEnd();
+            })
+            .ReturnsAsync(new PutObjectResponse());
 
-        var animal = await store.GetAnimalDetailsAsync("UK200000000001", TestContext.Current.CancellationToken);
+        Assert.True(await CreateStore(Bucket).UpsertAnimalAsync(Cph, "UK1", json, TestContext.Current.CancellationToken));
 
-        Assert.Equal("Female", animal?.Sex);
-        s3.Verify(c => c.GetObjectAsync(Bucket, $"{Cph}/UK200000000001.json", It.IsAny<CancellationToken>()), Times.Never);
+        Assert.Equal(json, uploaded);
+        s3.Verify(c => c.PutObjectAsync(It.Is<PutObjectRequest>(r => r.BucketName == Bucket && r.Key == $"{Cph}/UK1.json" && r.IfNoneMatch == null), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Theory]
+    [InlineData("not json")]
+    [InlineData("null")]
+    [InlineData("{}")]
+    [InlineData("{\"identifier\":{\"identifier\":\"OTHER\"}}")]
+    public async Task UpsertAnimalAsync_RejectsInvalidOrMismatchedAnimals(string json)
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            CreateStore(Bucket).UpsertAnimalAsync(Cph, "UK1", json, TestContext.Current.CancellationToken));
+        s3.VerifyNoOtherCalls();
+    }
+
+    [Theory]
+    [InlineData("22/001/0001", "../UK1")]
+    [InlineData("../22/001/0001", "UK1")]
+    [InlineData("22/001/0001", "folder\\UK1")]
+    public async Task DeleteAnimalAsync_RejectsPathsOutsideTheAnimalFile(string cph, string earTag)
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            CreateStore(Bucket).DeleteAnimalAsync(cph, earTag, TestContext.Current.CancellationToken));
+        s3.VerifyNoOtherCalls();
     }
 
     [Fact]
-    public async Task GetAnimalDetailsAsync_ReturnsNull_WhenTheBucketIsEmpty()
+    public async Task DeleteAnimalAsync_DeletesTheExactAnimalKey()
     {
-        // S3 leaves S3Objects null, not empty, when nothing matches.
-        s3.Setup(c => c.ListObjectsV2Async(It.IsAny<ListObjectsV2Request>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ListObjectsV2Response { S3Objects = null, IsTruncated = false });
-        var store = CreateStore(Bucket);
+        s3.Setup(c => c.DeleteObjectAsync(It.IsAny<DeleteObjectRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DeleteObjectResponse());
 
-        Assert.Null(await store.GetAnimalDetailsAsync("UK200000000001", TestContext.Current.CancellationToken));
+        Assert.True(await CreateStore(Bucket).DeleteAnimalAsync(Cph, "UK1", TestContext.Current.CancellationToken));
+
+        s3.Verify(c => c.DeleteObjectAsync(It.Is<DeleteObjectRequest>(r => r.BucketName == Bucket && r.Key == $"{Cph}/UK1.json"), It.IsAny<CancellationToken>()), Times.Once);
     }
 
-    private static string AnimalDetail(string earTag, string sex) =>
-        $$"""{ "identifier": { "schema": "uk.gov.defra.ear-tag.conventional", "identifier": "{{earTag}}" }, "sex": "{{sex}}" }""";
+    [Fact]
+    public async Task Writes_ReturnFalseWithoutCallingS3WhenDisabled()
+    {
+        var store = CreateStore(null);
+        Assert.False(await store.UpsertAnimalAsync(Cph, "UK1", """{"identifier":{"identifier":"UK1"}}""", TestContext.Current.CancellationToken));
+        Assert.False(await store.DeleteAnimalAsync(Cph, "UK1", TestContext.Current.CancellationToken));
+        s3.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task GetAnimalDetailsAsync_MatchesExactFileNamesAcrossPages()
+    {
+        s3.SetupSequence(c => c.ListObjectsV2Async(It.IsAny<ListObjectsV2Request>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Listing("next", $"{Cph}/OTHERUK1.json"))
+            .ReturnsAsync(Listing(null, $"{Cph}/UK1.json"));
+        s3.Setup(c => c.GetObjectAsync(Bucket, $"{Cph}/UK1.json", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Object("""{"identifier":{"identifier":"UK1"}}"""));
+
+        var animal = await CreateStore(Bucket).GetAnimalDetailsAsync("UK1", TestContext.Current.CancellationToken);
+
+        Assert.Equal("UK1", animal?.Identifier?.Identifier);
+    }
 
     private static ListObjectsV2Response Listing(string? nextToken, params string[] keys) => new()
     {
@@ -260,7 +290,7 @@ public class CadsDataPatchStoreTests
     };
 
     private CadsDataPatchStore CreateStore(string? bucket) => new(
-        s3.Object,
+        new S3FileStore(s3.Object),
         Microsoft.Extensions.Options.Options.Create(new CadsDataPatchOptions { BucketName = bucket }),
         NullLogger<CadsDataPatchStore>.Instance);
 }
