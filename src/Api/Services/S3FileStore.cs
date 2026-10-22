@@ -91,9 +91,9 @@ public sealed class S3FileStore(IAmazonS3 s3)
 
         public override long Length => Inner.Length;
 
-        private Stream Inner => response.ResponseStream;
-
         public override long Position { get => Inner.Position; set => Inner.Position = value; }
+
+        private Stream Inner => response.ResponseStream;
 
         public override void Flush() => Inner.Flush();
 
