@@ -32,8 +32,8 @@ public class AnimalEnrichmentEndpointsTests
         await using var app = await StartAppAsync();
         var client = app.GetAuthenticatedTestClient();
 
-        Assert.Equal([Cph], await client.GetFromJsonAsync<string[]>($"{Root}/", TestContext.Current.CancellationToken));
-        Assert.Equal(["UK1"], await client.GetFromJsonAsync<string[]>($"{Root}/{Cph}", TestContext.Current.CancellationToken));
+        (await client.GetFromJsonAsync<string[]>($"{Root}/", TestContext.Current.CancellationToken) ?? Array.Empty<string>()).ShouldBe([Cph]);
+        (await client.GetFromJsonAsync<string[]>($"{Root}/{Cph}", TestContext.Current.CancellationToken) ?? Array.Empty<string>()).ShouldBe(["UK1"]);
     }
 
     [Fact]
@@ -45,10 +45,10 @@ public class AnimalEnrichmentEndpointsTests
         var client = app.GetAuthenticatedTestClient();
 
         var response = await client.GetAsync($"{Root}/{Cph}/UK1", TestContext.Current.CancellationToken);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("UK1", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).ShouldContain("UK1");
         var missing = await client.GetAsync($"{Root}/{Cph}/UK2", TestContext.Current.CancellationToken);
-        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+        missing.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public class AnimalEnrichmentEndpointsTests
 
         var response = await app.GetAuthenticatedTestClient().PutAsync($"{Root}/{Cph}/UK1", body, TestContext.Current.CancellationToken);
 
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         store.Verify(s => s.UpsertAnimalAsync(Cph, "UK1", json, It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -79,7 +79,7 @@ public class AnimalEnrichmentEndpointsTests
 
         var response = await app.GetAuthenticatedTestClient().SendAsync(request, TestContext.Current.CancellationToken);
 
-        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        response.StatusCode.ShouldBe(HttpStatusCode.ServiceUnavailable);
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public class AnimalEnrichmentEndpointsTests
 
         var response = await app.GetAuthenticatedTestClient().DeleteAsync($"{Root}/{Cph}/UK1", TestContext.Current.CancellationToken);
 
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         store.Verify(s => s.DeleteAnimalAsync(Cph, "UK1", It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -104,7 +104,7 @@ public class AnimalEnrichmentEndpointsTests
 
         var response = await app.GetAuthenticatedTestClient().PutAsync($"{Root}/{Cph}/UK1", body, TestContext.Current.CancellationToken);
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
     [Theory]
@@ -120,7 +120,7 @@ public class AnimalEnrichmentEndpointsTests
 
         var response = await app.GetTestClient().SendAsync(request, TestContext.Current.CancellationToken);
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
         store.VerifyNoOtherCalls();
     }
 
