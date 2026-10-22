@@ -48,7 +48,7 @@ public class ValidationFilterTests
             _ => ValueTask.FromResult<object?>(Results.Ok()));
 
         Assert.IsType<ProblemHttpResult>(result);
-        var problem = (ProblemHttpResult)result!;
+        var problem = (ProblemHttpResult)result;
         Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
     }
 

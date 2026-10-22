@@ -115,7 +115,9 @@ public class KrdsServiceTests
 
     private static readonly KrdsApiOptions Options = new()
     {
-        BaseUrl = "http://fake-service.test/krds", ClientId = TestClient, ClientSecret = TestPassphrase,
+        BaseUrl = "http://fake-service.test/krds",
+        ClientId = TestClient,
+        ClientSecret = TestPassphrase,
     };
 
     private readonly StubHttpMessageHandler handler = new();
