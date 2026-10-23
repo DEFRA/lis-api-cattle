@@ -16,6 +16,7 @@ using Defra.Lis.Api.Endpoints.Cattle;
 using Defra.Lis.Api.Endpoints.Health;
 using Defra.Lis.Api.Endpoints.Holding;
 using Defra.Lis.Api.Endpoints.Registration;
+using Defra.Lis.Api.Endpoints.S3;
 using Defra.Lis.Api.Endpoints.Users;
 using Defra.Lis.Api.Exceptions;
 using Defra.Lis.Api.Interfaces;
@@ -188,6 +189,7 @@ public static class Program
         app.MapHoldingEndpoints();
         app.MapRegistrationEndpoints();
         app.MapUserEndpoints();
+        app.MapAnimalEnrichmentEndpoints();
         app.MapHealthEndpoints();
 
         return app;

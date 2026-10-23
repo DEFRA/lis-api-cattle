@@ -1,0 +1,48 @@
+# Requires CadsDataPatch__BucketName to be configured.
+# The final path segment is an ear tag, without the .json extension.
+
+### List CPHs with animal enrichment files
+GET {{host}}/v1/animal-enrichment/
+x-api-key: {{apiKey}}
+x-cdp-request-id: {{$guid}}
+Accept: application/json
+
+### List ear tags for a CPH
+GET {{host}}/v1/animal-enrichment/{{cph}}
+x-api-key: {{apiKey}}
+x-cdp-request-id: {{$guid}}
+Accept: application/json
+
+### Get an animal enrichment file
+GET {{host}}/v1/animal-enrichment/{{cph}}/{{earTag}}
+x-api-key: {{apiKey}}
+x-cdp-request-id: {{$guid}}
+Accept: application/json
+
+### Add or replace an animal enrichment file (204; identifier must match the path)
+PUT {{host}}/v1/animal-enrichment/{{cph}}/{{earTag}}
+x-api-key: {{apiKey}}
+x-cdp-request-id: {{$guid}}
+Content-Type: application/json
+
+{
+  "identifier": {
+    "schema": "uk.gov.defra.ear-tag.conventional",
+    "identifier": "{{earTag}}"
+  },
+  "birthDate": "2023-02-01",
+  "dateOnCPH": "2023-02-01",
+  "species": "Cattle",
+  "sex": "Female",
+  "breedCode": {
+    "schema": "cts.breed",
+    "identifier": "AA",
+    "breedName": "Aberdeen Angus"
+  },
+  "status": "Alive"
+}
+
+### Delete an animal enrichment file (204, including when already absent)
+DELETE {{host}}/v1/animal-enrichment/{{cph}}/{{earTag}}
+x-api-key: {{apiKey}}
+x-cdp-request-id: {{$guid}}

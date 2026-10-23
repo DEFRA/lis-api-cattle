@@ -38,4 +38,9 @@ public static class RouteNames
     /// The route segment for users endpoint.
     /// </summary>
     public const string Users = "users";
+
+    /// <summary>
+    /// The route segment for animal-enrichment endpoint.
+    /// </summary>
+    public const string AnimalEnrichment = "animal-enrichment";
 }

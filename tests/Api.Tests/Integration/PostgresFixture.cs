@@ -49,6 +49,7 @@ public sealed class PostgresFixture : IAsyncLifetime
     /// <summary>
     /// A context on the template1 database, which has none of the service's tables.
     /// </summary>
+    /// <returns></returns>
     public CattleDbContext CreateDbContextWithoutSchema() => CreateDbContext(
         new NpgsqlConnectionStringBuilder(ConnectionString) { Database = "template1" }.ConnectionString);
 

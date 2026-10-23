@@ -43,7 +43,7 @@ public class CadsServiceTests
     public CadsServiceTests()
     {
         // No patch files unless a test sets some up.
-        dataPatchStore.Setup(s => s.GetEarTagsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync([]);
+        dataPatchStore.Setup(s => s.GetCphEarTagsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync([]);
     }
 
     [Fact]
@@ -195,7 +195,7 @@ public class CadsServiceTests
     public async Task GetCattleByCphAsync_AddsLiveAnimalsFromTheDataPatchThatCadsDidNotReturn()
     {
         handler.RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000001", "Alive")], page: 1, totalRecords: 1));
-        dataPatchStore.Setup(s => s.GetEarTagsAsync(Cph, It.IsAny<CancellationToken>())).ReturnsAsync(["UK200000000001", "UK200000000005"]);
+        dataPatchStore.Setup(s => s.GetCphEarTagsAsync(Cph, It.IsAny<CancellationToken>())).ReturnsAsync(["UK200000000001", "UK200000000005"]);
         dataPatchStore.Setup(s => s.GetAnimalAsync(Cph, "UK200000000001", It.IsAny<CancellationToken>())).ReturnsAsync(PatchAnimal("UK200000000001", "Alive"));
         dataPatchStore.Setup(s => s.GetAnimalAsync(Cph, "UK200000000005", It.IsAny<CancellationToken>())).ReturnsAsync(PatchAnimal("UK200000000005", "Alive"));
         var service = CreateService();
@@ -210,7 +210,7 @@ public class CadsServiceTests
     public async Task GetCattleByCphAsync_OverwritesSourceDataWithValuesFromPatchData()
     {
         handler.RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000001", "Alive")], page: 1, totalRecords: 1));
-        dataPatchStore.Setup(s => s.GetEarTagsAsync(Cph, It.IsAny<CancellationToken>())).ReturnsAsync(["UK200000000001"]);
+        dataPatchStore.Setup(s => s.GetCphEarTagsAsync(Cph, It.IsAny<CancellationToken>())).ReturnsAsync(["UK200000000001"]);
         dataPatchStore.Setup(s => s.GetAnimalAsync(Cph, "UK200000000001", It.IsAny<CancellationToken>())).ReturnsAsync(
             new CadsAnimal(
                 new CadsIdentifier("uk.gov.defra.ear-tag.conventional", "UK200000000001"),
@@ -242,7 +242,7 @@ public class CadsServiceTests
         handler
             .RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000001", "Alive")], page: 1, totalRecords: 3))
             .RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000003", "Alive")], page: 2, totalRecords: 3));
-        dataPatchStore.Setup(s => s.GetEarTagsAsync(Cph, It.IsAny<CancellationToken>())).ReturnsAsync(["uk200000000003"]);
+        dataPatchStore.Setup(s => s.GetCphEarTagsAsync(Cph, It.IsAny<CancellationToken>())).ReturnsAsync(["uk200000000003"]);
         dataPatchStore.Setup(s => s.GetAnimalAsync(Cph, "uk200000000003", It.IsAny<CancellationToken>())).ReturnsAsync(PatchAnimal("uk200000000003", "Alive"));
         var service = CreateService();
 
@@ -255,7 +255,7 @@ public class CadsServiceTests
     public async Task GetCattleByCphAsync_SkipsPatchedAnimalsThatAreNotAliveOrUnreadable()
     {
         handler.RespondWith(HttpStatusCode.OK, Page([], page: 1, totalRecords: 0));
-        dataPatchStore.Setup(s => s.GetEarTagsAsync(Cph, It.IsAny<CancellationToken>())).ReturnsAsync(["UK200000000006", "UK200000000007"]);
+        dataPatchStore.Setup(s => s.GetCphEarTagsAsync(Cph, It.IsAny<CancellationToken>())).ReturnsAsync(["UK200000000006", "UK200000000007"]);
         dataPatchStore.Setup(s => s.GetAnimalAsync(Cph, "UK200000000006", It.IsAny<CancellationToken>())).ReturnsAsync(PatchAnimal("UK200000000006", "Dead"));
         dataPatchStore.Setup(s => s.GetAnimalAsync(Cph, "UK200000000007", It.IsAny<CancellationToken>())).ReturnsAsync((CadsAnimal?)null);
         var service = CreateService();
@@ -269,7 +269,7 @@ public class CadsServiceTests
     public async Task GetCattleByCphAsync_TakesTheEarTagFromTheFileName_WhenThePatchedAnimalHasNone()
     {
         handler.RespondWith(HttpStatusCode.OK, Page([], page: 1, totalRecords: 0));
-        dataPatchStore.Setup(s => s.GetEarTagsAsync(Cph, It.IsAny<CancellationToken>())).ReturnsAsync(["UK200000000008"]);
+        dataPatchStore.Setup(s => s.GetCphEarTagsAsync(Cph, It.IsAny<CancellationToken>())).ReturnsAsync(["UK200000000008"]);
         dataPatchStore.Setup(s => s.GetAnimalAsync(Cph, "UK200000000008", It.IsAny<CancellationToken>())).ReturnsAsync(PatchAnimal(null, "Alive"));
         var service = CreateService();
 
@@ -282,7 +282,7 @@ public class CadsServiceTests
     public async Task GetCattleByCphAsync_ReturnsCadsAnimalsOnly_WhenTheDataPatchCannotBeRead()
     {
         handler.RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000001", "Alive")], page: 1, totalRecords: 1));
-        dataPatchStore.Setup(s => s.GetEarTagsAsync(Cph, It.IsAny<CancellationToken>())).ThrowsAsync(new AmazonS3Exception("Access Denied"));
+        dataPatchStore.Setup(s => s.GetCphEarTagsAsync(Cph, It.IsAny<CancellationToken>())).ThrowsAsync(new AmazonS3Exception("Access Denied"));
         var service = CreateService();
 
         var result = (await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken)).Select(c => c.EarTag).ToList();
@@ -550,7 +550,7 @@ public class CadsServiceTests
         var result = (await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken)).Select(c => c.EarTag).ToList();
 
         Assert.Equal(["UK200000000001"], result);
-        dataPatchStore.Verify(s => s.GetEarTagsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        dataPatchStore.Verify(s => s.GetCphEarTagsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

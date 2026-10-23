@@ -39,6 +39,7 @@ public static class CadsDataPatchConfiguration
             return new AmazonS3Client(config);
         });
 
+        services.AddSingleton<IS3FileStore, S3FileStore>();
         services.AddScoped<ICadsDataPatchStore, CadsDataPatchStore>();
 
         return services;
