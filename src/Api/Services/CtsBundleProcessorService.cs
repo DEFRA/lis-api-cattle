@@ -39,6 +39,17 @@ public partial class CtsBundleProcessorService(
     {
         var batchSize = options.BatchSize > 0 ? options.BatchSize : 10;
 
+        // A retrying execution strategy rejects a transaction it does not own, so the claim and everything
+        // done under it run as one retriable unit; a transient failure replays the whole batch.
+        var strategy = dbContext.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(ct => ProcessBatchAsync(batchSize, ct), cancellationToken);
+    }
+
+    private async Task ProcessBatchAsync(int batchSize, CancellationToken cancellationToken)
+    {
+        // A retried attempt must not save changes tracked by the attempt that failed.
+        dbContext.ChangeTracker.Clear();
+
         // Claim the batch so that other instances of the service skip these rows until this one commits.
         await using var claim = await claimer.ClaimAsync(dbContext, batchSize, TargetStatuses, cancellationToken);
 

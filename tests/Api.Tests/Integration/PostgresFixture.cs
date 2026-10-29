@@ -47,6 +47,15 @@ public sealed class PostgresFixture : IAsyncLifetime
     public CattleDbContext CreateDbContext() => CreateDbContext(ConnectionString);
 
     /// <summary>
+    /// A context that retries transient failures, as PostgresDbContext does in the deployed service.
+    /// </summary>
+    /// <returns></returns>
+    public CattleDbContext CreateRetryingDbContext() => new(
+        new DbContextOptionsBuilder<CattleDbContext>()
+            .UseNpgsql(ConnectionString, npgsql => npgsql.EnableRetryOnFailure())
+            .Options);
+
+    /// <summary>
     /// A context on the template1 database, which has none of the service's tables.
     /// </summary>
     /// <returns></returns>
