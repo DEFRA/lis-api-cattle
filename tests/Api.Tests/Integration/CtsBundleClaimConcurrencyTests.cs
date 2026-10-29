@@ -97,7 +97,7 @@ public sealed class CtsBundleClaimConcurrencyTests(PostgresFixture postgres) : I
     {
         for (var run = 0; run < 8; run++)
         {
-            await using var db = postgres.CreateDbContext();
+            await using var db = postgres.CreateRetryingDbContext();
             var processor = new CtsBundleProcessorService(
                 db,
                 claimer,

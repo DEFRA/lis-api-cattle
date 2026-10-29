@@ -13,6 +13,10 @@ public interface ISubmissionBatchClaimer
     /// Claims up to <paramref name="batchSize"/> of the oldest submissions in one of <paramref name="statuses"/>
     /// that no other instance holds, inside a transaction on <paramref name="dbContext"/>.
     /// </summary>
+    /// <remarks>
+    /// The transaction is opened here, so a context with a retrying execution strategy must call this, and do all
+    /// the work under the claim, inside <c>dbContext.Database.CreateExecutionStrategy().ExecuteAsync</c>.
+    /// </remarks>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     Task<ISubmissionBatchClaim> ClaimAsync(
         DbContext dbContext,
