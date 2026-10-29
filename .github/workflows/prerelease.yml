@@ -1,4 +1,3 @@
-#file: noinspection UndefinedParamsPresent,UndefinedAction
 name: 'Prerelease'
 
 on:
@@ -17,7 +16,7 @@ permissions:
 jobs:
   get-version:
     name: 'Calculate Version'
-    uses: ./.github/workflows/support-version.yml
+    uses: DEFRA/lis-github-actions/.github/workflows/version.yml@0.1.0
     with:
       ref: ${{ github.sha }}
       branch: ${{ github.ref_name }}
@@ -26,26 +25,35 @@ jobs:
   validate:
     name: 'Validate'
     needs: get-version
-    uses: ./.github/workflows/support-validate.yml
+    uses: DEFRA/lis-github-actions/.github/workflows/dotnet-service-validate.yml@0.1.0
     with:
       version: ${{ needs.get-version.outputs.version }}
       ref: ${{ github.sha }}
+      pre-build-cake-script: ./liquibase.cake
+      smoke-postgres: true
+      smoke-env: |
+        PostgresConfiguration__UseIamAuthentication=false
+        ConnectionStrings__ReadWritePostgresConnection=Host=postgres;Port=5432;Database=smoke;Username=smoke;Password=smoke
+        ConnectionStrings__ReadOnlyPostgresConnection=Host=postgres;Port=5432;Database=smoke;Username=smoke;Password=smoke
+        AWS__EnableBackgroundConsumer=false
+        CtsPollingJob__Enabled=false
 
   sonar-analysis:
     name: 'Sonar Analysis'
     needs: [get-version, validate]
-    uses: ./.github/workflows/support-sonar.yml
+    uses: DEFRA/lis-github-actions/.github/workflows/dotnet-sonar.yml@0.1.0
     with:
       version: ${{ needs.get-version.outputs.version }}
       ref: ${{ github.sha }}
       branch: ${{ github.ref_name }}
+      sonar-exclusions: '.github/**,changelog/**,tests/Endpoints/**'
     secrets: inherit
 
   create-tag:
     name: 'Tag Validated Commit'
     needs: [get-version, validate, sonar-analysis]
     if: needs.sonar-analysis.outputs.quality-gate-status == 'PASSED'
-    uses: ./.github/workflows/support-tag.yml
+    uses: DEFRA/lis-github-actions/.github/workflows/tag.yml@0.1.0
     with:
       version: ${{ needs.get-version.outputs.version }}
       ref: ${{ github.sha }}
