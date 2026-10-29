@@ -16,7 +16,7 @@ permissions:
 jobs:
   get-version:
     name: 'Calculate Prospective Version'
-    uses: ./.github/workflows/support-version.yml
+    uses: DEFRA/lis-github-actions/.github/workflows/version.yml@aafa6fb5ff10bb9dab399cc4992145c3bd109d82
     with:
       ref: ${{ github.event.pull_request.head.sha }}
       branch: ${{ github.event.pull_request.head.ref }}

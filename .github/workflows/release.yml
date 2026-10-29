@@ -17,7 +17,7 @@ jobs:
   get-version:
     name: 'Calculate Stable Version'
     if: github.event.pull_request.merged == true
-    uses: ./.github/workflows/support-version.yml
+    uses: DEFRA/lis-github-actions/.github/workflows/version.yml@aafa6fb5ff10bb9dab399cc4992145c3bd109d82
     with:
       ref: ${{ github.event.pull_request.merge_commit_sha }}
       branch: ${{ github.event.pull_request.head.ref }}
@@ -45,7 +45,7 @@ jobs:
     name: 'Tag Main'
     needs: [get-version, validate, sonar-analysis]
     if: needs.sonar-analysis.outputs.quality-gate-status == 'PASSED'
-    uses: ./.github/workflows/support-tag.yml
+    uses: DEFRA/lis-github-actions/.github/workflows/tag.yml@aafa6fb5ff10bb9dab399cc4992145c3bd109d82
     with:
       version: ${{ needs.get-version.outputs.version }}
       ref: ${{ github.event.pull_request.merge_commit_sha }}
