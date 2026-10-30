@@ -22,7 +22,7 @@ public static class OpenApiMetadata
         public const string Summary = "Get the health status";
 
         /// <summary>Gets the endpoint description.</summary>
-        public const string Description = "Checks the overall health status of the application and its dependencies.";
+        public const string Description = "Liveness check for the platform: returns 200 while the service is running, without checking its dependencies.";
     }
 
     /// <summary>Contains metadata for the detailed health check endpoint.</summary>
