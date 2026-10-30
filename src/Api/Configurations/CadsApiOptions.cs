@@ -30,4 +30,14 @@ public sealed class CadsApiOptions
 
     [Range(1, 1000)]
     public int PageSize { get; init; } = 100;
+
+    /// <summary>
+    /// Gets the timeout in milliseconds for the animals on holding CADS API call.
+    /// </summary>
+    public int GetAnimalsOnHoldingTimeout { get; init; } = 60_000;
+
+    /// <summary>
+    /// Gets the timeout in milliseconds for the animal details CADS API call.
+    /// </summary>
+    public int GetAnimalDetailsTimeout { get; init; } = 60_000;
 }

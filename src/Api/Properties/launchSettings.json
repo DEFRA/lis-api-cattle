@@ -19,9 +19,15 @@
         "CadsApi__BaseUrl": "http://localhost:3000/cads/",
         "CadsApi__ClientId": "local-dev-cads-client",
         "CadsApi__ClientSecret": "local-dev-cads-secret",
+        "CadsApi__GetAnimalsOnHoldingTimeout": "60000",
+        "CadsApi__GetAnimalDetailsTimeout": "60000",
         "KrdsApi__BaseUrl": "http://localhost:3000/krds/",
         "KrdsApi__ClientId": "local-dev-krds-client",
         "KrdsApi__ClientSecret": "local-dev-krds-secret",
+        "KrdsApi__GetHoldingDetailsTimeout": "60000",
+        "KrdsApi__SearchHoldingsTimeout": "60000",
+        "KrdsApi__GetUserAccountTimeout": "60000",
+        "KrdsApi__EnsureUserAccountTimeout": "60000",
         "ApiKeyAuthentication__Keys__0": "local-dev-cattle-api-key"
       }
     },
