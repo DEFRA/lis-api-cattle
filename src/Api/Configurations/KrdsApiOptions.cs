@@ -27,4 +27,24 @@ public sealed class KrdsApiOptions
     /// from a developer machine. Leave empty in CDP, where services call each other directly.
     /// </summary>
     public string? GatewayApiKey { get; init; }
+
+    /// <summary>
+    /// Gets the timeout in milliseconds for getting holding details from KRDS.
+    /// </summary>
+    public int GetHoldingDetailsTimeout { get; init; } = 60_000;
+
+    /// <summary>
+    /// Gets the timeout in milliseconds for searching holdings in KRDS.
+    /// </summary>
+    public int SearchHoldingsTimeout { get; init; } = 60_000;
+
+    /// <summary>
+    /// Gets the timeout in milliseconds for getting a user account from KRDS.
+    /// </summary>
+    public int GetUserAccountTimeout { get; init; } = 60_000;
+
+    /// <summary>
+    /// Gets the timeout in milliseconds for ensuring a user account in KRDS.
+    /// </summary>
+    public int EnsureUserAccountTimeout { get; init; } = 60_000;
 }

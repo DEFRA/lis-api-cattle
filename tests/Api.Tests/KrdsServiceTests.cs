@@ -163,6 +163,43 @@ public class KrdsServiceTests
         Assert.False(Assert.Single(handler.Requests).Headers.Contains("x-api-key"));
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task GetHoldingAsync_SendsNoGatewayApiKeyWhenGatewayApiKeyIsBlank(string gatewayApiKey)
+    {
+        handler.RespondWith(HttpStatusCode.OK, OakfieldHolding);
+        var service = CreateService(WithGatewayKey(gatewayApiKey));
+
+        await service.GetHoldingAsync("22", "001", "0001", TestContext.Current.CancellationToken);
+
+        Assert.False(Assert.Single(handler.Requests).Headers.Contains("x-api-key"));
+    }
+
+    [Fact]
+    public async Task SearchHoldingsAsync_SendsGatewayApiKeyWhenConfigured()
+    {
+        handler.RespondWith(HttpStatusCode.OK, PaginatedHoldingsResponse);
+        var service = CreateService(WithGatewayKey());
+
+        await service.SearchHoldingsAsync(new HoldingSearchRequest(), TestContext.Current.CancellationToken);
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal(TestGatewayKey, Assert.Single(request.Headers.GetValues("x-api-key")));
+        Assert.Equal("Basic", request.Headers.Authorization!.Scheme);
+    }
+
+    [Fact]
+    public async Task SearchHoldingsAsync_SendsNoGatewayApiKeyWhenNotConfigured()
+    {
+        handler.RespondWith(HttpStatusCode.OK, PaginatedHoldingsResponse);
+        var service = CreateService();
+
+        await service.SearchHoldingsAsync(new HoldingSearchRequest(), TestContext.Current.CancellationToken);
+
+        Assert.False(Assert.Single(handler.Requests).Headers.Contains("x-api-key"));
+    }
+
     [Fact]
     public async Task GetUserAccountAsync_SendsGatewayApiKeyWhenConfigured()
     {
@@ -175,6 +212,17 @@ public class KrdsServiceTests
     }
 
     [Fact]
+    public async Task GetUserAccountAsync_SendsNoGatewayApiKeyWhenNotConfigured()
+    {
+        handler.RespondWith(HttpStatusCode.OK, OakfieldUserAccount);
+        var service = CreateService();
+
+        await service.GetUserAccountAsync(OakfieldSubject, TestContext.Current.CancellationToken);
+
+        Assert.False(Assert.Single(handler.Requests).Headers.Contains("x-api-key"));
+    }
+
+    [Fact]
     public async Task EnsureUserAccountAsync_SendsGatewayApiKeyWhenConfigured()
     {
         handler.RespondWith(HttpStatusCode.OK, OakfieldUserAccount);
@@ -183,6 +231,17 @@ public class KrdsServiceTests
         await service.EnsureUserAccountAsync(OakfieldClaims(), TestContext.Current.CancellationToken);
 
         Assert.Equal(TestGatewayKey, Assert.Single(Assert.Single(handler.Requests).Headers.GetValues("x-api-key")));
+    }
+
+    [Fact]
+    public async Task EnsureUserAccountAsync_SendsNoGatewayApiKeyWhenNotConfigured()
+    {
+        handler.RespondWith(HttpStatusCode.OK, OakfieldUserAccount);
+        var service = CreateService();
+
+        await service.EnsureUserAccountAsync(OakfieldClaims(), TestContext.Current.CancellationToken);
+
+        Assert.False(Assert.Single(handler.Requests).Headers.Contains("x-api-key"));
     }
 
     [Fact]
@@ -777,6 +836,89 @@ public class KrdsServiceTests
         Assert.Empty(handler.Requests);
     }
 
+    [Fact]
+    public void KrdsApiOptions_DefaultsToSixtySecondTimeouts()
+    {
+        var options = new KrdsApiOptions();
+
+        Assert.Equal(60_000, options.GetHoldingDetailsTimeout);
+        Assert.Equal(60_000, options.SearchHoldingsTimeout);
+        Assert.Equal(60_000, options.GetUserAccountTimeout);
+        Assert.Equal(60_000, options.EnsureUserAccountTimeout);
+    }
+
+    [Fact]
+    public async Task GetHoldingAsync_UsesConfiguredTimeout()
+    {
+        handler.RespondWith(HttpStatusCode.OK, OakfieldHolding);
+        var options = new KrdsApiOptions
+        {
+            BaseUrl = Options.BaseUrl,
+            ClientId = Options.ClientId,
+            ClientSecret = Options.ClientSecret,
+            GetHoldingDetailsTimeout = 45_000,
+        };
+        var service = CreateService(options);
+
+        var holding = await service.GetHoldingAsync("22", "001", "0001", TestContext.Current.CancellationToken);
+
+        Assert.NotNull(holding);
+    }
+
+    [Fact]
+    public async Task SearchHoldingsAsync_UsesConfiguredTimeout()
+    {
+        handler.RespondWith(HttpStatusCode.OK, PaginatedHoldingsResponse);
+        var options = new KrdsApiOptions
+        {
+            BaseUrl = Options.BaseUrl,
+            ClientId = Options.ClientId,
+            ClientSecret = Options.ClientSecret,
+            SearchHoldingsTimeout = 45_000,
+        };
+        var service = CreateService(options);
+
+        var response = await service.SearchHoldingsAsync(new HoldingSearchRequest(), TestContext.Current.CancellationToken);
+
+        Assert.NotNull(response);
+    }
+
+    [Fact]
+    public async Task GetUserAccountAsync_UsesConfiguredTimeout()
+    {
+        handler.RespondWith(HttpStatusCode.OK, OakfieldUserAccount);
+        var options = new KrdsApiOptions
+        {
+            BaseUrl = Options.BaseUrl,
+            ClientId = Options.ClientId,
+            ClientSecret = Options.ClientSecret,
+            GetUserAccountTimeout = 45_000,
+        };
+        var service = CreateService(options);
+
+        var user = await service.GetUserAccountAsync(OakfieldSubject, TestContext.Current.CancellationToken);
+
+        Assert.NotNull(user);
+    }
+
+    [Fact]
+    public async Task EnsureUserAccountAsync_UsesConfiguredTimeout()
+    {
+        handler.RespondWith(HttpStatusCode.OK, OakfieldUserAccount);
+        var options = new KrdsApiOptions
+        {
+            BaseUrl = Options.BaseUrl,
+            ClientId = Options.ClientId,
+            ClientSecret = Options.ClientSecret,
+            EnsureUserAccountTimeout = 45_000,
+        };
+        var service = CreateService(options);
+
+        var user = await service.EnsureUserAccountAsync(OakfieldClaims(), TestContext.Current.CancellationToken);
+
+        Assert.NotNull(user);
+    }
+
     private static CreateUserRequest OakfieldClaims() => new()
     {
         Sub = OakfieldSubject,
@@ -785,12 +927,12 @@ public class KrdsServiceTests
         FamilyName = "Farmer",
     };
 
-    private static KrdsApiOptions WithGatewayKey() => new()
+    private static KrdsApiOptions WithGatewayKey(string gatewayApiKey = TestGatewayKey) => new()
     {
         BaseUrl = Options.BaseUrl,
         ClientId = Options.ClientId,
         ClientSecret = Options.ClientSecret,
-        GatewayApiKey = TestGatewayKey,
+        GatewayApiKey = gatewayApiKey,
     };
 
     private KrdsService CreateService(KrdsApiOptions? apiOptions = null) => new(

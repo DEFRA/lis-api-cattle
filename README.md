@@ -307,11 +307,17 @@ secret must be set as secrets in the CDP portal for every deployed environment.
 | `KrdsApi__ClientId` | KRDS Basic client ID | empty |
 | `KrdsApi__ClientSecret` | Secret. KRDS Basic client secret | empty |
 | `KrdsApi__GatewayApiKey` | Secret. CDP developer API key, for the dev gateway only | none |
+| `KrdsApi__GetHoldingDetailsTimeout` | Timeout in ms for get holding details | `60000` |
+| `KrdsApi__SearchHoldingsTimeout` | Timeout in ms for search holdings | `60000` |
+| `KrdsApi__GetUserAccountTimeout` | Timeout in ms for get user account | `60000` |
+| `KrdsApi__EnsureUserAccountTimeout` | Timeout in ms for ensure user account | `60000` |
 | `CadsApi__BaseUrl` | CADS base URL, with trailing slash | `http://lis-fake-service/cads/` |
 | `CadsApi__ClientId` | CADS Basic client ID | empty |
 | `CadsApi__ClientSecret` | Secret. CADS Basic client secret | empty |
 | `CadsApi__GatewayApiKey` | Secret. CDP developer API key, for the dev gateway only | none |
 | `CadsApi__PageSize` | CADS page size | `500` |
+| `CadsApi__GetAnimalsOnHoldingTimeout` | Timeout in ms for get animals on holding | `60000` |
+| `CadsApi__GetAnimalDetailsTimeout` | Timeout in ms for get animal details | `60000` |
 | `CadsDataPatch__BucketName` | S3 bucket for the temporary CADS data patch | empty |
 | `ApiKeyAuthentication__Keys__0` | Secret. Accepted inbound API key | none |
 | `ApiKeyAuthentication__Keys__1` | Secret. Optional second key for rotation | none |

@@ -320,6 +320,30 @@ public class CadsServiceTests
     }
 
     [Fact]
+    public async Task GetCattleByCphAsync_SendsNoGatewayApiKeyWhenNotConfigured()
+    {
+        handler.RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000001", "Passport Produced")], page: 1, totalRecords: 1));
+        var service = CreateService();
+
+        await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken);
+
+        Assert.False(Assert.Single(handler.Requests).Headers.Contains("x-api-key"));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task GetCattleByCphAsync_SendsNoGatewayApiKeyWhenGatewayApiKeyIsBlank(string gatewayApiKey)
+    {
+        handler.RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000001", "Passport Produced")], page: 1, totalRecords: 1));
+        var service = CreateService(apiOptions: WithGatewayKey(gatewayApiKey));
+
+        await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken);
+
+        Assert.False(Assert.Single(handler.Requests).Headers.Contains("x-api-key"));
+    }
+
+    [Fact]
     public async Task GetAnimalDetailsAsync_SendsGatewayApiKeyAlongsideBasicAuthWhenConfigured()
     {
         handler.RespondWith(HttpStatusCode.OK, Detail("UK200000000001"));
@@ -337,6 +361,19 @@ public class CadsServiceTests
     {
         handler.RespondWith(HttpStatusCode.OK, Detail("UK200000000001"));
         var service = CreateService();
+
+        await service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken);
+
+        Assert.False(Assert.Single(handler.Requests).Headers.Contains("x-api-key"));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task GetAnimalDetailsAsync_SendsNoGatewayApiKeyWhenGatewayApiKeyIsBlank(string gatewayApiKey)
+    {
+        handler.RespondWith(HttpStatusCode.OK, Detail("UK200000000001"));
+        var service = CreateService(apiOptions: WithGatewayKey(gatewayApiKey));
 
         await service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken);
 
@@ -698,6 +735,52 @@ public class CadsServiceTests
         Assert.Empty(handler.Requests);
     }
 
+    [Fact]
+    public void CadsApiOptions_DefaultsToSixtySecondTimeouts()
+    {
+        var options = new CadsApiOptions();
+
+        Assert.Equal(60_000, options.GetAnimalsOnHoldingTimeout);
+        Assert.Equal(60_000, options.GetAnimalDetailsTimeout);
+    }
+
+    [Fact]
+    public async Task GetCattleByCphAsync_UsesConfiguredTimeout()
+    {
+        handler.RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000001", "Passport Produced")], page: 1, totalRecords: 1));
+        var options = new CadsApiOptions
+        {
+            BaseUrl = Options.BaseUrl,
+            ClientId = Options.ClientId,
+            ClientSecret = Options.ClientSecret,
+            PageSize = Options.PageSize,
+            GetAnimalsOnHoldingTimeout = 45_000,
+        };
+        var service = CreateService(apiOptions: options);
+
+        var result = await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken);
+
+        Assert.Single(result);
+    }
+
+    [Fact]
+    public async Task GetAnimalDetailsAsync_UsesConfiguredTimeout()
+    {
+        handler.RespondWith(HttpStatusCode.OK, Detail("UK200000000001"));
+        var options = new CadsApiOptions
+        {
+            BaseUrl = Options.BaseUrl,
+            ClientId = Options.ClientId,
+            ClientSecret = Options.ClientSecret,
+            GetAnimalDetailsTimeout = 45_000,
+        };
+        var service = CreateService(apiOptions: options);
+
+        var details = await service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken);
+
+        Assert.Equal(EarTag, details.EarTag);
+    }
+
     private static string Parent(string relationship, string earTag) => $$"""
         {
           "relationship": "{{relationship}}",
@@ -762,13 +845,13 @@ public class CadsServiceTests
         new CadsBreedCode("cts.breed", "Aberdeen Angus", "AA"),
         status);
 
-    private static CadsApiOptions WithGatewayKey() => new()
+    private static CadsApiOptions WithGatewayKey(string gatewayApiKey = TestGatewayKey) => new()
     {
         BaseUrl = Options.BaseUrl,
         ClientId = Options.ClientId,
         ClientSecret = Options.ClientSecret,
         PageSize = Options.PageSize,
-        GatewayApiKey = TestGatewayKey,
+        GatewayApiKey = gatewayApiKey,
     };
 
     private CadsService CreateService(CadsDataPatchOptions? dataPatchOptions = null, CadsApiOptions? apiOptions = null) => new(
