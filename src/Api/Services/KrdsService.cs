@@ -32,8 +32,8 @@ public sealed partial class KrdsService : IKrdsService
     private const int MaxEmailLength = 320;
 
     private readonly IRestStrategyFactory<KrdsService> strategyFactory;
-    private readonly string? gatewayApiKey;
     private readonly IValidator<HoldingSearchRequest> holdingSearchRequestValidator;
+    private readonly IOptions<KrdsApiOptions> options;
     private readonly ILogger<KrdsService> logger;
 
     /// <summary>
@@ -51,14 +51,17 @@ public sealed partial class KrdsService : IKrdsService
         ILogger<KrdsService> logger)
     {
         this.strategyFactory = strategyFactory;
-        gatewayApiKey = options.Value.GatewayApiKey;
         this.holdingSearchRequestValidator = holdingSearchRequestValidator;
+        this.options = options;
         this.logger = logger;
 
         strategyFactory
             .WithDefaultLogger(this.logger)
             .WithDefaultApiDescription("KRDS API")
             .WithDefaultBaseUrl(options.Value.BaseUrl)
+            .WithDefaultApiKey(
+                () => !string.IsNullOrWhiteSpace(options.Value.GatewayApiKey),
+                options.Value.GatewayApiKey!)
             .WithDefaultBasicAuth(options.Value.ClientId, options.Value.ClientSecret)
             .WithDefaultJsonSerializerOptions(UpstreamJson.Options);
     }
@@ -79,8 +82,8 @@ public sealed partial class KrdsService : IKrdsService
         {
             var response = await strategyFactory
                 .BuildRestStrategy()
-                .WithGatewayApiKey(gatewayApiKey)
                 .WithCancellationToken(cancellationToken)
+                .WithTimeout(options.Value.GetHoldingDetailsTimeout)
                 .WithActionDescription("Get holding details")
                 .WithResourceUrl($"api/v2/holdings/{county}/{parish}/{holding}")
                 .WithGet()
@@ -112,8 +115,8 @@ public sealed partial class KrdsService : IKrdsService
         {
             var response = await strategyFactory
                 .BuildRestStrategy()
-                .WithGatewayApiKey(gatewayApiKey)
                 .WithCancellationToken(cancellationToken)
+                .WithTimeout(options.Value.SearchHoldingsTimeout)
                 .WithActionDescription("Search holdings")
                 .WithRequestValidation(() => holdingSearchRequestValidator.ValidateAsync(request, cancellationToken))
                 .WithResourceUrl("api/v2/holdings")
@@ -156,8 +159,8 @@ public sealed partial class KrdsService : IKrdsService
         {
             var response = await strategyFactory
                 .BuildRestStrategy()
-                .WithGatewayApiKey(gatewayApiKey)
                 .WithCancellationToken(cancellationToken)
+                .WithTimeout(options.Value.GetUserAccountTimeout)
                 .WithActionDescription("Get user account")
                 .WithResourceUrl($"api/v2/user-accounts/{Uri.EscapeDataString(subject)}")
                 .WithGet()
@@ -190,8 +193,8 @@ public sealed partial class KrdsService : IKrdsService
         {
             var response = await strategyFactory
                 .BuildRestStrategy()
-                .WithGatewayApiKey(gatewayApiKey)
                 .WithCancellationToken(cancellationToken)
+                .WithTimeout(options.Value.EnsureUserAccountTimeout)
                 .WithActionDescription("Ensure user account")
                 .WithResourceUrl("api/v2/user-accounts")
                 .WithPost()

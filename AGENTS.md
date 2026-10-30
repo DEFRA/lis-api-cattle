@@ -130,8 +130,14 @@ Until the real services exist both point at [lis-fake-service](https://github.co
 | `CadsApi__BaseUrl` | Base URL of the CADS API, including any path prefix (fake: `http://localhost:3000/cads/`) | `appsettings.Development.json` |
 | `CadsApi__ClientId` / `CadsApi__ClientSecret` | Basic credentials for CADS (fake defaults `local-dev-cads-client` / `local-dev-cads-secret`) | dev settings; CDP secrets elsewhere |
 | `CadsApi__PageSize` | Page size used when reading animals (all pages are read) | 100 |
+| `CadsApi__GetAnimalsOnHoldingTimeout` | Timeout in ms for get animals on holding | 60000 |
+| `CadsApi__GetAnimalDetailsTimeout` | Timeout in ms for get animal details | 60000 |
 | `KrdsApi__BaseUrl` | Base URL of the keeper-data-api, including any path prefix (fake: `http://localhost:3000/krds/`) | `appsettings.Development.json` |
 | `KrdsApi__ClientId` / `KrdsApi__ClientSecret` | Basic credentials for KRDS (fake defaults `local-dev-krds-client` / `local-dev-krds-secret`) | dev settings; CDP secrets elsewhere |
+| `KrdsApi__GetHoldingDetailsTimeout` | Timeout in ms for get holding details | 60000 |
+| `KrdsApi__SearchHoldingsTimeout` | Timeout in ms for search holdings | 60000 |
+| `KrdsApi__GetUserAccountTimeout` | Timeout in ms for get user account | 60000 |
+| `KrdsApi__EnsureUserAccountTimeout` | Timeout in ms for ensure user account | 60000 |
 | `CadsApi__GatewayApiKey` / `KrdsApi__GatewayApiKey` | Optional CDP developer API key, sent as `x-api-key` next to the Basic credentials, only when calling CDP dev through the `ephemeral-protected` gateway from a developer machine. Leave unset in CDP and against the fake. | unset |
 
 The services send only the API-relative paths (`api/v1/bovine/animals`, `api/v1/bovine/animals/{identifier}`,
