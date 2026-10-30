@@ -9,7 +9,6 @@ using System.Net.Http.Json;
 using Defra.Lis.Api.Endpoints.Health;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models;
-using Defra.Lis.Api.Services.Health;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
@@ -81,25 +80,14 @@ public class HealthEndpointsTests
     }
 
     [Fact]
-    public async Task GetHealth_WhenAllChecksPass_Returns200WithJsonResponse()
+    public async Task GetHealth_WhenRunning_Returns200WithJsonResponse()
     {
         // Arrange
-        var mockHealthService = new Mock<IHealthService>();
-        mockHealthService.Setup(s => s.CheckDatabaseHealthAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ComponentHealthResult(nameof(HealthStatus.Healthy), "Database is up."));
-        mockHealthService.Setup(s => s.CheckQueueHealthAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ComponentHealthResult(nameof(HealthStatus.Healthy), "Queue is up."));
-        mockHealthService.Setup(s => s.CheckQuartzHealthAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ComponentHealthResult(nameof(HealthStatus.Healthy), "Quartz is up."));
-
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
         builder.Services.AddRouting();
-        builder.Services.AddSingleton(mockHealthService.Object);
-        builder.Services.AddHealthChecks()
-            .AddCheck<DatabaseHealthCheck>("database")
-            .AddCheck<QueueHealthCheck>("queue")
-            .AddCheck<QuartzHealthCheck>("quartz");
+        builder.Services.AddSingleton(Mock.Of<IHealthService>());
+        builder.Services.AddHealthChecks();
 
         var app = builder.Build();
         app.MapHealthEndpoints();
@@ -116,29 +104,21 @@ public class HealthEndpointsTests
             await response.Content.ReadFromJsonAsync<HealthCheckResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(result);
         Assert.Equal(nameof(HealthStatus.Healthy), result.Status);
-        Assert.Equal(3, result.Entries.Count);
-        Assert.Equal(nameof(HealthStatus.Healthy), result.Entries["database"].Status);
-        Assert.Equal(nameof(HealthStatus.Healthy), result.Entries["queue"].Status);
-        Assert.Equal(nameof(HealthStatus.Healthy), result.Entries["quartz"].Status);
+        Assert.Empty(result.Entries);
     }
 
-    [Fact]
-    public async Task GetHealth_WhenCheckFails_Returns503WithJsonResponse()
+    [Theory]
+    [InlineData(HealthStatus.Unhealthy)]
+    [InlineData(HealthStatus.Degraded)]
+    public async Task GetHealth_WhenDependencyCheckFails_StillReturns200(HealthStatus dependencyStatus)
     {
         // Arrange
-        var mockHealthService = new Mock<IHealthService>();
-        mockHealthService.Setup(s => s.CheckDatabaseHealthAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ComponentHealthResult(nameof(HealthStatus.Healthy), "Database is up."));
-        mockHealthService.Setup(s => s.CheckQueueHealthAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ComponentHealthResult(nameof(HealthStatus.Unhealthy), "Queue is down."));
-
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
         builder.Services.AddRouting();
-        builder.Services.AddSingleton(mockHealthService.Object);
+        builder.Services.AddSingleton(Mock.Of<IHealthService>());
         builder.Services.AddHealthChecks()
-            .AddCheck<DatabaseHealthCheck>("database")
-            .AddCheck<QueueHealthCheck>("queue");
+            .AddCheck("database", () => new HealthCheckResult(dependencyStatus, "Database is down."));
 
         var app = builder.Build();
         app.MapHealthEndpoints();
@@ -150,13 +130,12 @@ public class HealthEndpointsTests
         var response = await client.GetAsync("/health", TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var result =
             await response.Content.ReadFromJsonAsync<HealthCheckResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(result);
-        Assert.Equal(nameof(HealthStatus.Unhealthy), result.Status);
-        Assert.Equal(nameof(HealthStatus.Healthy), result.Entries["database"].Status);
-        Assert.Equal(nameof(HealthStatus.Unhealthy), result.Entries["queue"].Status);
+        Assert.Equal(nameof(HealthStatus.Healthy), result.Status);
+        Assert.Empty(result.Entries);
     }
 
     [Fact]
@@ -274,42 +253,5 @@ public class HealthEndpointsTests
             await response.Content.ReadFromJsonAsync<HealthCheckResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(result);
         Assert.Equal(HealthStatus.Degraded.ToString(), result.Status);
-    }
-
-    [Fact]
-    public async Task GetHealth_WhenCheckIsDegraded_Returns200WithDegradedJsonResponse()
-    {
-        // Arrange
-        var mockHealthService = new Mock<IHealthService>();
-        mockHealthService.Setup(s => s.CheckDatabaseHealthAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ComponentHealthResult(nameof(HealthStatus.Healthy), "Database is up."));
-        mockHealthService.Setup(s => s.CheckQueueHealthAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ComponentHealthResult(nameof(HealthStatus.Degraded), "Queue is degraded."));
-
-        var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
-        builder.WebHost.UseTestServer();
-        builder.Services.AddRouting();
-        builder.Services.AddSingleton(mockHealthService.Object);
-        builder.Services.AddHealthChecks()
-            .AddCheck<DatabaseHealthCheck>("database")
-            .AddCheck<QueueHealthCheck>("queue");
-
-        var app = builder.Build();
-        app.MapHealthEndpoints();
-        await app.StartAsync(TestContext.Current.CancellationToken);
-
-        var client = app.GetTestClient();
-
-        // Act
-        var response = await client.GetAsync("/health", TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var result =
-            await response.Content.ReadFromJsonAsync<HealthCheckResponse>(TestContext.Current.CancellationToken);
-        Assert.NotNull(result);
-        Assert.Equal(nameof(HealthStatus.Degraded), result.Status);
-        Assert.Equal(nameof(HealthStatus.Healthy), result.Entries["database"].Status);
-        Assert.Equal(nameof(HealthStatus.Degraded), result.Entries["queue"].Status);
     }
 }

@@ -334,7 +334,7 @@ End-to-end journeys are covered by [lis-journey-tests](https://github.com/DEFRA/
 
 ## Monitoring
 
-- Health check: `GET /health` checks the database, the queue and the Quartz scheduler. `GET /health/detailed` shows the same in more detail. Both are anonymous.
+- Health check: `GET /health` is the platform's liveness probe and only confirms the service is running, so a database or queue outage does not get every instance restarted. `GET /health/detailed` checks the database, the queue and the Quartz scheduler, and returns `503` when any of them is unhealthy or degraded. Both are anonymous.
 - Logs: OpenSearch dashboard per environment, linked from the [CDP portal service page](https://portal.cdp-int.defra.cloud/services/lis-api-cattle) under Logs
 - Metrics: Grafana dashboard per environment, linked from the [CDP portal service page](https://portal.cdp-int.defra.cloud/services/lis-api-cattle) under Metrics
 

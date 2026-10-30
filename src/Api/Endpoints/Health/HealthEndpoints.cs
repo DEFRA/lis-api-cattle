@@ -33,8 +33,12 @@ public static class HealthEndpoints
     /// <returns>The supplied endpoint route builder.</returns>
     public static IEndpointRouteBuilder MapHealthEndpoints(this IEndpointRouteBuilder app)
     {
+        // CDP curls /health as an ECS liveness probe and restarts the task when it fails, so it runs no
+        // dependency checks: a database or queue outage must not restart every instance. /health/detailed
+        // reports the dependencies.
         var healthOptions = new HealthCheckOptions
         {
+            Predicate = _ => false,
             ResponseWriter = async (context, report) =>
             {
                 context.Response.ContentType = MediaTypeNames.Application.Json;
