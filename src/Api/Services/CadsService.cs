@@ -76,7 +76,8 @@ public sealed partial class CadsService : ICadsService
             animals = current.Animals ?? [];
             results.AddRange(animals.Select(ToCattleResponse));
             page++;
-        } while (animals.Count > 0 && (long)(page - 1) * current.PageSize < current.TotalRecords && page <= MaxPages);
+        }
+        while (animals.Count > 0 && (long)(page - 1) * current.PageSize < current.TotalRecords && page <= MaxPages);
 
         LogRetrievedLiveAnimalsForHolding(results.Count, page - 1, cph);
 
