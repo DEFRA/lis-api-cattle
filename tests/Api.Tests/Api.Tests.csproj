@@ -15,8 +15,8 @@
   <ItemGroup>
     <PackageReference Include="Defra.Lis.Postgres" VersionOverride="0.0.3" />
     <PackageReference Include="Moq" VersionOverride="4.21.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore" VersionOverride="10.0.12" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" VersionOverride="10.0.12" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" VersionOverride="10.0.14" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" VersionOverride="10.0.14" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="Testcontainers.PostgreSql" />
     <PackageReference Update="coverlet.msbuild">
@@ -24,6 +24,10 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Update="coverlet.collector">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Update="xunit.runner.visualstudio">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>

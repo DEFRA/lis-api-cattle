@@ -7,7 +7,6 @@ namespace Defra.Lis.Api;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text.Json;
-using Asp.Versioning;
 using Defra.Database.Postgres;
 using Defra.Lis.Api.Authentication;
 using Defra.Lis.Api.Configurations;
@@ -26,7 +25,6 @@ using Defra.Livestock.Sdk.Api.Strategies;
 using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Operations.Http.Rest.Client;
 using Defra.Livestock.Sdk.Api.Strategies.Operations.Http.Rest.Client;
 using FluentValidation;
-using Scalar.AspNetCore;
 using Serilog;
 
 #pragma warning disable S1075 // Using http protocol is insecure. Use https instead
@@ -96,26 +94,9 @@ public static class Program
         // Problem-details responses for NotFound / validation failures raised by services.
         builder.Services.AddProblemDetails();
         builder.Services.AddExceptionHandler<ApiExceptionHandler>();
-        builder.Services.AddApiVersioning(options =>
-            {
-                options.ApiVersionReader = new UrlSegmentApiVersionReader();
-                options.ReportApiVersions = true;
-            })
-            .AddApiExplorer(options =>
-            {
-                options.GroupNameFormat = "'v'VVV";
-                options.SubstituteApiVersionInUrl = true;
-            })
-            .AddOpenApi(options =>
-            {
-                options.Document.AddDocumentTransformer((document, _, _) =>
-                {
-                    document.Info.Title = "LIS Cattle API";
-                    document.Info.Description = "API for cattle holdings, registrations and submission processing.";
-                    return Task.CompletedTask;
-                });
-                options.Document.AddApiKeySecurity();
-            });
+
+        // Public (v1) and internal (v1-internal) OpenAPI documents per API version.
+        builder.Services.AddVersionedOpenApi();
 
         // Service-to-service authentication: an API key for now, AWS STS later (LREG-560).
         builder.Services.AddServiceToServiceAuthentication(builder.Configuration);
@@ -170,14 +151,7 @@ public static class Program
             app.UsePostgresDatabase();
         }
 
-        app.MapOpenApi().WithDocumentPerVersion().WithoutCorrelationIdCheck();
-        app.MapScalarApiReference(options =>
-        {
-            foreach (var groupName in app.DescribeApiVersions().Select(description => description.GroupName))
-            {
-                options.AddDocument(groupName, groupName);
-            }
-        }).WithoutCorrelationIdCheck();
+        app.MapVersionedOpenApi();
 
         // Every versioned endpoint requires AuthPolicies.ServiceToService and x-cdp-request-id; health and OpenAPI
         // stay anonymous and need no correlation header.

@@ -15,31 +15,31 @@ public class AnimalRegistrationRequest
     /// Gets or sets the unique ear tag identifier of the animal.
     /// </summary>
     [Description("The unique ear tag identifier of the animal.")]
-    public string EarTag { get; set; } = string.Empty;
+    public required string EarTag { get; set; }
 
     /// <summary>
     /// Gets or sets the date of birth of the animal.
     /// </summary>
     [Description("The date of birth of the animal.")]
-    public DateOnly? DateOfBirth { get; set; }
+    public required DateOnly DateOfBirth { get; set; }
 
     /// <summary>
     /// Gets or sets the sex of the animal.
     /// </summary>
     [Description("The sex of the animal.")]
-    public string? Sex { get; set; }
+    public required string Sex { get; set; }
 
     /// <summary>
     /// Gets or sets the breed code or name of the animal.
     /// </summary>
     [Description("The breed code or name of the animal.")]
-    public string? Breed { get; set; }
+    public required string Breed { get; set; }
 
     /// <summary>
     /// Gets or sets the dam details for the animal registration.
     /// </summary>
     [Description("The dam details for the animal registration.")]
-    public DamRegistrationRequest? Dam { get; set; }
+    public required DamRegistrationRequest Dam { get; set; }
 
     /// <summary>
     /// Gets or sets the sire details for the animal registration.

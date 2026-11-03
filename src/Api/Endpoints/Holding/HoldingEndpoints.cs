@@ -34,6 +34,7 @@ public static class HoldingEndpoints
             .WithTags(OpenApiMetadata.Tag);
 
         group.MapGet("/", SearchHoldings)
+            .WithPublicApi()
             .WithName(OpenApiMetadata.SearchHoldingsRoute.Name)
             .WithSummary(OpenApiMetadata.SearchHoldingsRoute.Summary)
             .WithDescription(OpenApiMetadata.SearchHoldingsRoute.Description)
@@ -42,6 +43,7 @@ public static class HoldingEndpoints
             .ProducesValidationProblem();
 
         group.MapGet("/{county}/{parish}/{holding}", GetHolding)
+            .WithPublicApi()
             .WithName(OpenApiMetadata.GetHoldingRoute.Name)
             .WithSummary(OpenApiMetadata.GetHoldingRoute.Summary)
             .WithDescription(OpenApiMetadata.GetHoldingRoute.Description)
@@ -59,6 +61,7 @@ public static class HoldingEndpoints
                         [FromServices] ICattleService cattleService,
                         CancellationToken cancellationToken) =>
                     GetCattleForHolding($"{county}/{parish}/{holding}", filter, cattleService, cancellationToken))
+            .WithPublicApi()
             .WithName(OpenApiMetadata.GetCattleForHoldingMultiSegmentRoute.Name)
             .WithSummary(OpenApiMetadata.GetCattleForHoldingMultiSegmentRoute.Summary)
             .WithDescription(OpenApiMetadata.GetCattleForHoldingMultiSegmentRoute.Description)
@@ -73,6 +76,7 @@ public static class HoldingEndpoints
                         [FromServices] ICattleService cattleService,
                         CancellationToken cancellationToken) =>
                     GetCattleForHolding(cph, filter, cattleService, cancellationToken))
+            .WithPublicApi()
             .WithName(OpenApiMetadata.GetCattleForHoldingRoute.Name)
             .WithSummary(OpenApiMetadata.GetCattleForHoldingRoute.Summary)
             .WithDescription(OpenApiMetadata.GetCattleForHoldingRoute.Description)
@@ -83,6 +87,7 @@ public static class HoldingEndpoints
                 "/{county}/{parish}/{holding}/bundles",
                 (string county, string parish, string holding, [FromServices] ICattleService cattleService) =>
                     GetBundlesForHolding($"{county}/{parish}/{holding}", cattleService))
+            .WithPublicApi()
             .WithName(OpenApiMetadata.GetBundlesForHoldingMultiSegmentRoute.Name)
             .WithSummary(OpenApiMetadata.GetBundlesForHoldingMultiSegmentRoute.Summary)
             .WithDescription(OpenApiMetadata.GetBundlesForHoldingMultiSegmentRoute.Description)
@@ -92,6 +97,7 @@ public static class HoldingEndpoints
                 "/{cph}/bundles",
                 (string cph, [FromServices] ICattleService cattleService) =>
                     GetBundlesForHolding(cph, cattleService))
+            .WithPublicApi()
             .WithName(OpenApiMetadata.GetBundlesForHoldingRoute.Name)
             .WithSummary(OpenApiMetadata.GetBundlesForHoldingRoute.Summary)
             .WithDescription(OpenApiMetadata.GetBundlesForHoldingRoute.Description)

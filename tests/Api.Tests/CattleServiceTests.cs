@@ -200,6 +200,7 @@ public class CattleServiceTests
         {
             ClientReference = "REG-MNBX4Q2A",
             Holding = new HoldingRequest { Cph = "10/081/1234", },
+            SubmittedBy = "test user 1",
             Animals =
             [
                 new AnimalRegistrationRequest
@@ -227,7 +228,7 @@ public class CattleServiceTests
         Assert.NotEqual(Guid.Empty, result.Id);
         Assert.Equal("REG-MNBX4Q2A", result.ClientReference);
         Assert.Equal("10/081/1234", result.CountyParishHolding);
-        Assert.Equal("BE4FE", result.SubmittedBy);
+        Assert.Equal(request.SubmittedBy, result.SubmittedBy);
         Assert.Equal(Statuses.Pending, result.Status);
         Assert.Single(result.Animals);
 
@@ -266,6 +267,7 @@ public class CattleServiceTests
         var request = new RegistrationBundleRequest
         {
             ClientReference = clientRef,
+            SubmittedBy = "Test User 1",
             Holding = new HoldingRequest { Cph = cph },
         };
 
@@ -281,16 +283,7 @@ public class CattleServiceTests
     }
 
     [Fact]
-    public async Task CreateRegistrationBundleAsync_WithNullHolding_ThrowsArgumentNullException()
-    {
-        var request = new RegistrationBundleRequest { ClientReference = "REG-123", Holding = null };
-
-        await Assert.ThrowsAsync<ArgumentNullException>(() =>
-            service.CreateRegistrationBundleAsync(request, TestContext.Current.CancellationToken));
-    }
-
-    [Fact]
-    public async Task CreateRegistrationBundleAsync_WithMultipleAnimalsWithoutDamSire_SavesCorrectly()
+    public async Task CreateRegistrationBundleAsync_WithMultipleAnimalsWithoutSire_SavesCorrectly()
     {
         // Arrange
         var request = new RegistrationBundleRequest
@@ -306,6 +299,12 @@ public class CattleServiceTests
                     DateOfBirth = new DateOnly(2026, 1, 15),
                     Sex = "male",
                     Breed = "Limousin",
+                    Dam = new DamRegistrationRequest
+                    {
+                        Type = "surrogate",
+                        GeneticDamEarTag = "UK 20 5678 000010",
+                        SurrogateDamEarTag = "UK 20 5678 000011",
+                    },
                 },
                 new AnimalRegistrationRequest
                 {
@@ -313,6 +312,12 @@ public class CattleServiceTests
                     DateOfBirth = new DateOnly(2026, 1, 16),
                     Sex = "female",
                     Breed = "Hereford",
+                    Dam = new DamRegistrationRequest
+                    {
+                        Type = "surrogate",
+                        GeneticDamEarTag = "UK 20 5678 000010",
+                        SurrogateDamEarTag = "UK 20 5678 000011",
+                    },
                 }
             ],
         };
@@ -330,9 +335,9 @@ public class CattleServiceTests
         Assert.All(result.Animals, a =>
         {
             Assert.Equal(Statuses.Pending, a.Status);
-            Assert.Null(a.DamType);
-            Assert.Null(a.DamGeneticEarTag);
-            Assert.Null(a.DamSurrogateEarTag);
+            Assert.Equal("surrogate", a.DamType);
+            Assert.Equal("UK 20 5678 000010", a.DamGeneticEarTag);
+            Assert.Equal("UK 20 5678 000011", a.DamSurrogateEarTag);
             Assert.Null(a.SireEarTag);
             Assert.Null(a.SireName);
         });
@@ -352,7 +357,19 @@ public class CattleServiceTests
             SubmittedBy = "USER1",
             Animals =
             [
-                new AnimalRegistrationRequest { EarTag = "UK123456700001" }
+                new AnimalRegistrationRequest
+                {
+                    EarTag = "UK123456700001",
+                    DateOfBirth = new DateOnly(2026, 1, 15),
+                    Sex = "female",
+                    Breed = "Limousin",
+                    Dam = new DamRegistrationRequest
+                    {
+                        Type = "surrogate",
+                        GeneticDamEarTag = "UK123456700010",
+                        SurrogateDamEarTag = "UK123456700011",
+                    },
+                }
             ],
         };
 

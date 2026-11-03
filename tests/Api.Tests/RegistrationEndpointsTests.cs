@@ -47,6 +47,7 @@ public class RegistrationEndpointsTests
             {
                 Cph = "10/081/1234",
             },
+            SubmittedBy = "test user 1",
             Animals =
             [
                 new AnimalRegistrationRequest
@@ -187,7 +188,12 @@ public class RegistrationEndpointsTests
 
         var response = await app.GetAuthenticatedTestClient().PostAsJsonAsync(
             "/v1/registrations/",
-            new RegistrationBundleRequest(),
+            new RegistrationBundleRequest
+            {
+                ClientReference = string.Empty,
+                Holding = new HoldingRequest { Cph = "10/081/1234" },
+                SubmittedBy = "test user 1",
+            },
             TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -195,6 +201,77 @@ public class RegistrationEndpointsTests
         Assert.NotNull(problem);
         Assert.Equal("Invalid registration bundle request", problem.Title);
         Assert.Equal("Client reference is required.", problem.Detail);
+    }
+
+    [Theory]
+    [InlineData("", "clientReference")]
+    [InlineData("", "holding")]
+    [InlineData("", "submittedBy")]
+    [InlineData("holding", "cph")]
+    [InlineData("animal", "earTag")]
+    [InlineData("animal", "dateOfBirth")]
+    [InlineData("animal", "sex")]
+    [InlineData("animal", "breed")]
+    [InlineData("animal", "dam")]
+    [InlineData("dam", "type")]
+    [InlineData("dam", "geneticDamEarTag")]
+    [InlineData("dam", "surrogateDamEarTag")]
+    public async Task CreateRegistrationBundle_WhenRequiredPropertyIsMissing_ReturnsBadRequest(
+        string section,
+        string property)
+    {
+        var payload = System.Text.Json.Nodes.JsonNode.Parse(
+            """
+            {
+              "clientReference": "REG-123",
+              "holding": { "cph": "10/081/1234" },
+              "submittedBy": "test user 1",
+              "animals": [{
+                "earTag": "UK 12 3456 100003",
+                "dateOfBirth": "2026-02-01",
+                "sex": "female",
+                "breed": "Aberdeen Angus",
+                "dam": {
+                  "type": "surrogate",
+                  "geneticDamEarTag": "UK 12 3456 000002",
+                  "surrogateDamEarTag": "UK 12 3456 000003"
+                }
+              }]
+            }
+            """);
+        Assert.NotNull(payload);
+        var animal = payload["animals"]?[0];
+        var target = section switch
+        {
+            "holding" => payload["holding"],
+            "animal" => animal,
+            "dam" => animal?["dam"],
+            _ => payload,
+        };
+        Assert.NotNull(target);
+        Assert.True(target.AsObject().Remove(property));
+
+        var mockService = new Mock<ICattleService>();
+        var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
+        builder.WebHost.UseTestServer();
+        builder.Services.AddRouting();
+        builder.Services.AddTestServiceToServiceAuthentication();
+        builder.Services.AddApiVersioning(options => options.ApiVersionReader = new UrlSegmentApiVersionReader());
+        builder.Services.AddSingleton(mockService.Object);
+        await using var app = builder.Build();
+        app.UseTestServiceToServiceAuthentication();
+        app.MapRegistrationEndpoints();
+        await app.StartAsync(TestContext.Current.CancellationToken);
+
+        var response = await app.GetAuthenticatedTestClient().PostAsJsonAsync(
+            "/v1/registrations/",
+            payload,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        mockService.Verify(
+            s => s.CreateRegistrationBundleAsync(It.IsAny<RegistrationBundleRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]

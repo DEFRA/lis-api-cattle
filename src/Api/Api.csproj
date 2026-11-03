@@ -1,6 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
     <OpenApiGenerateDocumentsOptions>--openapi-version OpenApi3_1</OpenApiGenerateDocumentsOptions>
+    <!-- AV0029: the internal OpenAPI documents are deliberately plain AddOpenApi documents (see OpenApiConfiguration); the
+         warning is also raised in the generated XML comment interceptor, which a #pragma cannot reach. -->
+    <NoWarn>$(NoWarn);AV0029</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.ApiDescription.Server">
@@ -11,4 +14,12 @@
   <ItemGroup>
     <ProjectReference Include="..\Database\Database.csproj" />
   </ItemGroup>
+  <Target Name="CollectOpenApiDocuments" AfterTargets="GenerateOpenApiDocuments"
+          Condition="'$(OpenApiGenerateDocuments)' == 'true'">
+    <PropertyGroup>
+      <OpenApiArtifactsDirectory>$(MSBuildProjectDirectory)/../../artifacts/openapi</OpenApiArtifactsDirectory>
+    </PropertyGroup>
+    <Copy SourceFiles="$(OpenApiDocumentsDirectory)/$(MSBuildProjectName).json;$(OpenApiDocumentsDirectory)/$(MSBuildProjectName)_v1-internal.json"
+          DestinationFiles="$(OpenApiArtifactsDirectory)/v1.json;$(OpenApiArtifactsDirectory)/v1-internal.json" />
+  </Target>
 </Project>

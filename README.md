@@ -23,7 +23,8 @@ hub → /cattle → lis-apps-cattle-home → lis-be4fe-cattle-home → this API 
   cattle microsites.
 - Authentication: every `/v1` endpoint needs an `x-api-key` header, and `x-cdp-request-id` (see
   [Service-to-service authentication](#service-to-service-authentication) and
-  [Correlation ID](#correlation-id)). `/health`, the OpenAPI document and Scalar are anonymous.
+  [Correlation ID](#correlation-id)). `/health`, the public OpenAPI document and Scalar are anonymous; the internal
+  OpenAPI document needs `x-api-key`.
 - Downstream calls:
   - KRDS (keeper and holding data) and CADS (animals on a holding) over HTTP, each with Basic
     credentials (`ClientId` and `ClientSecret`).
@@ -33,8 +34,20 @@ hub → /cattle → lis-apps-cattle-home → lis-be4fe-cattle-home → this API 
 
 ### Endpoints
 
-Every `/v1` endpoint requires the `x-api-key` and `x-cdp-request-id` headers. Scalar serves
-interactive documentation, and the OpenAPI document is published per API version.
+Every `/v1` endpoint requires the `x-api-key` and `x-cdp-request-id` headers. Two OpenAPI documents are
+published per API version, describing the same routes:
+
+- `/openapi/v1.json` (public, anonymous) lists only the endpoints marked `.WithPublicApi()`. Scalar shows this
+  document in Development only.
+- `/openapi/v1-internal.json` (internal, needs `x-api-key`) lists every endpoint, including `/health/detailed`. It
+  is also generated at build time.
+
+`dotnet build Cattle.slnx` generates both OpenAPI 3.1 documents and copies them to
+`artifacts/openapi/v1.json` and `artifacts/openapi/v1-internal.json`, ready for artifact collection.
+The Cake build and `dotnet publish` run the same generation step. These files are gitignored.
+
+Endpoints are internal-only until marked. `OpenApiConfigurationTests` lists the operations agreed as public, so a new
+public endpoint has to be added there too.
 
 | Method and path | Purpose |
 |---|---|
@@ -55,7 +68,8 @@ interactive documentation, and the OpenAPI document is published per API version
 ### Service-to-service authentication
 
 Every versioned endpoint (`/v1/...`) requires an `x-api-key` header that matches one of the configured keys,
-otherwise it returns `401` problem details. `/health`, the OpenAPI document and Scalar stay anonymous. This is the
+otherwise it returns `401` problem details. So does the internal OpenAPI document (`/openapi/v1-internal.json`).
+`/health`, the public OpenAPI document and Scalar stay anonymous. This is the
 interim mechanism agreed in [LREG-560](https://eaflood.atlassian.net/browse/LREG-560) until AWS STS replaces it; the
 endpoints only reference the `ServiceToService` authorisation policy, so STS is added as another scheme on that policy.
 
@@ -73,7 +87,7 @@ With no key configured the service still starts and answers `/health`, but rejec
 Every versioned endpoint also requires a single `x-cdp-request-id` header (the
 [Correlation ID standard](https://eaflood.atlassian.net/wiki/spaces/LDD/pages/6438093586/Correlation+ID+standard));
 without it the request is rejected with `400` problem details carrying `"code": "missing_header"`. CDP and the
-BE4FE always send it; `/health`, the OpenAPI document and Scalar do not need it. The value is:
+BE4FE always send it; `/health`, the OpenAPI documents and Scalar do not need it. The value is:
 
 - echoed on the response and included as `correlationId` in error problem details;
 - written as `CorrelationId` on every log line (ECS JSON in CDP, plain text locally);

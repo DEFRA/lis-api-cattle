@@ -62,28 +62,30 @@ public static class HealthEndpoints
         };
 
         app.MapHealthChecks("/health", healthOptions)
-           .WithName(OpenApiMetadata.GetHealthRoute.Name)
-           .WithTags(OpenApiMetadata.Tag)
-           .WithSummary(OpenApiMetadata.GetHealthRoute.Summary)
-           .WithDescription(OpenApiMetadata.GetHealthRoute.Description)
-           .WithMetadata(new ProducesResponseTypeAttribute(typeof(HealthCheckResponse), StatusCodes.Status200OK))
-           .WithMetadata(new ProducesResponseTypeAttribute(typeof(HealthCheckResponse), StatusCodes.Status503ServiceUnavailable))
-           .WithoutCorrelationIdCheck();
+            .WithPublicApi()
+            .WithName(OpenApiMetadata.GetHealthRoute.Name)
+            .WithTags(OpenApiMetadata.Tag)
+            .WithSummary(OpenApiMetadata.GetHealthRoute.Summary)
+            .WithDescription(OpenApiMetadata.GetHealthRoute.Description)
+            .WithMetadata(new ProducesResponseTypeAttribute(typeof(HealthCheckResponse), StatusCodes.Status200OK))
+            .WithMetadata(new ProducesResponseTypeAttribute(typeof(HealthCheckResponse), StatusCodes.Status503ServiceUnavailable))
+            .WithoutCorrelationIdCheck();
 
         app.MapGet("/health/detailed", async (IHealthService healthService, CancellationToken cancellationToken) =>
-        {
-            var result = await healthService.CheckHealthAsync(cancellationToken);
-            return result.Status == nameof(HealthStatus.Healthy)
-                ? Results.Ok(result)
-                : Results.Json(result, statusCode: StatusCodes.Status503ServiceUnavailable);
-        })
-        .WithName(OpenApiMetadata.GetDetailedHealthRoute.Name)
-        .WithTags(OpenApiMetadata.Tag)
-        .WithSummary(OpenApiMetadata.GetDetailedHealthRoute.Summary)
-        .WithDescription(OpenApiMetadata.GetDetailedHealthRoute.Description)
-        .Produces<HealthCheckResponse>(StatusCodes.Status200OK)
-        .Produces<HealthCheckResponse>(StatusCodes.Status503ServiceUnavailable)
-        .WithoutCorrelationIdCheck();
+            {
+                var result = await healthService.CheckHealthAsync(cancellationToken);
+                return result.Status == nameof(HealthStatus.Healthy)
+                    ? Results.Ok(result)
+                    : Results.Json(result, statusCode: StatusCodes.Status503ServiceUnavailable);
+            })
+            .WithPublicApi()
+            .WithName(OpenApiMetadata.GetDetailedHealthRoute.Name)
+            .WithTags(OpenApiMetadata.Tag)
+            .WithSummary(OpenApiMetadata.GetDetailedHealthRoute.Summary)
+            .WithDescription(OpenApiMetadata.GetDetailedHealthRoute.Description)
+            .Produces<HealthCheckResponse>(StatusCodes.Status200OK)
+            .Produces<HealthCheckResponse>(StatusCodes.Status503ServiceUnavailable)
+            .WithoutCorrelationIdCheck();
 
         return app;
     }

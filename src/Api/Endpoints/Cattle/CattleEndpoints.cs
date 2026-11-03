@@ -31,6 +31,7 @@ public static class CattleEndpoints
             .WithTags(OpenApiMetadata.Tag);
 
         group.MapGet("/{earTag}", GetCattleDetails)
+            .WithPublicApi()
             .WithName(OpenApiMetadata.GetCattleDetailsRoute.Name)
             .WithSummary(OpenApiMetadata.GetCattleDetailsRoute.Summary)
             .WithDescription(OpenApiMetadata.GetCattleDetailsRoute.Description)
