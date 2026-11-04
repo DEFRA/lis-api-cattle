@@ -1,0 +1,44 @@
+name: 'Publish OpenAPI Documents'
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+      ref:
+        description: 'Git ref or commit SHA to generate the documents from'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  openapi:
+    name: 'Generate and Upload OpenAPI Documents'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+
+      # The shared validate workflow does not keep its build output, so the documents are generated here. Building the
+      # API writes one public and one internal document per registered version to artifacts/openapi (see src/Api/Api.csproj).
+      - name: Generate OpenAPI documents
+        env:
+          PACKAGE_VERSION: ${{ inputs.version }}
+        run: dotnet build src/Api/Api.csproj --configuration Release "-p:Version=$PACKAGE_VERSION"
+
+      - name: Upload OpenAPI documents
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: openapi-${{ inputs.version }}
+          path: artifacts/openapi/*.json
+          if-no-files-found: error

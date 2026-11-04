@@ -4,6 +4,7 @@
 
 namespace Defra.Lis.Api.Tests;
 
+using System.Globalization;
 using System.Net;
 using System.Text.Json;
 using Defra.Lis.Api.Configurations;
@@ -196,7 +197,7 @@ public class KrdsServiceTests
         Assert.Equal("22/001/0001", holding.Cph);
         Assert.Equal("Oakfield Farm", holding.Name);
         Assert.Equal("AH", holding.HoldingType);
-        Assert.Equal(DateTimeOffset.Parse("2010-04-01T00:00:00Z"), holding.StartDate);
+        Assert.Equal(DateTimeOffset.Parse("2010-04-01T00:00:00Z", CultureInfo.InvariantCulture), holding.StartDate);
         Assert.Null(holding.EndDate);
         Assert.True(holding.Active);
         Assert.Equal(
@@ -205,7 +206,7 @@ public class KrdsServiceTests
         Assert.Equal("Oakfield Farmer", holding.KeeperName);
         Assert.Single(holding.HerdMarks);
         Assert.Equal("UK 324537", holding.HerdMarks[0].Mark);
-        Assert.Equal(DateTimeOffset.Parse("2010-04-01T00:00:00Z"), holding.HerdMarks[0].StartDate);
+        Assert.Equal(DateTimeOffset.Parse("2010-04-01T00:00:00Z", CultureInfo.InvariantCulture), holding.HerdMarks[0].StartDate);
         Assert.Null(holding.HerdMarks[0].EndDate);
         Assert.Equal(["Cattle"], holding.HerdMarks[0].Species);
         Assert.Equal(["Cattle"], holding.AllowedSpecies);
@@ -277,7 +278,7 @@ public class KrdsServiceTests
         Assert.Equal("22/001/0001", holding.Cph);
         Assert.Equal("Oakfield Farm", holding.Name);
         Assert.Equal("AH", holding.HoldingType);
-        Assert.Equal(DateTimeOffset.Parse("2010-04-01T00:00:00Z"), holding.StartDate);
+        Assert.Equal(DateTimeOffset.Parse("2010-04-01T00:00:00Z", CultureInfo.InvariantCulture), holding.StartDate);
         Assert.Null(holding.EndDate);
         Assert.True(holding.Active);
         Assert.Equal(
@@ -347,7 +348,7 @@ public class KrdsServiceTests
         var holding = await service.GetHoldingAsync("22", "099", "0099", TestContext.Current.CancellationToken);
 
         Assert.Equal("22/099/0099", holding.Cph);
-        Assert.Equal(DateTimeOffset.Parse("2099-01-01T00:00:00Z"), holding.StartDate);
+        Assert.Equal(DateTimeOffset.Parse("2099-01-01T00:00:00Z", CultureInfo.InvariantCulture), holding.StartDate);
         Assert.Null(holding.EndDate);
         Assert.False(holding.Active);
     }
@@ -363,8 +364,8 @@ public class KrdsServiceTests
         var holding = await service.GetHoldingAsync("22", "099", "0099", TestContext.Current.CancellationToken);
 
         Assert.Equal("22/099/0099", holding.Cph);
-        Assert.Equal(DateTimeOffset.Parse("2010-01-01T00:00:00Z"), holding.StartDate);
-        Assert.Equal(DateTimeOffset.Parse("2020-01-01T00:00:00Z"), holding.EndDate);
+        Assert.Equal(DateTimeOffset.Parse("2010-01-01T00:00:00Z", CultureInfo.InvariantCulture), holding.StartDate);
+        Assert.Equal(DateTimeOffset.Parse("2020-01-01T00:00:00Z", CultureInfo.InvariantCulture), holding.EndDate);
         Assert.False(holding.Active);
     }
 
@@ -379,8 +380,8 @@ public class KrdsServiceTests
         var holding = await service.GetHoldingAsync("22", "099", "0099", TestContext.Current.CancellationToken);
 
         Assert.Equal("22/099/0099", holding.Cph);
-        Assert.Equal(DateTimeOffset.Parse("2010-01-01T00:00:00Z"), holding.StartDate);
-        Assert.Equal(DateTimeOffset.Parse("2099-12-31T23:59:59Z"), holding.EndDate);
+        Assert.Equal(DateTimeOffset.Parse("2010-01-01T00:00:00Z", CultureInfo.InvariantCulture), holding.StartDate);
+        Assert.Equal(DateTimeOffset.Parse("2099-12-31T23:59:59Z", CultureInfo.InvariantCulture), holding.EndDate);
         Assert.True(holding.Active);
     }
 

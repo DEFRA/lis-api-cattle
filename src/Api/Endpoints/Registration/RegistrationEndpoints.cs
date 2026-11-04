@@ -34,6 +34,7 @@ public static class RegistrationEndpoints
             .WithTags(OpenApiMetadata.Tag);
 
         group.MapPost("/", CreateRegistrationBundle)
+            .WithPublicApi()
             .WithName(OpenApiMetadata.CreateRegistrationBundleRoute.Name)
             .WithSummary(OpenApiMetadata.CreateRegistrationBundleRoute.Summary)
             .WithDescription(OpenApiMetadata.CreateRegistrationBundleRoute.Description)

@@ -22,6 +22,8 @@
     <PackageReference Include="NSubstitute" />
     <PackageReference Include="Shouldly" />
     <PackageReference Include="xunit.runner.visualstudio" />
-    <PackageReference Include="xunit.v3" />
+    <!-- mtp-off: tests run through VSTest (Dockerfile filter, build.cake coverage and trx). The default xunit.v3 4.x package
+         uses Microsoft.Testing.Platform v2, which fails dotnet test on the .NET 10 SDK unless the whole repo opts in to MTP. -->
+    <PackageReference Include="xunit.v3.mtp-off" />
   </ItemGroup>
 </Project>

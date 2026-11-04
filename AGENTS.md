@@ -214,4 +214,7 @@ are returned on their own, and an unreadable file is skipped. It is read by `Cad
 2. **Minimal API Endpoints**: When adding new API endpoints, create a new file under `src/Api/Endpoints/` and create an extension method on `IEndpointRouteBuilder`. Hook the extension method in `Program.cs`.
 3. **Domain Modeling**: Ensure entities protect invariants and encapsulate state changes. Do not create anemic models with public getters and setters.
 4. **Central Package Management**: Do not specify package versions in individual `.csproj` files; add or update versions in `Directory.Packages.props`.
-5. **Testing**: Write unit tests in `tests/Api.Tests/` for any new business logic, service methods, or endpoint workflows. Ensure all tests pass (`dotnet test`) before concluding work.
+5. **Public vs internal OpenAPI**: Endpoints appear only in `/openapi/v1-internal.json` unless marked `.WithPublicApi()`
+   (`src/Api/Configurations/OpenApiConfiguration.cs`), which also lists them in the public `/openapi/v1.json`. Only mark an endpoint
+   public when asked to, and add its operationId to `PublicCattleApiOperations` in `OpenApiConfigurationTests`.
+6. **Testing**: Write unit tests in `tests/Api.Tests/` for any new business logic, service methods, or endpoint workflows. Ensure all tests pass (`dotnet test`) before concluding work.

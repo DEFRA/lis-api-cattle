@@ -37,6 +37,14 @@ jobs:
         AWS__EnableBackgroundConsumer=false
         CtsPollingJob__Enabled=false
 
+  openapi:
+    name: 'OpenAPI Documents'
+    needs: get-version
+    uses: ./.github/workflows/support-openapi.yml
+    with:
+      version: ${{ needs.get-version.outputs.version }}
+      ref: ${{ github.event.pull_request.head.sha }}
+
   sonar-analysis:
     name: 'Sonar Analysis'
     needs: get-version
@@ -49,7 +57,7 @@ jobs:
 
   required-checks:
     name: 'Pull Request Validation'
-    needs: [get-version, validate, sonar-analysis]
+    needs: [get-version, validate, openapi, sonar-analysis]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
@@ -57,11 +65,13 @@ jobs:
         env:
           GET_VERSION_RESULT: ${{ needs.get-version.result }}
           VALIDATE_RESULT: ${{ needs.validate.result }}
+          OPENAPI_RESULT: ${{ needs.openapi.result }}
           SONAR_ANALYSIS_RESULT: ${{ needs.sonar-analysis.result }}
         run: |
           results=(
             "get-version=$GET_VERSION_RESULT"
             "validate=$VALIDATE_RESULT"
+            "openapi=$OPENAPI_RESULT"
             "sonar-analysis=$SONAR_ANALYSIS_RESULT"
           )
 

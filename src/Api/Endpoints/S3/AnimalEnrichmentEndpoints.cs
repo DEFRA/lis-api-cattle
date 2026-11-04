@@ -25,7 +25,9 @@ public static class AnimalEnrichmentEndpoints
             .MapGroup(RouteNames.ApiVersionRoot)
             .HasApiVersion(1.0)
             .RequireServiceToServiceAuthorization();
-        var group = versionOne.MapGroup(RouteNames.AnimalEnrichment).WithTags(OpenApiMetadata.Tag);
+        var group = versionOne
+            .MapGroup(RouteNames.AnimalEnrichment)
+            .WithTags(OpenApiMetadata.Tag);
 
         group.MapGet("/", CphList)
             .WithName("ListAnimalEnrichmentCphs")

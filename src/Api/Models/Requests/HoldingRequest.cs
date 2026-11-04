@@ -15,5 +15,5 @@ public class HoldingRequest
     /// Gets or sets the county, parish, and holding (CPH) number.
     /// </summary>
     [Description("The county, parish and holding (CPH) number.")]
-    public string Cph { get; set; } = string.Empty;
+    public required string Cph { get; set; }
 }
