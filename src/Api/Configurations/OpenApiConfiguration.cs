@@ -50,13 +50,13 @@ public static class OpenApiConfiguration
             })
             .AddOpenApi(options =>
             {
+                // Runs after the versioning library has overwritten the info set on the plain document below.
                 options.Document.AddDocumentTransformer((document, _, _) =>
                 {
                     document.Info.Title = Title;
                     document.Info.Description = Description;
                     return Task.CompletedTask;
                 });
-                options.Document.AddApiKeySecurity();
 
                 var isInVersion = options.Document.ShouldInclude;
                 options.Document.ShouldInclude = description => isInVersion(description) && IsPublic(description);
@@ -70,6 +70,18 @@ public static class OpenApiConfiguration
             {
                 options.ShouldInclude = description =>
                     (description.GroupName is null || description.GroupName == groupName) && IsPublic(description);
+
+                // The versioned configuration above only reaches a version once an endpoint declares it, and a listed
+                // version must always produce a correctly labelled document. API key security is added only here,
+                // because this configuration runs for every public document and adding it twice duplicates it.
+                options.AddDocumentTransformer((document, _, _) =>
+                {
+                    document.Info.Title = Title;
+                    document.Info.Description = Description;
+                    document.Info.Version = version.ToString();
+                    return Task.CompletedTask;
+                });
+                options.AddApiKeySecurity();
             });
             services.AddOpenApi(groupName + InternalSuffix, options =>
             {

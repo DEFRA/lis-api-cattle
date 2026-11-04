@@ -19,7 +19,19 @@
     <PropertyGroup>
       <OpenApiArtifactsDirectory>$(MSBuildProjectDirectory)/../../artifacts/openapi</OpenApiArtifactsDirectory>
     </PropertyGroup>
-    <Copy SourceFiles="$(OpenApiDocumentsDirectory)/$(MSBuildProjectName).json;$(OpenApiDocumentsDirectory)/$(MSBuildProjectName)_v1-internal.json"
-          DestinationFiles="$(OpenApiArtifactsDirectory)/v1.json;$(OpenApiArtifactsDirectory)/v1-internal.json" />
+    <!-- The generator writes the default document (v1) as Api.json and every other document as Api_{name}.json. -->
+    <ItemGroup>
+      <NamedOpenApiDocument Include="$(OpenApiDocumentsDirectory)/$(MSBuildProjectName)_*.json" />
+    </ItemGroup>
+    <!-- The upload ignores an empty folder because the shared workflow also serves services with no OpenAPI, so fail here. -->
+    <Error Condition="'@(NamedOpenApiDocument)' == '' And !Exists('$(OpenApiDocumentsDirectory)/$(MSBuildProjectName).json')"
+           Text="No OpenAPI documents were generated in $(OpenApiDocumentsDirectory)." />
+    <!-- Start clean so a retired version is never published from an earlier build. -->
+    <RemoveDir Directories="$(OpenApiArtifactsDirectory)" />
+    <Copy Condition="Exists('$(OpenApiDocumentsDirectory)/$(MSBuildProjectName).json')"
+          SourceFiles="$(OpenApiDocumentsDirectory)/$(MSBuildProjectName).json"
+          DestinationFiles="$(OpenApiArtifactsDirectory)/v1.json" />
+    <Copy SourceFiles="@(NamedOpenApiDocument)"
+          DestinationFiles="@(NamedOpenApiDocument->'$(OpenApiArtifactsDirectory)/$([System.String]::Copy('%(Filename)').Substring($([MSBuild]::Add($(MSBuildProjectName.Length), 1)))).json')" />
   </Target>
 </Project>
