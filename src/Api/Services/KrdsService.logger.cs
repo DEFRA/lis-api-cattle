@@ -27,7 +27,7 @@ public partial class KrdsService
     [LoggerMessage(LogLevel.Warning, "KRDS rejected the user account: the email address belongs to another account")]
     partial void LogUserAccountConflict();
 
-    [LoggerMessage(LogLevel.Warning, "KRDS is temporarily unavailable ({Action})")]
+    [LoggerMessage(LogLevel.Warning, "KRDS is unavailable ({Action}): no response in time, the circuit is open, or it answered 503/504")]
     partial void LogKrdsUnavailable(string action);
 
     [LoggerMessage(LogLevel.Information, "Retrieved {Count} holdings (page {Page} of {TotalPages}) from KRDS")]

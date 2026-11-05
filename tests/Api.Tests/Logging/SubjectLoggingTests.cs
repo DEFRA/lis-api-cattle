@@ -52,7 +52,8 @@ public class SubjectLoggingTests
         { HttpStatusCode.OK, HttpStatusCode.OK },
         { HttpStatusCode.NotFound, HttpStatusCode.NotFound },
         { HttpStatusCode.UnprocessableEntity, HttpStatusCode.BadRequest },
-        { HttpStatusCode.ServiceUnavailable, HttpStatusCode.InternalServerError },
+        { HttpStatusCode.ServiceUnavailable, HttpStatusCode.ServiceUnavailable },
+        { HttpStatusCode.GatewayTimeout, HttpStatusCode.ServiceUnavailable },
     };
 
     public static TheoryData<HttpStatusCode, HttpStatusCode> CreateUserOutcomes => new()
@@ -61,6 +62,7 @@ public class SubjectLoggingTests
         { HttpStatusCode.BadRequest, HttpStatusCode.BadRequest },
         { HttpStatusCode.Conflict, HttpStatusCode.Conflict },
         { HttpStatusCode.ServiceUnavailable, HttpStatusCode.ServiceUnavailable },
+        { HttpStatusCode.GatewayTimeout, HttpStatusCode.ServiceUnavailable },
     };
 
     [Theory]
@@ -87,6 +89,60 @@ public class SubjectLoggingTests
         var response = await AuthenticatedClient(app).PostAsync("/v1/users", ClaimsBody(), TestContext.Current.CancellationToken);
 
         Assert.Equal(expectedStatus, response.StatusCode);
+        AssertNoEventContainsTheSubject();
+    }
+
+    [Fact]
+    public async Task GetUserDetails_LogsNoSubject_WhenKrdsTimesOut()
+    {
+        krds.Hang();
+        await using var app = await StartAppAsync();
+
+        var response = await AuthenticatedClient(app).GetAsync($"/v1/users/{Subject}", TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        AssertNoEventContainsTheSubject();
+    }
+
+    [Fact]
+    public async Task CreateUser_LogsNoSubject_WhenKrdsTimesOut()
+    {
+        krds.Hang();
+        await using var app = await StartAppAsync();
+
+        var response = await AuthenticatedClient(app).PostAsync("/v1/users", ClaimsBody(), TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        AssertNoEventContainsTheSubject();
+    }
+
+    [Fact]
+    public async Task GetUserDetails_LogsNoSubject_WhenTheKrdsCircuitOpens()
+    {
+        krds.FailWith(new HttpRequestException("Connection refused"))
+            .FailWith(new HttpRequestException("Connection refused"));
+        await using var app = await StartAppAsync();
+        var client = AuthenticatedClient(app);
+
+        for (var call = 0; call < 3; call++)
+        {
+            var response = await client.GetAsync($"/v1/users/{Subject}", TestContext.Current.CancellationToken);
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        }
+
+        // Polly runs the transition callback off the request path, so the log can land just after the response.
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        LogEvent? opened;
+        while ((opened = sink.Events.FirstOrDefault(e => e.RenderMessage().Contains("circuit opened", StringComparison.Ordinal))) is null &&
+               DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(20, TestContext.Current.CancellationToken);
+        }
+
+        Assert.NotNull(opened);
+        Assert.Equal(2, krds.Requests.Count);
+        Assert.False(opened.Properties.ContainsKey("CorrelationId"), "The transition carried a stale correlation ID.");
+        Assert.False(opened.Properties.ContainsKey("RequestPath"), "The transition carried a stale request path.");
         AssertNoEventContainsTheSubject();
     }
 
@@ -199,6 +255,8 @@ public class SubjectLoggingTests
             BaseUrl = "http://fake-service.test/krds",
             ClientId = nameof(SubjectLoggingTests),
             ClientSecret = Guid.NewGuid().ToString("N"),
+            TimeoutSeconds = 1,
+            CircuitBreakerFailureThreshold = 2,
         }));
         builder.Services.AddScoped<IKrdsService, KrdsService>();
 
