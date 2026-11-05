@@ -22,6 +22,8 @@ using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Services;
 using Defra.Lis.Database;
 using Defra.Livestock.Sdk.Api.Strategies;
+using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Operations.Http.Rest.Client;
+using Defra.Livestock.Sdk.Api.Strategies.Operations.Http.Rest.Client;
 using FluentValidation;
 using Serilog;
 
@@ -112,10 +114,9 @@ public static class Program
             .Bind(builder.Configuration.GetSection(KrdsApiOptions.SectionName))
             .ValidateDataAnnotations();
 
-        // The REST client must be registered before the strategy factories so it carries header propagation and the
-        // CADS timeout and circuit breaker (LREG-509).
+        // The REST client must be registered before the strategy factories so it carries header propagation.
         builder.Services.AddStrategyFramework();
-        builder.Services.AddUpstreamHttpClient();
+        builder.Services.AddHttpClient<IRestHttpClient, RestHttpClient>().AddHeaderPropagation();
         builder.Services.AddRestStrategyFactory<CadsService>();
         builder.Services.AddRestStrategyFactory<KrdsService>();
         builder.Services.AddCadsDataPatch(builder.Configuration);

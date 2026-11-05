@@ -23,12 +23,6 @@ public partial class CadsService
     [LoggerMessage(LogLevel.Information, "Added {Count} live animals for holding {Cph} from the CADS data patch")]
     partial void LogAddedAnimalsFromCadsDataPatch(int count, string cph);
 
-    [LoggerMessage(LogLevel.Information, "CADS data patch for holding {Cph} could not be read; returning CADS animals only")]
+    [LoggerMessage(LogLevel.Information, "CADS data patch for holding {Cph} not found; returning CADS animals only")]
     partial void LogCadsDataPatchUnavailable(Exception exception, string cph);
-
-    [LoggerMessage(LogLevel.Warning, "CADS data patch could not be read for animal {EarTag}, which CADS does not know; answering 503")]
-    partial void LogCadsDataPatchUnreadableForAnimal(Exception exception, string earTag);
-
-    [LoggerMessage(LogLevel.Warning, "CADS is unavailable ({Action}): no response in time, the circuit is open, or it answered 503/504")]
-    partial void LogCadsUnavailable(string action);
 }
