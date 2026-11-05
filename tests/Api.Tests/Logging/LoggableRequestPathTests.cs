@@ -69,6 +69,17 @@ public class LoggableRequestPathTests
         Assert.False(logEvent.Properties.ContainsKey(LoggableRequestPathEnricher.PropertyName));
     }
 
+    [Fact]
+    public void Enricher_RemovesAStaleRawPath_WhenNoRequestIsInProgress()
+    {
+        // Work that outlives its request, such as a circuit breaker callback, can still carry the request's log scope.
+        var logEvent = EventWith(new LogEventProperty(LoggableRequestPathEnricher.PropertyName, new ScalarValue("/v1/users/subject-1")));
+
+        new LoggableRequestPathEnricher(new HttpContextAccessor()).Enrich(logEvent, new PropertyFactory());
+
+        Assert.False(logEvent.Properties.ContainsKey(LoggableRequestPathEnricher.PropertyName));
+    }
+
     private static DefaultHttpContext RequestFor(string path)
     {
         var context = new DefaultHttpContext();

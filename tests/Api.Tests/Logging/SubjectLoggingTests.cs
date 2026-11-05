@@ -19,8 +19,6 @@ using Defra.Lis.Api.Tests.Authentication;
 using Defra.Lis.Api.Tests.Upstream;
 using Defra.Lis.Api.Validation;
 using Defra.Livestock.Sdk.Api.Strategies;
-using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Operations.Http.Rest.Client;
-using Defra.Livestock.Sdk.Api.Strategies.Operations.Http.Rest.Client;
 using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
@@ -33,6 +31,7 @@ using Serilog.Events;
 /// Runs the user endpoints through the logging pipeline from <c>Program</c>, against a real <see cref="KrdsService"/>
 /// over a stub KRDS, and checks that no log event carries the Defra ID subject (LREG-751).
 /// </summary>
+[Collection(SerilogStaticLoggerCollection.Name)]
 public class SubjectLoggingTests
 {
     private const string Subject = "5e0c8f8a-4b1d-4c7e-9a3f-6d2b8e1f0a47";
@@ -190,9 +189,9 @@ public class SubjectLoggingTests
         builder.Services.AddExceptionHandler<ApiExceptionHandler>();
         builder.Services.AddCorrelationId();
 
-        // The KRDS client is registered as in Program, so the SDK and HttpClient factory loggers run too.
+        // The KRDS client is registered as in Program, so the SDK loggers and the resilience pipeline run too.
         builder.Services.AddStrategyFramework();
-        builder.Services.AddHttpClient<IRestHttpClient, RestHttpClient>().ConfigurePrimaryHttpMessageHandler(() => krds);
+        builder.Services.AddUpstreamHttpClient().ConfigurePrimaryHttpMessageHandler(() => krds);
         builder.Services.AddRestStrategyFactory<KrdsService>();
         builder.Services.AddSingleton<IValidator<HoldingSearchRequest>, HoldingSearchRequestValidator>();
         builder.Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new KrdsApiOptions

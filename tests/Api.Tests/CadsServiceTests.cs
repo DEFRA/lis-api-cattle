@@ -5,8 +5,10 @@
 namespace Defra.Lis.Api.Tests;
 
 using System.Net;
+using Amazon.Runtime;
 using Amazon.S3;
 using Defra.Lis.Api.Configurations;
+using Defra.Lis.Api.Exceptions;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models.Cads;
 using Defra.Lis.Api.Services;
@@ -15,6 +17,8 @@ using Defra.Lis.Core.Exceptions;
 using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Exceptions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using Polly.CircuitBreaker;
+using Polly.Timeout;
 
 public class CadsServiceTests
 {
@@ -37,6 +41,22 @@ public class CadsServiceTests
         BucketName = "cads-data-patches",
     };
 
+    // Rows are keyed by name, not by exception instance, so xUnit can serialise and list each one (xUnit1045).
+    private static readonly Dictionary<string, Func<Exception>> CadsFailuresWithoutResponse = new()
+    {
+        ["ConnectionRefused"] = () => new HttpRequestException("Connection refused (fake-service.test:80)"),
+        ["PipelineTimeout"] = () => new TimeoutRejectedException(),
+        ["OpenCircuit"] = () => new BrokenCircuitException(),
+    };
+
+    private static readonly Dictionary<string, Func<Exception>> PatchStoreFailures = new()
+    {
+        ["AccessDenied"] = () => new AmazonS3Exception("Access Denied"),
+        ["ClientError"] = () => new AmazonClientException("Unable to reach S3"),
+        ["Transport"] = () => new HttpRequestException("Connection refused (s3.test:443)"),
+        ["Timeout"] = () => new TaskCanceledException("The S3 request timed out."),
+    };
+
     private readonly StubHttpMessageHandler handler = new();
     private readonly Mock<ICadsDataPatchStore> dataPatchStore = new();
 
@@ -45,6 +65,12 @@ public class CadsServiceTests
         // No patch files unless a test sets some up.
         dataPatchStore.Setup(s => s.GetCphEarTagsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync([]);
     }
+
+    public static TheoryData<string> CadsFailureNames => [.. CadsFailuresWithoutResponse.Keys];
+
+    public static TheoryData<string> PatchStoreFailureNames => [.. PatchStoreFailures.Keys];
+
+    public static TheoryData<HttpStatusCode> UnavailableStatuses => [HttpStatusCode.ServiceUnavailable, HttpStatusCode.GatewayTimeout];
 
     [Fact]
     public async Task GetCattleByCphAsync_CallsAnimalsEndpointWithCphPagingAndBasicAuth()
@@ -696,6 +722,144 @@ public class CadsServiceTests
 
         await Assert.ThrowsAsync<ArgumentException>(() => service.GetAnimalDetailsAsync(" ", TestContext.Current.CancellationToken));
         Assert.Empty(handler.Requests);
+    }
+
+    [Theory]
+    [MemberData(nameof(CadsFailureNames))]
+    public async Task GetCattleByCphAsync_ThrowsServiceUnavailable_WhenCadsDoesNotAnswer(string failure)
+    {
+        handler.FailWith(CadsFailuresWithoutResponse[failure]());
+        var service = CreateService();
+
+        var exception = await Assert.ThrowsAsync<ServiceUnavailableException>(() => service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken));
+
+        Assert.IsType<RestRequestException>(exception.InnerException);
+    }
+
+    [Theory]
+    [MemberData(nameof(CadsFailureNames))]
+    public async Task GetAnimalDetailsAsync_ThrowsServiceUnavailable_WhenCadsDoesNotAnswer(string failure)
+    {
+        handler.FailWith(CadsFailuresWithoutResponse[failure]());
+        var service = CreateService();
+
+        var exception = await Assert.ThrowsAsync<ServiceUnavailableException>(() => service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken));
+
+        Assert.IsType<RestRequestException>(exception.InnerException);
+        dataPatchStore.Verify(s => s.GetAnimalDetailsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Theory]
+    [MemberData(nameof(UnavailableStatuses))]
+    public async Task GetCattleByCphAsync_ThrowsServiceUnavailable_WhenCadsAnswersUnavailable(HttpStatusCode status)
+    {
+        handler.RespondWith(status, $$"""{"status":{{(int)status}}}""");
+        var service = CreateService();
+
+        var exception = await Assert.ThrowsAsync<ServiceUnavailableException>(() => service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken));
+
+        Assert.IsType<RestResponseException>(exception.InnerException);
+    }
+
+    [Theory]
+    [MemberData(nameof(UnavailableStatuses))]
+    public async Task GetAnimalDetailsAsync_ThrowsServiceUnavailable_WhenCadsAnswersUnavailable(HttpStatusCode status)
+    {
+        handler.RespondWith(status, $$"""{"status":{{(int)status}}}""");
+        var service = CreateService();
+
+        var exception = await Assert.ThrowsAsync<ServiceUnavailableException>(() => service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken));
+
+        Assert.IsType<RestResponseException>(exception.InnerException);
+    }
+
+    [Fact]
+    public async Task GetCattleByCphAsync_ThrowsServiceUnavailable_WhenALaterPageFails()
+    {
+        handler
+            .RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000001", "Alive"), Animal("UK200000000002", "Alive")], page: 1, totalRecords: 3))
+            .FailWith(new TimeoutRejectedException());
+        var service = CreateService();
+
+        await Assert.ThrowsAsync<ServiceUnavailableException>(() => service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task GetCattleByCphAsync_DoesNotReportCadsUnavailable_WhenTheCallerCancels()
+    {
+        using var cancellation = new CancellationTokenSource();
+        handler.Hang(cancellation.Cancel);
+        var service = CreateService();
+
+        var exception = await Assert.ThrowsAnyAsync<Exception>(() => service.GetCattleByCphAsync(Cph, cancellation.Token));
+
+        Assert.IsNotType<ServiceUnavailableException>(exception);
+    }
+
+    [Fact]
+    public async Task GetAnimalDetailsAsync_DoesNotReportCadsUnavailable_WhenTheCallerCancels()
+    {
+        using var cancellation = new CancellationTokenSource();
+        handler.Hang(cancellation.Cancel);
+        var service = CreateService();
+
+        var exception = await Assert.ThrowsAnyAsync<Exception>(() => service.GetAnimalDetailsAsync(EarTag, cancellation.Token));
+
+        Assert.IsNotType<ServiceUnavailableException>(exception);
+    }
+
+    [Theory]
+    [MemberData(nameof(PatchStoreFailureNames))]
+    public async Task GetCattleByCphAsync_ReturnsCadsAnimalsOnly_WhenTheDataPatchFails(string failure)
+    {
+        handler.RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000001", "Alive")], page: 1, totalRecords: 1));
+        dataPatchStore.Setup(s => s.GetCphEarTagsAsync(Cph, It.IsAny<CancellationToken>())).ThrowsAsync(PatchStoreFailures[failure]());
+        var service = CreateService();
+
+        var result = (await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken)).Select(c => c.EarTag).ToList();
+
+        Assert.Equal(["UK200000000001"], result);
+    }
+
+    [Theory]
+    [MemberData(nameof(PatchStoreFailureNames))]
+    public async Task GetAnimalDetailsAsync_ThrowsServiceUnavailable_WhenCadsReturns404AndTheDataPatchFails(string failure)
+    {
+        // The animal may be in the patch, so "try again later" is right and "not found" would be wrong.
+        handler.RespondWith(HttpStatusCode.NotFound, """{"title":"Not Found","status":404}""");
+        var patchFailure = PatchStoreFailures[failure]();
+        dataPatchStore.Setup(s => s.GetAnimalDetailsAsync(EarTag, It.IsAny<CancellationToken>())).ThrowsAsync(patchFailure);
+        var service = CreateService();
+
+        var exception = await Assert.ThrowsAsync<ServiceUnavailableException>(() => service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken));
+
+        Assert.Same(patchFailure, exception.InnerException);
+    }
+
+    [Fact]
+    public async Task GetAnimalDetailsAsync_ThrowsNotFound_WhenCadsReturns404AndTheDataPatchHasNoEntry()
+    {
+        handler.RespondWith(HttpStatusCode.NotFound, """{"title":"Not Found","status":404}""");
+        dataPatchStore.Setup(s => s.GetAnimalDetailsAsync(EarTag, It.IsAny<CancellationToken>())).ReturnsAsync((CadsAnimalDetail?)null);
+        var service = CreateService();
+
+        await Assert.ThrowsAsync<NotFoundException>(() => service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task GetAnimalDetailsAsync_LetsTheCallersCancellationThrough_WhenItHappensWhileReadingTheDataPatch()
+    {
+        using var cancellation = new CancellationTokenSource();
+        handler.RespondWith(HttpStatusCode.NotFound, """{"title":"Not Found","status":404}""");
+        dataPatchStore.Setup(s => s.GetAnimalDetailsAsync(EarTag, It.IsAny<CancellationToken>()))
+            .Returns(async () =>
+            {
+                await cancellation.CancelAsync();
+                throw new OperationCanceledException(cancellation.Token);
+            });
+        var service = CreateService();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() => service.GetAnimalDetailsAsync(EarTag, cancellation.Token));
     }
 
     private static string Parent(string relationship, string earTag) => $$"""

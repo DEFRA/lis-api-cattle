@@ -36,4 +36,27 @@ public static class UpstreamErrors
 
     public static bool IsServiceUnavailable(RestResponseException exception) =>
         StatusCode(exception) == HttpStatusCode.ServiceUnavailable;
+
+    /// <summary>
+    /// Whether the upstream answered that it is temporarily unavailable: 503, or 504 from a gateway in front of it.
+    /// </summary>
+    /// <param name="exception">The response failure.</param>
+    /// <returns><see langword="true"/> for 503 or 504.</returns>
+    public static bool IsServiceUnavailableOrGatewayTimeout(RestResponseException exception) =>
+        StatusCode(exception) is HttpStatusCode.ServiceUnavailable or HttpStatusCode.GatewayTimeout;
+
+    /// <summary>
+    /// Whether a call failed without the upstream answering, and the caller did not cancel it. The SDK wraps every
+    /// exception <c>HttpClient.SendAsync</c> throws in a <see cref="RestRequestException"/>: a transport failure
+    /// (connection refused, DNS), the resilience pipeline's timeout or open circuit, or the HttpClient timeout.
+    /// </summary>
+    /// <param name="exception">The request failure.</param>
+    /// <param name="cancellationToken">The caller's token; a cancelled call is not the upstream's fault.</param>
+    /// <returns><see langword="true"/> when the upstream should be reported as unavailable.</returns>
+    public static bool IsUnreachable(RestRequestException exception, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+
+        return exception.InnerException is not null && !cancellationToken.IsCancellationRequested;
+    }
 }
