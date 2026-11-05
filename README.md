@@ -140,34 +140,29 @@ Each S3 request for the patch times out after `CadsDataPatch__TimeoutSeconds` an
 read, the API returns what CADS returned. For a single animal that CADS does not know, an unreadable patch
 answers `503` rather than `404`, because the animal may be in the patch.
 
-### Timeouts and circuit breakers for CADS and KRDS
+### Timeouts and the CADS circuit breaker
 
-Calls to CADS ([LREG-509](https://eaflood.atlassian.net/browse/LREG-509)) and KRDS
-([LREG-510](https://eaflood.atlassian.net/browse/LREG-510)) go through a resilience pipeline, part of the PRR item
-LREG-496, so a slow or unreachable upstream fails fast instead of holding the request. Each upstream has its own
-pipeline and circuit, set by its own `CadsApi__*` or `KrdsApi__*` settings, so one being down does not stop calls to
-the other:
+Calls to CADS go through a resilience pipeline ([LREG-509](https://eaflood.atlassian.net/browse/LREG-509),
+part of the PRR item LREG-496), so a slow or unreachable CADS fails fast instead of holding the request:
 
-- A call with no response headers after `TimeoutSeconds` (3 s) times out. A body that stalls after the headers is
-  cut off one second later. The BE4FE gives this API 4 s, so this API gives up first.
-- The circuit opens when at least `CircuitBreakerFailureThreshold` (5) calls fail without a response within
-  `CircuitBreakerSamplingSeconds` (30), and none succeed. Calls then fail at once for `CircuitBreakerBreakSeconds`
-  (30), and after that one probe call is let through. A probe that succeeds closes the circuit; one that fails opens
-  it again.
-- Any HTTP response, even a 5xx, shows that the upstream is up and does not count as a failure. The caller cancelling
+- A call with no response headers after `CadsApi__TimeoutSeconds` (3 s) times out. A body that stalls after
+  the headers is cut off one second later. The BE4FE gives this API 4 s, so this API gives up first.
+- The circuit opens when at least `CadsApi__CircuitBreakerFailureThreshold` (5) calls fail without a response
+  within `CadsApi__CircuitBreakerSamplingSeconds` (30), and none succeed. Calls then fail at once for
+  `CadsApi__CircuitBreakerBreakSeconds` (30), and after that one probe call is let through. A probe that
+  succeeds closes the circuit; one that fails opens it again.
+- Any HTTP response, even a 5xx, shows that CADS is up and does not count as a failure. The caller cancelling
   does not count either. Nothing is retried: the callers above decide whether to retry.
-- A timeout, an open circuit, a transport failure, or a `503` or `504` from the upstream answers `503` with problem
-  details, which callers can retry. Before, all of these were `500` (KRDS's `503` was passed on only for
-  `POST /v1/users`). Retrying `POST /v1/users` is safe: KRDS finds or creates the account by subject.
+- A timeout, an open circuit, a transport failure, or a `503` or `504` from CADS answers `503` with problem
+  details, which callers can retry. Before, all of these were `500`.
 - Circuit transitions are logged: a warning when it opens or reopens, information when it goes half-open or
-  closes, naming the upstream. These logs carry no correlation ID or path, because they belong to no request. Polly
-  also logs its own `Resilience event occurred` events.
+  closes. These logs carry no correlation ID or path, because they belong to no request. Polly also logs its
+  own `Resilience event occurred` events.
 
-CADS and KRDS share the SDK's single HTTP client, so a request uses the pipeline of the upstream whose base URL
-(`CadsApi__BaseUrl` or `KrdsApi__BaseUrl`) its URL starts with. The host alone would not do: lis-dev serves both
-from `lis-fake-service`, and the CDP dev gateway from one host. A call to any other URL uses an empty pipeline. The
-HttpClient factory's own loggers are removed from this client, because their scope carries the raw URL, and KRDS
-URLs hold the Defra ID subject.
+CADS and KRDS share the SDK's single HTTP client, so a request uses the CADS pipeline when its URL starts with
+`CadsApi__BaseUrl`. The host alone would not do: lis-dev serves both from `lis-fake-service`. Every other call,
+KRDS included, uses an empty pipeline for now. The HttpClient factory's own loggers are removed from this client,
+because their scope carries the raw URL, and KRDS URLs hold the Defra ID subject.
 
 ## Prerequisites
 
@@ -355,10 +350,6 @@ secret must be set as secrets in the CDP portal for every deployed environment.
 | `KrdsApi__ClientId` | KRDS Basic client ID | empty |
 | `KrdsApi__ClientSecret` | Secret. KRDS Basic client secret | empty |
 | `KrdsApi__GatewayApiKey` | Secret. CDP developer API key, for the dev gateway only | none |
-| `KrdsApi__TimeoutSeconds` | Seconds a KRDS call waits for the response headers (1-300) | `3` |
-| `KrdsApi__CircuitBreakerFailureThreshold` | Calls that must fail without a response to open the KRDS circuit (2-1000) | `5` |
-| `KrdsApi__CircuitBreakerSamplingSeconds` | Window in which those failures are counted (1-3600) | `30` |
-| `KrdsApi__CircuitBreakerBreakSeconds` | Seconds the KRDS circuit stays open before a probe (1-3600) | `30` |
 | `CadsApi__BaseUrl` | CADS base URL, with trailing slash | `http://lis-fake-service/cads/` |
 | `CadsApi__ClientId` | CADS Basic client ID | empty |
 | `CadsApi__ClientSecret` | Secret. CADS Basic client secret | empty |
