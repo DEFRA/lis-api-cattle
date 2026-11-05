@@ -110,7 +110,7 @@ public class UsersEndpointsTests
         Assert.Equal(OpenApiMetadata.GetUserDetailsRoute.Description, endpoint.Metadata.GetMetadata<IEndpointDescriptionMetadata>()?.Description);
         Assert.Contains(OpenApiMetadata.Tag, endpoint.Metadata.GetMetadata<ITagsMetadata>()!.Tags);
         var statusCodes = endpoint.Metadata.GetOrderedMetadata<IProducesResponseTypeMetadata>().Select(m => m.StatusCode).ToList();
-        Assert.Equal([StatusCodes.Status401Unauthorized, StatusCodes.Status200OK, StatusCodes.Status400BadRequest, StatusCodes.Status404NotFound, StatusCodes.Status500InternalServerError], statusCodes);
+        Assert.Equal([StatusCodes.Status401Unauthorized, StatusCodes.Status200OK, StatusCodes.Status400BadRequest, StatusCodes.Status404NotFound, StatusCodes.Status500InternalServerError, StatusCodes.Status503ServiceUnavailable], statusCodes);
     }
 
     [Fact]

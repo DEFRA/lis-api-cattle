@@ -30,6 +30,7 @@ public sealed partial class KrdsService : IKrdsService
     private const string KeeperRoleCode = "Keeper";
     private const int MaxClaimLength = 256;
     private const int MaxEmailLength = 320;
+    private const string KrdsUnavailable = "KRDS is temporarily unavailable, try again later.";
 
     private readonly IRestStrategyFactory<KrdsService> strategyFactory;
     private readonly string? gatewayApiKey;
@@ -60,6 +61,9 @@ public sealed partial class KrdsService : IKrdsService
             .WithDefaultApiDescription("KRDS API")
             .WithDefaultBaseUrl(options.Value.BaseUrl)
             .WithDefaultBasicAuth(options.Value.ClientId, options.Value.ClientSecret)
+
+            // The pipeline times out the headers (UpstreamHttpClient); this cuts off a body that stalls after them.
+            .WithDefaultTimeout((int)(TimeSpan.FromSeconds(options.Value.TimeoutSeconds) + UpstreamHttpClient.BodyGrace).TotalMilliseconds)
             .WithDefaultJsonSerializerOptions(UpstreamJson.Options);
     }
 
@@ -99,6 +103,10 @@ public sealed partial class KrdsService : IKrdsService
         catch (RestResponseException ex) when (UpstreamErrors.IsBadRequest(ex))
         {
             throw new ArgumentException($"Holding '{cph}' is not a valid CPH.", ex);
+        }
+        catch (Exception ex) when (UpstreamErrors.IsUnavailable(ex, cancellationToken))
+        {
+            throw Unavailable("Get holding details", ex);
         }
     }
 
@@ -140,6 +148,10 @@ public sealed partial class KrdsService : IKrdsService
         {
             throw new ArgumentException("Invalid search parameters provided to KRDS.", ex);
         }
+        catch (Exception ex) when (UpstreamErrors.IsUnavailable(ex, cancellationToken))
+        {
+            throw Unavailable("Search holdings", ex);
+        }
     }
 
     public async Task<UserDetailsResponse> GetUserAccountAsync(
@@ -177,6 +189,10 @@ public sealed partial class KrdsService : IKrdsService
                                                UpstreamErrors.IsUnprocessableEntity(ex))
         {
             throw new ArgumentException("The subject is not valid.", nameof(subject), ex);
+        }
+        catch (Exception ex) when (UpstreamErrors.IsUnavailable(ex, cancellationToken))
+        {
+            throw Unavailable("Get user account", ex);
         }
     }
 
@@ -216,10 +232,10 @@ public sealed partial class KrdsService : IKrdsService
             LogUserAccountConflict();
             throw new ConflictException("The email address is already associated with a different user account.");
         }
-        catch (RestResponseException ex) when (UpstreamErrors.IsServiceUnavailable(ex))
+        catch (Exception ex) when (UpstreamErrors.IsUnavailable(ex, cancellationToken))
         {
-            LogKrdsUnavailable("Ensure user account");
-            throw new ServiceUnavailableException("KRDS is temporarily unavailable, try again later.", ex);
+            // Safe for the caller to retry: KRDS finds or creates the account by subject.
+            throw Unavailable("Ensure user account", ex);
         }
     }
 
@@ -432,5 +448,15 @@ public sealed partial class KrdsService : IKrdsService
         {
             throw new ArgumentException($"CPH segment '{name}' must be {expected}.", name);
         }
+    }
+
+    /// <summary>
+    /// Logs that KRDS is unavailable for <paramref name="action"/> and builds the 503 for the caller (LREG-510): KRDS
+    /// could not be reached, timed out, has its circuit open, or answered 503 or 504.
+    /// </summary>
+    private ServiceUnavailableException Unavailable(string action, Exception exception)
+    {
+        LogKrdsUnavailable(action);
+        return new ServiceUnavailableException(KrdsUnavailable, exception);
     }
 }

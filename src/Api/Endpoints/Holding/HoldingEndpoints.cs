@@ -40,7 +40,8 @@ public static class HoldingEndpoints
             .WithDescription(OpenApiMetadata.SearchHoldingsRoute.Description)
             .AddEndpointFilter<ValidationFilter<HoldingSearchRequest>>()
             .Produces<PaginatedResponse<HoldingResponse>>()
-            .ProducesValidationProblem();
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
 
         group.MapGet("/{county}/{parish}/{holding}", GetHolding)
             .WithPublicApi()
@@ -49,7 +50,8 @@ public static class HoldingEndpoints
             .WithDescription(OpenApiMetadata.GetHoldingRoute.Description)
             .Produces<HoldingDetailedResponse>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
 
         group.MapGet(
                 "/{county}/{parish}/{holding}/cattle",

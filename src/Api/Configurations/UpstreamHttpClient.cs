@@ -16,7 +16,7 @@ using Polly.Timeout;
 
 /// <summary>
 /// Registers the strategies SDK's HTTP client, which carries every call to CADS and KRDS, with a resilience pipeline
-/// per upstream (LREG-509), so a slow or unreachable upstream fails fast instead of holding the request.
+/// per upstream (LREG-509, LREG-510), so a slow or unreachable upstream fails fast instead of holding the request.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -25,13 +25,14 @@ using Polly.Timeout;
 /// in lis-dev (<c>lis-fake-service/cads/</c> and <c>/krds/</c>) and locally.
 /// </para>
 /// <para>
-/// The CADS pipeline times out a call that has no response headers after <see cref="CadsApiOptions.TimeoutSeconds"/>,
+/// CADS and KRDS each get their own pipeline and circuit, configured by <see cref="CadsApiOptions"/> and
+/// <see cref="KrdsApiOptions"/>. A pipeline times out a call that has no response headers after <c>TimeoutSeconds</c>,
 /// inside a circuit breaker. The circuit opens when every call in the sampling window, and at least
-/// <see cref="CadsApiOptions.CircuitBreakerFailureThreshold"/> of them, failed without a response: a transport failure
-/// or a timeout. Any HTTP response, even a 5xx, proves CADS is up and does not count. While open, calls fail at once
-/// with a <see cref="BrokenCircuitException"/>. After <see cref="CadsApiOptions.CircuitBreakerBreakSeconds"/> one probe
-/// is let through; its outcome closes or reopens the circuit. There is no retry: the callers above decide whether to
-/// retry, and retrying at several layers multiplies the load. Every other call, KRDS included, gets an empty pipeline.
+/// <c>CircuitBreakerFailureThreshold</c> of them, failed without a response: a transport failure or a timeout. Any HTTP
+/// response, even a 5xx, proves the upstream is up and does not count. While open, calls fail at once with a
+/// <see cref="BrokenCircuitException"/>. After <c>CircuitBreakerBreakSeconds</c> one probe is let through; its outcome
+/// closes or reopens the circuit. There is no retry: the callers above decide whether to retry, and retrying at several
+/// layers multiplies the load. A call to any other URL gets an empty pipeline.
 /// </para>
 /// </remarks>
 public static partial class UpstreamHttpClient
@@ -45,6 +46,11 @@ public static partial class UpstreamHttpClient
     /// The pipeline for calls to CADS.
     /// </summary>
     public const string CadsPipeline = "cads";
+
+    /// <summary>
+    /// The pipeline for calls to KRDS.
+    /// </summary>
+    public const string KrdsPipeline = "krds";
 
     /// <summary>
     /// The empty pipeline for every other call.
@@ -77,45 +83,52 @@ public static partial class UpstreamHttpClient
 
         builder.AddResilienceHandler(PipelineName, (pipeline, context) =>
             {
-                if (context.InstanceName != CadsPipeline)
+                var settings = context.InstanceName switch
+                {
+                    CadsPipeline => CadsSettings(context.ServiceProvider),
+                    KrdsPipeline => KrdsSettings(context.ServiceProvider),
+                    _ => null,
+                };
+
+                if (settings is null)
                 {
                     return;
                 }
 
-                var options = context.ServiceProvider.GetRequiredService<IOptions<CadsApiOptions>>().Value;
                 var logger = context.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(UpstreamHttpClient));
-
-                AddCircuitBreakerAndTimeout(
-                    pipeline,
-                    new UpstreamResilience(
-                        "CADS",
-                        TimeSpan.FromSeconds(options.TimeoutSeconds),
-                        options.CircuitBreakerFailureThreshold,
-                        TimeSpan.FromSeconds(options.CircuitBreakerSamplingSeconds),
-                        TimeSpan.FromSeconds(options.CircuitBreakerBreakSeconds)),
-                    logger);
+                AddCircuitBreakerAndTimeout(pipeline, settings, logger);
             })
             .SelectPipelineBy(provider =>
             {
-                var cadsBaseUrl = BaseUrlOf(provider);
-                return request => PipelineFor(request.RequestUri, cadsBaseUrl);
+                var upstreams = UpstreamBaseUrls(provider);
+                return request => PipelineFor(request.RequestUri, upstreams);
             });
 
         return builder;
     }
 
     /// <summary>
-    /// Picks the pipeline for a request: <see cref="CadsPipeline"/> when its URI starts with the CADS base URL,
-    /// otherwise <see cref="OtherPipeline"/>.
+    /// Picks the pipeline for a request: the upstream whose base URL the request's URI starts with, the longest one
+    /// when several do, otherwise <see cref="OtherPipeline"/>.
     /// </summary>
     /// <param name="requestUri">The request's absolute URI.</param>
-    /// <param name="cadsBaseUrl">The CADS base URL, or <see langword="null"/> when CADS is not configured.</param>
+    /// <param name="upstreamBaseUrls">Each configured upstream's pipeline name and base URL.</param>
     /// <returns>The pipeline's instance name.</returns>
-    public static string PipelineFor(Uri? requestUri, Uri? cadsBaseUrl) =>
-        requestUri is { IsAbsoluteUri: true } && cadsBaseUrl is not null &&
-        requestUri.AbsoluteUri.StartsWith(cadsBaseUrl.AbsoluteUri, StringComparison.OrdinalIgnoreCase)
-            ? CadsPipeline
-            : OtherPipeline;
+    public static string PipelineFor(Uri? requestUri, IReadOnlyDictionary<string, Uri> upstreamBaseUrls)
+    {
+        ArgumentNullException.ThrowIfNull(upstreamBaseUrls);
+
+        if (requestUri is not { IsAbsoluteUri: true })
+        {
+            return OtherPipeline;
+        }
+
+        return upstreamBaseUrls
+            .Where(upstream => requestUri.AbsoluteUri.StartsWith(upstream.Value.AbsoluteUri, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(upstream => upstream.Value.AbsoluteUri.Length)
+            .Select(upstream => upstream.Key)
+            .FirstOrDefault() ?? OtherPipeline;
+    }
 
     /// <summary>
     /// Whether a call failed without the upstream answering: a transport failure (connection refused, DNS failure) or
@@ -183,27 +196,58 @@ public static partial class UpstreamHttpClient
         pipeline.AddTimeout(settings.Timeout);
     }
 
-    private static Uri? BaseUrlOf(IServiceProvider provider)
+    private static UpstreamResilience CadsSettings(IServiceProvider provider)
     {
-        // The CADS options are validated when first used, so the API can start (and answer /health) before the CADS
-        // secrets are set. Until they are valid, no call is sent to CADS, so every call gets the empty pipeline.
-        string baseUrl;
+        var options = provider.GetRequiredService<IOptions<CadsApiOptions>>().Value;
+        return new UpstreamResilience(
+            "CADS",
+            TimeSpan.FromSeconds(options.TimeoutSeconds),
+            options.CircuitBreakerFailureThreshold,
+            TimeSpan.FromSeconds(options.CircuitBreakerSamplingSeconds),
+            TimeSpan.FromSeconds(options.CircuitBreakerBreakSeconds));
+    }
+
+    private static UpstreamResilience KrdsSettings(IServiceProvider provider)
+    {
+        var options = provider.GetRequiredService<IOptions<KrdsApiOptions>>().Value;
+        return new UpstreamResilience(
+            "KRDS",
+            TimeSpan.FromSeconds(options.TimeoutSeconds),
+            options.CircuitBreakerFailureThreshold,
+            TimeSpan.FromSeconds(options.CircuitBreakerSamplingSeconds),
+            TimeSpan.FromSeconds(options.CircuitBreakerBreakSeconds));
+    }
+
+    private static Dictionary<string, Uri> UpstreamBaseUrls(IServiceProvider provider)
+    {
+        var upstreams = new Dictionary<string, Uri>(StringComparer.Ordinal);
+        AddBaseUrl(upstreams, CadsPipeline, () => provider.GetRequiredService<IOptions<CadsApiOptions>>().Value.BaseUrl);
+        AddBaseUrl(upstreams, KrdsPipeline, () => provider.GetRequiredService<IOptions<KrdsApiOptions>>().Value.BaseUrl);
+        return upstreams;
+    }
+
+    private static void AddBaseUrl(Dictionary<string, Uri> upstreams, string pipeline, Func<string> baseUrl)
+    {
+        // Upstream options are validated when first used, so the API can start (and answer /health) before the secrets
+        // are set. Until an upstream's options are valid no call is sent to it, so it simply gets no pipeline; and one
+        // upstream's missing secret must not stop calls to the other.
+        string configured;
         try
         {
-            baseUrl = provider.GetRequiredService<IOptions<CadsApiOptions>>().Value.BaseUrl;
+            configured = baseUrl();
         }
         catch (OptionsValidationException)
         {
-            return null;
+            return;
         }
 
-        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri))
+        if (!Uri.TryCreate(configured, UriKind.Absolute, out var uri))
         {
-            return null;
+            return;
         }
 
         // The SDK joins the base URL and the resource, so "…/cads" and "…/cads/" address the same calls.
-        return uri.AbsoluteUri.EndsWith(PathSeparator) ? uri : new Uri(uri.AbsoluteUri + PathSeparator);
+        upstreams[pipeline] = uri.AbsoluteUri.EndsWith(PathSeparator) ? uri : new Uri(uri.AbsoluteUri + PathSeparator);
     }
 
     /// <summary>

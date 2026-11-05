@@ -38,7 +38,8 @@ public static class UsersEndpoints
             .Produces<UserDetailsResponse>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status500InternalServerError);
+            .ProducesProblem(StatusCodes.Status500InternalServerError)
+            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
 
         group.MapPost("/", CreateUser)
             .WithName(OpenApiMetadata.CreateUserRoute.Name)
