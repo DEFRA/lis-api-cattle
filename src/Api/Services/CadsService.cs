@@ -52,6 +52,9 @@ public sealed partial class CadsService : ICadsService
             .WithDefaultLogger(logger)
             .WithDefaultApiDescription("CADS bovine animals API")
             .WithDefaultBaseUrl(options.Value.BaseUrl)
+            .WithDefaultApiKey(
+                () => !string.IsNullOrWhiteSpace(options.Value.GatewayApiKey),
+                options.Value.GatewayApiKey!)
             .WithDefaultBasicAuth(options.Value.ClientId, options.Value.ClientSecret)
             .WithDefaultJsonSerializerOptions(UpstreamJson.Options);
     }
@@ -99,8 +102,8 @@ public sealed partial class CadsService : ICadsService
         {
             response = await strategyFactory
                 .BuildRestStrategy()
-                .WithGatewayApiKey(options.Value.GatewayApiKey)
                 .WithCancellationToken(cancellationToken)
+                .WithTimeout(options.Value.GetAnimalDetailsTimeout)
                 .WithActionDescription("Get animal details")
                 .WithResourceUrl($"{AnimalsResource}/{Uri.EscapeDataString(earTag)}")
                 .WithGet()
@@ -265,8 +268,8 @@ public sealed partial class CadsService : ICadsService
         {
             return await strategyFactory
                 .BuildRestStrategy()
-                .WithGatewayApiKey(options.Value.GatewayApiKey)
                 .WithCancellationToken(cancellationToken)
+                .WithTimeout(options.Value.GetAnimalsOnHoldingTimeout)
                 .WithActionDescription("Get animals on holding")
                 .WithResourceUrl(AnimalsResource)
                 .WithGet()
