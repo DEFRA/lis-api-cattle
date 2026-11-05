@@ -66,41 +66,6 @@ public class CadsDataPatchConfigurationTests
         Assert.Contains(services, s => s.ServiceType == typeof(ICadsDataPatchStore) && s.ImplementationType == typeof(CadsDataPatchStore) && s.Lifetime == ServiceLifetime.Scoped);
     }
 
-    [Fact]
-    public void AddCadsDataPatch_BoundsEachS3RequestByDefault()
-    {
-        using var provider = BuildProvider(new Dictionary<string, string?> { ["AWS:Region"] = "eu-west-2" });
-
-        var config = provider.GetRequiredService<IAmazonS3>().Config;
-
-        Assert.Equal(TimeSpan.FromSeconds(2), config.Timeout);
-        Assert.Equal(1, config.MaxErrorRetry);
-    }
-
-    [Fact]
-    public void AddCadsDataPatch_TakesTheS3TimeoutAndRetriesFromConfiguration()
-    {
-        using var provider = BuildProvider(new Dictionary<string, string?>
-        {
-            ["AWS:Region"] = "eu-west-2",
-            ["CadsDataPatch:TimeoutSeconds"] = "5",
-            ["CadsDataPatch:MaxErrorRetry"] = "0",
-        });
-
-        var config = provider.GetRequiredService<IAmazonS3>().Config;
-
-        Assert.Equal(TimeSpan.FromSeconds(5), config.Timeout);
-        Assert.Equal(0, config.MaxErrorRetry);
-    }
-
-    [Fact]
-    public void AddCadsDataPatch_RejectsAZeroS3Timeout()
-    {
-        using var provider = BuildProvider(new Dictionary<string, string?> { ["CadsDataPatch:TimeoutSeconds"] = "0" });
-
-        Assert.Throws<OptionsValidationException>(() => provider.GetRequiredService<IOptions<CadsDataPatchOptions>>().Value);
-    }
-
     private static ServiceProvider BuildProvider(Dictionary<string, string?> settings)
     {
         var services = new ServiceCollection();

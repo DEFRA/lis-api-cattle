@@ -7,7 +7,6 @@ namespace Defra.Lis.Api.Services;
 using System.Globalization;
 using Amazon.Runtime;
 using Defra.Lis.Api.Configurations;
-using Defra.Lis.Api.Exceptions;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models;
 using Defra.Lis.Api.Models.Cads;
@@ -29,7 +28,6 @@ public sealed partial class CadsService : ICadsService
     private const string GeneticDamType = "genetic";
     private const string SurrogateDamType = "surrogate";
     private const int MaxPages = 100;
-    private const string CadsUnavailable = "CADS is temporarily unavailable, try again later.";
 
     private readonly IRestStrategyFactory<CadsService> strategyFactory;
     private readonly IOptions<CadsApiOptions> options;
@@ -55,9 +53,6 @@ public sealed partial class CadsService : ICadsService
             .WithDefaultApiDescription("CADS bovine animals API")
             .WithDefaultBaseUrl(options.Value.BaseUrl)
             .WithDefaultBasicAuth(options.Value.ClientId, options.Value.ClientSecret)
-
-            // The pipeline times out the headers (UpstreamHttpClient); this cuts off a body that stalls after them.
-            .WithDefaultTimeout((int)(TimeSpan.FromSeconds(options.Value.TimeoutSeconds) + UpstreamHttpClient.BodyGrace).TotalMilliseconds)
             .WithDefaultJsonSerializerOptions(UpstreamJson.Options);
     }
 
@@ -102,25 +97,21 @@ public sealed partial class CadsService : ICadsService
 
         try
         {
-            const string action = "Get animal details";
-            response = await CallCadsAsync(
-                action,
-                () => strategyFactory
-                    .BuildRestStrategy()
-                    .WithGatewayApiKey(options.Value.GatewayApiKey)
-                    .WithCancellationToken(cancellationToken)
-                    .WithActionDescription(action)
-                    .WithResourceUrl($"{AnimalsResource}/{Uri.EscapeDataString(earTag)}")
-                    .WithGet()
-                    .Execute<CadsAnimalDetailResponse>(),
-                cancellationToken);
+            response = await strategyFactory
+                .BuildRestStrategy()
+                .WithGatewayApiKey(options.Value.GatewayApiKey)
+                .WithCancellationToken(cancellationToken)
+                .WithActionDescription("Get animal details")
+                .WithResourceUrl($"{AnimalsResource}/{Uri.EscapeDataString(earTag)}")
+                .WithGet()
+                .Execute<CadsAnimalDetailResponse>();
         }
         catch (RestResponseException ex) when (UpstreamErrors.IsNotFound(ex))
         {
             // Temporary data patch for CADS, check in the patch cache incase.
             if (patchOptions.Value.IsEnabled)
             {
-                var animalDetail = await GetPatchedAnimalDetailsAsync(earTag, cancellationToken);
+                var animalDetail = await dataPatchStore.GetAnimalDetailsAsync(earTag, cancellationToken);
                 if (animalDetail == null)
                 {
                     LogAnimalNotKnownToCads(earTag);
@@ -222,14 +213,6 @@ public sealed partial class CadsService : ICadsService
     }
 
     /// <summary>
-    /// Whether reading the data patch failed in a way that says nothing about the animal: S3 refused the request,
-    /// could not be reached, or timed out. The caller cancelling is not one of these.
-    /// </summary>
-    private static bool IsPatchStoreFailure(Exception exception, CancellationToken cancellationToken) =>
-        exception is AmazonServiceException or AmazonClientException or HttpRequestException ||
-        (exception is OperationCanceledException && !cancellationToken.IsCancellationRequested);
-
-    /// <summary>
     /// Adds the live animals held in the CADS data patch for the holding whose ear tags CADS did not return.
     /// The patch is best effort: if it cannot be read the CADS results are returned on their own.
     /// </summary>
@@ -266,48 +249,9 @@ public sealed partial class CadsService : ICadsService
                 results.Add(patchData);
             }
         }
-        catch (Exception ex) when (IsPatchStoreFailure(ex, cancellationToken))
+        catch (AmazonServiceException ex)
         {
             LogCadsDataPatchUnavailable(ex, cph);
-        }
-    }
-
-    /// <summary>
-    /// Reads an animal CADS does not know from the data patch. When the patch cannot be read, the animal may still
-    /// exist, so the answer is 503 rather than 404 (LREG-509).
-    /// </summary>
-    private async Task<CadsAnimalDetail?> GetPatchedAnimalDetailsAsync(string earTag, CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await dataPatchStore.GetAnimalDetailsAsync(earTag, cancellationToken);
-        }
-        catch (Exception ex) when (IsPatchStoreFailure(ex, cancellationToken))
-        {
-            LogCadsDataPatchUnreadableForAnimal(ex, earTag);
-            throw new ServiceUnavailableException("The animal details are temporarily unavailable, try again later.", ex);
-        }
-    }
-
-    /// <summary>
-    /// Makes one call to CADS. When CADS cannot be reached, times out, has its circuit open, or answers 503 or 504,
-    /// the call fails with a <see cref="ServiceUnavailableException"/> (503, retryable) instead of a 500.
-    /// </summary>
-    private async Task<T> CallCadsAsync<T>(string action, Func<Task<T>> call, CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await call();
-        }
-        catch (RestRequestException ex) when (UpstreamErrors.IsUnreachable(ex, cancellationToken))
-        {
-            LogCadsUnavailable(action);
-            throw new ServiceUnavailableException(CadsUnavailable, ex);
-        }
-        catch (RestResponseException ex) when (UpstreamErrors.IsServiceUnavailableOrGatewayTimeout(ex))
-        {
-            LogCadsUnavailable(action);
-            throw new ServiceUnavailableException(CadsUnavailable, ex);
         }
     }
 
@@ -319,21 +263,17 @@ public sealed partial class CadsService : ICadsService
     {
         try
         {
-            const string action = "Get animals on holding";
-            return await CallCadsAsync(
-                action,
-                () => strategyFactory
-                    .BuildRestStrategy()
-                    .WithGatewayApiKey(options.Value.GatewayApiKey)
-                    .WithCancellationToken(cancellationToken)
-                    .WithActionDescription(action)
-                    .WithResourceUrl(AnimalsResource)
-                    .WithGet()
-                    .WithQueryParameter("CPH", cph)
-                    .WithQueryParameter("page", page.ToString(CultureInfo.InvariantCulture))
-                    .WithQueryParameter("pageSize", pageSize.ToString(CultureInfo.InvariantCulture))
-                    .Execute<CadsAnimalsOnHolding>(),
-                cancellationToken);
+            return await strategyFactory
+                .BuildRestStrategy()
+                .WithGatewayApiKey(options.Value.GatewayApiKey)
+                .WithCancellationToken(cancellationToken)
+                .WithActionDescription("Get animals on holding")
+                .WithResourceUrl(AnimalsResource)
+                .WithGet()
+                .WithQueryParameter("CPH", cph)
+                .WithQueryParameter("page", page.ToString(CultureInfo.InvariantCulture))
+                .WithQueryParameter("pageSize", pageSize.ToString(CultureInfo.InvariantCulture))
+                .Execute<CadsAnimalsOnHolding>();
         }
         catch (RestResponseException ex) when (UpstreamErrors.IsNotFound(ex))
         {
