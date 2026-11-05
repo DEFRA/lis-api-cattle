@@ -59,18 +59,4 @@ public static class UpstreamErrors
 
         return exception.InnerException is not null && !cancellationToken.IsCancellationRequested;
     }
-
-    /// <summary>
-    /// Whether an upstream call failed because the upstream is unavailable, so the API should answer 503: it could not
-    /// be reached, timed out, has its circuit open (<see cref="IsUnreachable"/>), or answered 503 or 504.
-    /// </summary>
-    /// <param name="exception">The exception the call failed with.</param>
-    /// <param name="cancellationToken">The caller's token; a cancelled call is not the upstream's fault.</param>
-    /// <returns><see langword="true"/> when the upstream should be reported as unavailable.</returns>
-    public static bool IsUnavailable(Exception exception, CancellationToken cancellationToken) => exception switch
-    {
-        RestRequestException request => IsUnreachable(request, cancellationToken),
-        RestResponseException response => IsServiceUnavailableOrGatewayTimeout(response),
-        _ => false,
-    };
 }

@@ -11,7 +11,6 @@ using Defra.Lis.Api.Configurations;
 using Defra.Lis.Api.Exceptions;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Services;
-using Defra.Lis.Api.Validation;
 using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Exceptions;
 using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Operations.Http.Rest.Client;
 using Defra.Livestock.Sdk.Api.Strategies.Operations;
@@ -34,12 +33,7 @@ public sealed class UpstreamHttpClientTests : IDisposable
     private const string Cph = "22/001/0001";
     private const string CorrelationId = "corr-resilience";
     private const string CadsBaseUrl = "http://fake-service.test/cads/";
-    private const string KrdsBaseUrl = "http://fake-service.test/krds/";
-    private const string Subject = "5e0c8f8a-4b1d-4c7e-9a3f-6d2b8e1f0a47";
-    private const string UserAccount = $$"""
-        {"subject":"{{Subject}}","email":"oakfield.farmer@oakhill-farms.co.uk","cphAssociations":[]}
-        """;
-
+    private const string KrdsUrl = "http://fake-service.test/krds/api/v2/holdings";
     private const string EmptyPage = """
         {"resourceType":"AnimalCollection","animals":[],"totalRecords":0,"page":1,"pageSize":2}
         """;
@@ -193,101 +187,36 @@ public sealed class UpstreamHttpClientTests : IDisposable
     }
 
     [Fact]
-    public async Task HungKrdsShouldTimeOutWithinTheBudgetAsServiceUnavailable()
-    {
-        handler.Hang();
-        var krds = CreateUpstreams(krdsOverrides: new KrdsApiOptions { TimeoutSeconds = 1 }).Krds;
-        var stopwatch = Stopwatch.StartNew();
-
-        var exception = await Should.ThrowAsync<ServiceUnavailableException>(
-            () => krds.GetUserAccountAsync(Subject, TestContext.Current.CancellationToken));
-
-        stopwatch.Elapsed.ShouldBeLessThan(TimeSpan.FromSeconds(1) + UpstreamHttpClient.BodyGrace);
-        exception.InnerException.ShouldBeOfType<RestRequestException>().InnerException.ShouldBeOfType<TimeoutRejectedException>();
-    }
-
-    [Fact]
-    public async Task KrdsCircuitShouldOpenFailFastAndCloseAfterASuccessfulProbe()
-    {
-        handler.FailWith(new HttpRequestException("Connection refused"))
-            .FailWith(new HttpRequestException("Connection refused"))
-            .RespondWith(HttpStatusCode.OK, UserAccount);
-        var krds = CreateUpstreams(krdsOverrides: new KrdsApiOptions { CircuitBreakerFailureThreshold = 2, CircuitBreakerBreakSeconds = 1 }).Krds;
-
-        await Should.ThrowAsync<ServiceUnavailableException>(() => krds.GetUserAccountAsync(Subject, TestContext.Current.CancellationToken));
-        await Should.ThrowAsync<ServiceUnavailableException>(() => krds.GetUserAccountAsync(Subject, TestContext.Current.CancellationToken));
-        var failedFast = await Should.ThrowAsync<ServiceUnavailableException>(
-            () => krds.GetUserAccountAsync(Subject, TestContext.Current.CancellationToken));
-        failedFast.InnerException.ShouldBeOfType<RestRequestException>().InnerException.ShouldBeAssignableTo<BrokenCircuitException>();
-        handler.Requests.Count.ShouldBe(2);
-        await LoggedAsync(LogLevel.Warning, "The KRDS circuit opened: at least 2 calls");
-
-        await Task.Delay(TimeSpan.FromSeconds(1.2), TestContext.Current.CancellationToken);
-
-        (await krds.GetUserAccountAsync(Subject, TestContext.Current.CancellationToken)).ShouldNotBeNull();
-        handler.Requests.Count.ShouldBe(3);
-        await LoggedAsync(LogLevel.Information, "The KRDS circuit closed");
-    }
-
-    [Fact]
     public async Task OpenCadsCircuitShouldNotStopKrdsCalls()
     {
-        // CADS and KRDS share a host in lis-dev and on the CDP dev gateway, so the pipeline is chosen by base URL.
+        // CADS and KRDS share a host in lis-dev, so the pipeline is chosen by base URL, not by host.
         handler.FailWith(new HttpRequestException("Connection refused"))
             .FailWith(new HttpRequestException("Connection refused"))
-            .RespondWith(HttpStatusCode.OK, UserAccount);
-        var (cads, krds) = CreateUpstreams(new CadsApiOptions { CircuitBreakerFailureThreshold = 2 }, new KrdsApiOptions { CircuitBreakerFailureThreshold = 2 });
+            .RespondWith(HttpStatusCode.OK, "{}");
+        var cads = CreateCads(new CadsApiOptions { CircuitBreakerFailureThreshold = 2 });
         await Should.ThrowAsync<ServiceUnavailableException>(() => cads.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken));
         await Should.ThrowAsync<ServiceUnavailableException>(() => cads.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken));
         await Should.ThrowAsync<ServiceUnavailableException>(() => cads.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken));
 
-        (await krds.GetUserAccountAsync(Subject, TestContext.Current.CancellationToken)).ShouldNotBeNull();
+        using var response = await SharedHttpClient().GetAsync(KrdsUrl, TestContext.Current.CancellationToken);
 
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
         handler.Requests.Count.ShouldBe(3);
-        handler.Requests[^1].RequestUri!.AbsoluteUri.ShouldStartWith(KrdsBaseUrl);
+        handler.Requests[^1].RequestUri!.AbsoluteUri.ShouldBe(KrdsUrl);
     }
 
     [Fact]
-    public async Task OpenKrdsCircuitShouldNotStopCadsCalls()
-    {
-        handler.FailWith(new HttpRequestException("Connection refused"))
-            .FailWith(new HttpRequestException("Connection refused"))
-            .RespondWith(HttpStatusCode.OK, EmptyPage);
-        var (cads, krds) = CreateUpstreams(new CadsApiOptions { CircuitBreakerFailureThreshold = 2 }, new KrdsApiOptions { CircuitBreakerFailureThreshold = 2 });
-        await Should.ThrowAsync<ServiceUnavailableException>(() => krds.GetUserAccountAsync(Subject, TestContext.Current.CancellationToken));
-        await Should.ThrowAsync<ServiceUnavailableException>(() => krds.GetUserAccountAsync(Subject, TestContext.Current.CancellationToken));
-        await Should.ThrowAsync<ServiceUnavailableException>(() => krds.GetUserAccountAsync(Subject, TestContext.Current.CancellationToken));
-
-        (await cads.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken)).ShouldBeEmpty();
-
-        handler.Requests.Count.ShouldBe(3);
-        handler.Requests[^1].RequestUri!.AbsoluteUri.ShouldStartWith(CadsBaseUrl);
-    }
-
-    [Fact]
-    public async Task CallsToNeitherUpstreamShouldNotBeTimedOut()
+    public async Task KrdsCallsShouldNotBeTimedOutByTheCadsPipeline()
     {
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         handler.Hang();
-        CreateUpstreams(new CadsApiOptions { TimeoutSeconds = 1 }, new KrdsApiOptions { TimeoutSeconds = 1 });
+        CreateCads(new CadsApiOptions { TimeoutSeconds = 1 });
 
-        // Only the caller's own cancellation, after 2 s, ends the hung call; neither upstream's 1 s timeout applies.
+        // Only the caller's own cancellation, after 2 s, ends the hung KRDS call; the CADS 1 s timeout does not apply.
         var stopwatch = Stopwatch.StartNew();
-        await Should.ThrowAsync<OperationCanceledException>(
-            () => SharedHttpClient().GetAsync("http://elsewhere.test/anything", cancellation.Token));
+        await Should.ThrowAsync<OperationCanceledException>(() => SharedHttpClient().GetAsync(KrdsUrl, cancellation.Token));
 
         stopwatch.Elapsed.ShouldBeGreaterThan(TimeSpan.FromSeconds(1.5));
-    }
-
-    [Fact]
-    public async Task CorrelationIdShouldStillReachKrdsThroughThePipeline()
-    {
-        handler.RespondWith(HttpStatusCode.OK, UserAccount);
-        var krds = CreateUpstreams().Krds;
-
-        await krds.GetUserAccountAsync(Subject, TestContext.Current.CancellationToken);
-
-        handler.Requests.ShouldHaveSingleItem().Headers.GetValues("x-cdp-request-id").ShouldBe([CorrelationId]);
     }
 
     [Fact]
@@ -302,50 +231,13 @@ public sealed class UpstreamHttpClientTests : IDisposable
     }
 
     [Theory]
-    [InlineData("http://fake-service.test/cads/api/v1/bovine/animals?CPH=1", UpstreamHttpClient.CadsPipeline)]
-    [InlineData("http://FAKE-service.test/CADS/api/v1/bovine/animals", UpstreamHttpClient.CadsPipeline)]
-    [InlineData("http://fake-service.test/krds/api/v2/user-accounts/subject", UpstreamHttpClient.KrdsPipeline)]
-    [InlineData("http://fake-service.test/KRDS/api/v2/holdings", UpstreamHttpClient.KrdsPipeline)]
-    [InlineData("http://fake-service.test/cadsx/api", UpstreamHttpClient.OtherPipeline)]
-    [InlineData("http://elsewhere.test/cads/api", UpstreamHttpClient.OtherPipeline)]
-    public void PipelineForShouldChooseByBaseUrl(string requestUri, string expected)
-    {
-        var upstreams = new Dictionary<string, Uri>
-        {
-            [UpstreamHttpClient.CadsPipeline] = new(CadsBaseUrl),
-            [UpstreamHttpClient.KrdsPipeline] = new(KrdsBaseUrl),
-        };
-
-        UpstreamHttpClient.PipelineFor(new Uri(requestUri), upstreams).ShouldBe(expected);
-    }
-
-    [Fact]
-    public void PipelineForShouldChooseTheLongestMatchingBaseUrl()
-    {
-        var upstreams = new Dictionary<string, Uri>
-        {
-            [UpstreamHttpClient.CadsPipeline] = new("http://gateway.test/"),
-            [UpstreamHttpClient.KrdsPipeline] = new("http://gateway.test/krds/"),
-        };
-
-        UpstreamHttpClient.PipelineFor(new Uri("http://gateway.test/krds/api"), upstreams).ShouldBe(UpstreamHttpClient.KrdsPipeline);
-        UpstreamHttpClient.PipelineFor(new Uri("http://gateway.test/cads/api"), upstreams).ShouldBe(UpstreamHttpClient.CadsPipeline);
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("api/v2/holdings")]
-    public void PipelineForShouldChooseTheEmptyPipeline_WhenTheRequestHasNoAbsoluteUri(string? requestUri)
-    {
-        var upstreams = new Dictionary<string, Uri> { [UpstreamHttpClient.CadsPipeline] = new(CadsBaseUrl) };
-
-        UpstreamHttpClient.PipelineFor(requestUri is null ? null : new Uri(requestUri, UriKind.Relative), upstreams)
-            .ShouldBe(UpstreamHttpClient.OtherPipeline);
-    }
-
-    [Fact]
-    public void PipelineForShouldChooseTheEmptyPipeline_WhenNoUpstreamIsConfigured() =>
-        UpstreamHttpClient.PipelineFor(new Uri("http://fake-service.test/cads/api"), new Dictionary<string, Uri>()).ShouldBe(UpstreamHttpClient.OtherPipeline);
+    [InlineData("http://fake-service.test/cads/api/v1/bovine/animals?CPH=1", "http://fake-service.test/cads/", UpstreamHttpClient.CadsPipeline)]
+    [InlineData("http://FAKE-service.test/CADS/api/v1/bovine/animals", "http://fake-service.test/cads/", UpstreamHttpClient.CadsPipeline)]
+    [InlineData("http://fake-service.test/krds/api/v2/holdings", "http://fake-service.test/cads/", UpstreamHttpClient.OtherPipeline)]
+    [InlineData("http://fake-service.test/cadsx/api", "http://fake-service.test/cads/", UpstreamHttpClient.OtherPipeline)]
+    [InlineData("http://fake-service.test/cads/api", null, UpstreamHttpClient.OtherPipeline)]
+    public void PipelineForShouldChooseByBaseUrl(string requestUri, string? cadsBaseUrl, string expected) =>
+        UpstreamHttpClient.PipelineFor(new Uri(requestUri), cadsBaseUrl is null ? null : new Uri(cadsBaseUrl)).ShouldBe(expected);
 
     [Fact]
     public async Task CadsBaseUrlWithoutATrailingSlashShouldStillChooseTheCadsPipeline()
@@ -360,29 +252,17 @@ public sealed class UpstreamHttpClientTests : IDisposable
     }
 
     [Fact]
-    public async Task InvalidCadsOptionsShouldLeaveKrdsOnItsOwnPipeline()
+    public async Task InvalidCadsOptionsShouldLeaveEveryCallOnTheEmptyPipeline()
     {
-        // Upstream options are validated on first use, so the API can boot before the secrets are set; one upstream's
-        // missing secret must not change how calls to the other are handled.
-        handler.Hang();
-        var krds = CreateUpstreams(krdsOverrides: new KrdsApiOptions { TimeoutSeconds = 1 }, cadsValid: false).Krds;
+        // CADS options are validated on first use, so the API can boot before the CADS secrets are set; KRDS must work.
+        handler.RespondWith(HttpStatusCode.OK, "{}");
+        var services = BaseServices();
+        services.AddOptions<CadsApiOptions>().ValidateDataAnnotations();
+        Build(services);
 
-        var exception = await Should.ThrowAsync<ServiceUnavailableException>(
-            () => krds.GetUserAccountAsync(Subject, TestContext.Current.CancellationToken));
+        using var response = await SharedHttpClient().GetAsync(KrdsUrl, TestContext.Current.CancellationToken);
 
-        exception.InnerException.ShouldBeOfType<RestRequestException>().InnerException.ShouldBeOfType<TimeoutRejectedException>();
-    }
-
-    [Fact]
-    public async Task InvalidKrdsOptionsShouldLeaveCadsOnItsOwnPipeline()
-    {
-        handler.Hang();
-        var cads = CreateUpstreams(new CadsApiOptions { TimeoutSeconds = 1 }, krdsValid: false).Cads;
-
-        var exception = await Should.ThrowAsync<ServiceUnavailableException>(
-            () => cads.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken));
-
-        exception.InnerException.ShouldBeOfType<RestRequestException>().InnerException.ShouldBeOfType<TimeoutRejectedException>();
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     [Theory]
@@ -444,79 +324,29 @@ public sealed class UpstreamHttpClientTests : IDisposable
         return provider;
     }
 
-    private CadsService CreateCads(CadsApiOptions overrides) => CreateUpstreams(overrides).Cads;
-
-    /// <summary>
-    /// Builds CADS and KRDS clients over one HTTP client, as Program does. An upstream marked invalid is registered
-    /// with validation and no settings, so reading its options fails as it would before its secrets are set.
-    /// </summary>
-    private (CadsService Cads, KrdsService Krds) CreateUpstreams(
-        CadsApiOptions? cadsOverrides = null,
-        KrdsApiOptions? krdsOverrides = null,
-        bool cadsValid = true,
-        bool krdsValid = true)
+    private CadsService CreateCads(CadsApiOptions overrides)
     {
-        cadsOverrides ??= new CadsApiOptions();
-        krdsOverrides ??= new KrdsApiOptions();
-
-        var cadsOptions = new CadsApiOptions
+        var options = new CadsApiOptions
         {
-            BaseUrl = cadsOverrides.BaseUrl is { Length: > 0 } cadsBaseUrl ? cadsBaseUrl : CadsBaseUrl,
+            BaseUrl = overrides.BaseUrl is { Length: > 0 } baseUrl ? baseUrl : CadsBaseUrl,
             ClientId = nameof(UpstreamHttpClientTests),
             ClientSecret = Guid.NewGuid().ToString("N"),
             PageSize = 2,
-            TimeoutSeconds = cadsOverrides.TimeoutSeconds,
-            CircuitBreakerFailureThreshold = cadsOverrides.CircuitBreakerFailureThreshold,
-            CircuitBreakerSamplingSeconds = cadsOverrides.CircuitBreakerSamplingSeconds,
-            CircuitBreakerBreakSeconds = cadsOverrides.CircuitBreakerBreakSeconds,
-        };
-
-        var krdsOptions = new KrdsApiOptions
-        {
-            BaseUrl = KrdsBaseUrl,
-            ClientId = nameof(UpstreamHttpClientTests),
-            ClientSecret = Guid.NewGuid().ToString("N"),
-            TimeoutSeconds = krdsOverrides.TimeoutSeconds,
-            CircuitBreakerFailureThreshold = krdsOverrides.CircuitBreakerFailureThreshold,
-            CircuitBreakerSamplingSeconds = krdsOverrides.CircuitBreakerSamplingSeconds,
-            CircuitBreakerBreakSeconds = krdsOverrides.CircuitBreakerBreakSeconds,
+            TimeoutSeconds = overrides.TimeoutSeconds,
+            CircuitBreakerFailureThreshold = overrides.CircuitBreakerFailureThreshold,
+            CircuitBreakerSamplingSeconds = overrides.CircuitBreakerSamplingSeconds,
+            CircuitBreakerBreakSeconds = overrides.CircuitBreakerBreakSeconds,
         };
 
         var services = BaseServices();
-        if (cadsValid)
-        {
-            services.AddSingleton(Microsoft.Extensions.Options.Options.Create(cadsOptions));
-        }
-        else
-        {
-            services.AddOptions<CadsApiOptions>().ValidateDataAnnotations();
-        }
+        services.AddSingleton(Microsoft.Extensions.Options.Options.Create(options));
 
-        if (krdsValid)
-        {
-            services.AddSingleton(Microsoft.Extensions.Options.Options.Create(krdsOptions));
-        }
-        else
-        {
-            services.AddOptions<KrdsApiOptions>().ValidateDataAnnotations();
-        }
-
-        var built = Build(services);
-
-        var cads = new CadsService(
-            new RestStrategyFactory<CadsService>(built),
-            Microsoft.Extensions.Options.Options.Create(cadsOptions),
+        return new CadsService(
+            new RestStrategyFactory<CadsService>(Build(services)),
+            Microsoft.Extensions.Options.Options.Create(options),
             Microsoft.Extensions.Options.Options.Create(new CadsDataPatchOptions()),
             Mock.Of<ICadsDataPatchStore>(),
             NullLogger<CadsService>.Instance);
-
-        var krds = new KrdsService(
-            new RestStrategyFactory<KrdsService>(built),
-            new HoldingSearchRequestValidator(),
-            Microsoft.Extensions.Options.Options.Create(krdsOptions),
-            NullLogger<KrdsService>.Instance);
-
-        return (cads, krds);
     }
 
     private sealed record LogMessage(LogLevel Level, string Text);

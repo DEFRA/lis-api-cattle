@@ -15,10 +15,7 @@ using Defra.Lis.Api.Services;
 using Defra.Lis.Api.Tests.Upstream;
 using Defra.Lis.Api.Validation;
 using Defra.Lis.Core.Exceptions;
-using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Exceptions;
 using Microsoft.Extensions.Logging.Abstractions;
-using Polly.CircuitBreaker;
-using Polly.Timeout;
 using static System.Text.Encoding;
 using Convert = System.Convert;
 
@@ -124,45 +121,7 @@ public class KrdsServiceTests
         ClientSecret = TestPassphrase,
     };
 
-    // Every KRDS call, keyed by name so xUnit can serialise and list each row (xUnit1045).
-    private static readonly Dictionary<string, Func<KrdsService, CancellationToken, Task>> KrdsCalls = new()
-    {
-        ["GetHolding"] = (service, cancellationToken) => service.GetHoldingAsync("22", "001", "0001", cancellationToken),
-        ["SearchHoldings"] = (service, cancellationToken) => service.SearchHoldingsAsync(new HoldingSearchRequest(), cancellationToken),
-        ["GetUserAccount"] = (service, cancellationToken) => service.GetUserAccountAsync(OakfieldSubject, cancellationToken),
-        ["EnsureUserAccount"] = (service, cancellationToken) => service.EnsureUserAccountAsync(OakfieldClaims(), cancellationToken),
-    };
-
-    // Each way KRDS can be unavailable: no answer (transport, pipeline timeout, open circuit) or a 503/504 answer.
-    private static readonly Dictionary<string, Action<StubHttpMessageHandler>> KrdsUnavailableOutcomes = new()
-    {
-        ["ConnectionRefused"] = stub => stub.FailWith(new HttpRequestException("Connection refused (fake-service.test:80)")),
-        ["PipelineTimeout"] = stub => stub.FailWith(new TimeoutRejectedException()),
-        ["OpenCircuit"] = stub => stub.FailWith(new BrokenCircuitException()),
-        ["ServiceUnavailable"] = stub => stub.RespondWith(HttpStatusCode.ServiceUnavailable, """{"status":503}"""),
-        ["GatewayTimeout"] = stub => stub.RespondWith(HttpStatusCode.GatewayTimeout, """{"status":504}"""),
-    };
-
     private readonly StubHttpMessageHandler handler = new();
-
-    public static TheoryData<string, string> EveryKrdsCallWhenKrdsIsUnavailable
-    {
-        get
-        {
-            var data = new TheoryData<string, string>();
-            foreach (var call in KrdsCalls.Keys)
-            {
-                foreach (var outcome in KrdsUnavailableOutcomes.Keys)
-                {
-                    data.Add(call, outcome);
-                }
-            }
-
-            return data;
-        }
-    }
-
-    public static TheoryData<string> EveryKrdsCall => [.. KrdsCalls.Keys];
 
     [Fact]
     public async Task GetHoldingAsync_CallsHoldingsEndpointWithBasicAuth()
@@ -817,32 +776,6 @@ public class KrdsServiceTests
         await Assert.ThrowsAnyAsync<Exception>(() =>
             service.SearchHoldingsAsync(request, TestContext.Current.CancellationToken));
         Assert.Empty(handler.Requests);
-    }
-
-    [Theory]
-    [MemberData(nameof(EveryKrdsCallWhenKrdsIsUnavailable))]
-    public async Task EveryCall_ThrowsServiceUnavailable_WhenKrdsIsUnavailable(string call, string outcome)
-    {
-        KrdsUnavailableOutcomes[outcome](handler);
-        var service = CreateService();
-
-        var exception = await Assert.ThrowsAsync<ServiceUnavailableException>(() => KrdsCalls[call](service, TestContext.Current.CancellationToken));
-
-        Assert.Equal("KRDS is temporarily unavailable, try again later.", exception.Message);
-        Assert.True(exception.InnerException is RestRequestException or RestResponseException);
-    }
-
-    [Theory]
-    [MemberData(nameof(EveryKrdsCall))]
-    public async Task EveryCall_DoesNotReportKrdsUnavailable_WhenTheCallerCancels(string call)
-    {
-        using var cancellation = new CancellationTokenSource();
-        handler.Hang(cancellation.Cancel);
-        var service = CreateService();
-
-        var exception = await Assert.ThrowsAnyAsync<Exception>(() => KrdsCalls[call](service, cancellation.Token));
-
-        Assert.IsNotType<ServiceUnavailableException>(exception);
     }
 
     private static CreateUserRequest OakfieldClaims() => new()

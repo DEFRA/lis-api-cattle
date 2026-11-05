@@ -299,7 +299,12 @@ public sealed partial class CadsService : ICadsService
         {
             return await call();
         }
-        catch (Exception ex) when (UpstreamErrors.IsUnavailable(ex, cancellationToken))
+        catch (RestRequestException ex) when (UpstreamErrors.IsUnreachable(ex, cancellationToken))
+        {
+            LogCadsUnavailable(action);
+            throw new ServiceUnavailableException(CadsUnavailable, ex);
+        }
+        catch (RestResponseException ex) when (UpstreamErrors.IsServiceUnavailableOrGatewayTimeout(ex))
         {
             LogCadsUnavailable(action);
             throw new ServiceUnavailableException(CadsUnavailable, ex);
