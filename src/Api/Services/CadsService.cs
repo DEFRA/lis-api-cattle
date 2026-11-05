@@ -103,14 +103,17 @@ public sealed partial class CadsService : ICadsService
         try
         {
             const string action = "Get animal details";
-            response = await CallCadsAsync(action, cancellationToken, () => strategyFactory
-                .BuildRestStrategy()
-                .WithGatewayApiKey(options.Value.GatewayApiKey)
-                .WithCancellationToken(cancellationToken)
-                .WithActionDescription(action)
-                .WithResourceUrl($"{AnimalsResource}/{Uri.EscapeDataString(earTag)}")
-                .WithGet()
-                .Execute<CadsAnimalDetailResponse>());
+            response = await CallCadsAsync(
+                action,
+                () => strategyFactory
+                    .BuildRestStrategy()
+                    .WithGatewayApiKey(options.Value.GatewayApiKey)
+                    .WithCancellationToken(cancellationToken)
+                    .WithActionDescription(action)
+                    .WithResourceUrl($"{AnimalsResource}/{Uri.EscapeDataString(earTag)}")
+                    .WithGet()
+                    .Execute<CadsAnimalDetailResponse>(),
+                cancellationToken);
         }
         catch (RestResponseException ex) when (UpstreamErrors.IsNotFound(ex))
         {
@@ -290,7 +293,7 @@ public sealed partial class CadsService : ICadsService
     /// Makes one call to CADS. When CADS cannot be reached, times out, has its circuit open, or answers 503 or 504,
     /// the call fails with a <see cref="ServiceUnavailableException"/> (503, retryable) instead of a 500.
     /// </summary>
-    private async Task<T> CallCadsAsync<T>(string action, CancellationToken cancellationToken, Func<Task<T>> call)
+    private async Task<T> CallCadsAsync<T>(string action, Func<Task<T>> call, CancellationToken cancellationToken)
     {
         try
         {
@@ -317,17 +320,20 @@ public sealed partial class CadsService : ICadsService
         try
         {
             const string action = "Get animals on holding";
-            return await CallCadsAsync(action, cancellationToken, () => strategyFactory
-                .BuildRestStrategy()
-                .WithGatewayApiKey(options.Value.GatewayApiKey)
-                .WithCancellationToken(cancellationToken)
-                .WithActionDescription(action)
-                .WithResourceUrl(AnimalsResource)
-                .WithGet()
-                .WithQueryParameter("CPH", cph)
-                .WithQueryParameter("page", page.ToString(CultureInfo.InvariantCulture))
-                .WithQueryParameter("pageSize", pageSize.ToString(CultureInfo.InvariantCulture))
-                .Execute<CadsAnimalsOnHolding>());
+            return await CallCadsAsync(
+                action,
+                () => strategyFactory
+                    .BuildRestStrategy()
+                    .WithGatewayApiKey(options.Value.GatewayApiKey)
+                    .WithCancellationToken(cancellationToken)
+                    .WithActionDescription(action)
+                    .WithResourceUrl(AnimalsResource)
+                    .WithGet()
+                    .WithQueryParameter("CPH", cph)
+                    .WithQueryParameter("page", page.ToString(CultureInfo.InvariantCulture))
+                    .WithQueryParameter("pageSize", pageSize.ToString(CultureInfo.InvariantCulture))
+                    .Execute<CadsAnimalsOnHolding>(),
+                cancellationToken);
         }
         catch (RestResponseException ex) when (UpstreamErrors.IsNotFound(ex))
         {
