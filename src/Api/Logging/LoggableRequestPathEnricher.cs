@@ -27,6 +27,9 @@ public sealed class LoggableRequestPathEnricher(IHttpContextAccessor httpContext
         var httpContext = httpContextAccessor.HttpContext;
         if (httpContext is null)
         {
+            // Work that outlives its request, such as a circuit breaker callback, can still carry the request's log
+            // scope, and with it the raw path. With no request in progress there is no route to report.
+            logEvent.RemovePropertyIfPresent(PropertyName);
             return;
         }
 

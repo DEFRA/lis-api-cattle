@@ -36,7 +36,8 @@ public static class CattleEndpoints
             .WithSummary(OpenApiMetadata.GetCattleDetailsRoute.Summary)
             .WithDescription(OpenApiMetadata.GetCattleDetailsRoute.Description)
             .Produces<CattleDetailsResponse>(StatusCodes.Status200OK)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
 
         return app;
     }

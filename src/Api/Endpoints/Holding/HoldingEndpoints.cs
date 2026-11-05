@@ -66,7 +66,8 @@ public static class HoldingEndpoints
             .WithSummary(OpenApiMetadata.GetCattleForHoldingMultiSegmentRoute.Summary)
             .WithDescription(OpenApiMetadata.GetCattleForHoldingMultiSegmentRoute.Description)
             .Produces<IEnumerable<CattleResponse>>()
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
 
         group.MapGet(
                 "/{cph}/cattle",
@@ -81,7 +82,8 @@ public static class HoldingEndpoints
             .WithSummary(OpenApiMetadata.GetCattleForHoldingRoute.Summary)
             .WithDescription(OpenApiMetadata.GetCattleForHoldingRoute.Description)
             .Produces<IEnumerable<CattleResponse>>()
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
 
         group.MapGet(
                 "/{county}/{parish}/{holding}/bundles",

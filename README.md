@@ -135,6 +135,35 @@ Queue and topic naming rules, and the local and planned names, are in [docs/mess
 Until CADS returns the full animal details, the API reads patch files from the S3 bucket in
 `CadsDataPatch__BucketName`: a folder per CPH (`{cph}/`) holding one `{earTag}.json` file per animal.
 
+Each S3 request for the patch times out after `CadsDataPatch__TimeoutSeconds` and is retried at most
+`CadsDataPatch__MaxErrorRetry` times. Reading a holding's cattle is best effort: if the patch cannot be
+read, the API returns what CADS returned. For a single animal that CADS does not know, an unreadable patch
+answers `503` rather than `404`, because the animal may be in the patch.
+
+### Timeouts and the CADS circuit breaker
+
+Calls to CADS go through a resilience pipeline ([LREG-509](https://eaflood.atlassian.net/browse/LREG-509),
+part of the PRR item LREG-496), so a slow or unreachable CADS fails fast instead of holding the request:
+
+- A call with no response headers after `CadsApi__TimeoutSeconds` (3 s) times out. A body that stalls after
+  the headers is cut off one second later. The BE4FE gives this API 4 s, so this API gives up first.
+- The circuit opens when at least `CadsApi__CircuitBreakerFailureThreshold` (5) calls fail without a response
+  within `CadsApi__CircuitBreakerSamplingSeconds` (30), and none succeed. Calls then fail at once for
+  `CadsApi__CircuitBreakerBreakSeconds` (30), and after that one probe call is let through. A probe that
+  succeeds closes the circuit; one that fails opens it again.
+- Any HTTP response, even a 5xx, shows that CADS is up and does not count as a failure. The caller cancelling
+  does not count either. Nothing is retried: the callers above decide whether to retry.
+- A timeout, an open circuit, a transport failure, or a `503` or `504` from CADS answers `503` with problem
+  details, which callers can retry. Before, all of these were `500`.
+- Circuit transitions are logged: a warning when it opens or reopens, information when it goes half-open or
+  closes. These logs carry no correlation ID or path, because they belong to no request. Polly also logs its
+  own `Resilience event occurred` events.
+
+CADS and KRDS share the SDK's single HTTP client, so a request uses the CADS pipeline when its URL starts with
+`CadsApi__BaseUrl`. The host alone would not do: lis-dev serves both from `lis-fake-service`. Every other call,
+KRDS included, uses an empty pipeline for now. The HttpClient factory's own loggers are removed from this client,
+because their scope carries the raw URL, and KRDS URLs hold the Defra ID subject.
+
 ## Prerequisites
 
 - .NET SDK 10 (`global.json` sets 10.0.0 and allows later feature bands)
@@ -326,7 +355,13 @@ secret must be set as secrets in the CDP portal for every deployed environment.
 | `CadsApi__ClientSecret` | Secret. CADS Basic client secret | empty |
 | `CadsApi__GatewayApiKey` | Secret. CDP developer API key, for the dev gateway only | none |
 | `CadsApi__PageSize` | CADS page size | `500` |
+| `CadsApi__TimeoutSeconds` | Seconds a CADS call waits for the response headers (1-300) | `3` |
+| `CadsApi__CircuitBreakerFailureThreshold` | Calls that must fail without a response to open the CADS circuit (2-1000) | `5` |
+| `CadsApi__CircuitBreakerSamplingSeconds` | Window in which those failures are counted (1-3600) | `30` |
+| `CadsApi__CircuitBreakerBreakSeconds` | Seconds the CADS circuit stays open before a probe (1-3600) | `30` |
 | `CadsDataPatch__BucketName` | S3 bucket for the temporary CADS data patch | empty |
+| `CadsDataPatch__TimeoutSeconds` | Seconds one S3 request for the patch may take (1-300) | `2` |
+| `CadsDataPatch__MaxErrorRetry` | Retries for a failed S3 request for the patch (0-10) | `1` |
 | `ApiKeyAuthentication__Keys__0` | Secret. Accepted inbound API key | none |
 | `ApiKeyAuthentication__Keys__1` | Secret. Optional second key for rotation | none |
 | `Serilog__MinimumLevel__Default` | Log level | `Information` |
