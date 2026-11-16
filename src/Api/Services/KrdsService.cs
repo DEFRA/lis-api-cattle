@@ -94,12 +94,12 @@ public sealed partial class KrdsService : IKrdsService
 
             return response;
         }
-        catch (RestResponseException ex) when (UpstreamErrors.IsNotFound(ex))
+        catch (RestResponseException ex) when (ex.IsNotFound())
         {
             LogHoldingNotKnownToKrds(cph);
             throw new NotFoundException($"Holding '{cph}' was not found.");
         }
-        catch (RestResponseException ex) when (UpstreamErrors.IsBadRequest(ex))
+        catch (RestResponseException ex) when (ex.IsBadRequest())
         {
             throw new ArgumentException($"Holding '{cph}' is not a valid CPH.", ex);
         }
@@ -139,7 +139,7 @@ public sealed partial class KrdsService : IKrdsService
 
             return response;
         }
-        catch (RestResponseException ex) when (UpstreamErrors.IsBadRequest(ex))
+        catch (RestResponseException ex) when (ex.IsBadRequest())
         {
             throw new ArgumentException("Invalid search parameters provided to KRDS.", ex);
         }
@@ -171,13 +171,13 @@ public sealed partial class KrdsService : IKrdsService
 
             return response;
         }
-        catch (RestResponseException ex) when (UpstreamErrors.IsNotFound(ex))
+        catch (RestResponseException ex) when (ex.IsNotFound())
         {
             LogUserAccountNotKnownToKrds();
             throw new NotFoundException("The user was not found.");
         }
-        catch (RestResponseException ex) when (UpstreamErrors.IsBadRequest(ex) ||
-                                               UpstreamErrors.IsUnprocessableEntity(ex))
+        catch (RestResponseException ex) when (ex.IsBadRequest() ||
+                                               ex.IsUnprocessableEntity())
         {
             throw new ArgumentException("The subject is not valid.", nameof(subject), ex);
         }
@@ -206,20 +206,20 @@ public sealed partial class KrdsService : IKrdsService
 
             return response;
         }
-        catch (RestResponseException ex) when (UpstreamErrors.IsBadRequest(ex) ||
-                                               UpstreamErrors.IsUnprocessableEntity(ex))
+        catch (RestResponseException ex) when (ex.IsBadRequest() ||
+                                               ex.IsUnprocessableEntity())
         {
             throw new ArgumentException(
                 "The user account was rejected by KRDS.",
-                nameof(request),
+                nameof(request),`
                 ex);
         }
-        catch (RestResponseException ex) when (UpstreamErrors.IsConflict(ex))
+        catch (RestResponseException ex) when (ex.IsConflict())
         {
             LogUserAccountConflict();
             throw new ConflictException("The email address is already associated with a different user account.");
         }
-        catch (RestResponseException ex) when (UpstreamErrors.IsServiceUnavailable(ex))
+        catch (RestResponseException ex) when (ex.IsServiceUnavailable())
         {
             LogKrdsUnavailable("Ensure user account");
             throw new ServiceUnavailableException("KRDS is temporarily unavailable, try again later.", ex);

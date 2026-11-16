@@ -109,7 +109,7 @@ public sealed partial class CadsService : ICadsService
                 .WithGet()
                 .Execute<CadsAnimalDetailResponse>();
         }
-        catch (RestResponseException ex) when (UpstreamErrors.IsNotFound(ex))
+        catch (RestResponseException ex) when (ex.IsNotFound())
         {
             // Temporary data patch for CADS, check in the patch cache incase.
             if (patchOptions.Value.IsEnabled)
@@ -278,7 +278,7 @@ public sealed partial class CadsService : ICadsService
                 .WithQueryParameter("pageSize", pageSize.ToString(CultureInfo.InvariantCulture))
                 .Execute<CadsAnimalsOnHolding>();
         }
-        catch (RestResponseException ex) when (UpstreamErrors.IsNotFound(ex))
+        catch (RestResponseException ex) when (ex.IsNotFound())
         {
             LogHoldingNotKnownToCads(cph);
             throw new NotFoundException($"Holding '{cph}' was not found.");
