@@ -192,6 +192,24 @@ public class CtsWebClientTests
         Assert.False(result.IsTransient);
     }
 
+    [Theory]
+    [InlineData(HttpStatusCode.InternalServerError, "<html>down</html>", CtsSubmitResult.UnavailableCode, true)]
+    [InlineData(HttpStatusCode.BadRequest, "", CtsSubmitResult.InvalidResponseCode, false)]
+    [InlineData(HttpStatusCode.TooManyRequests, "busy", CtsSubmitResult.InvalidResponseCode, true)]
+    [InlineData(HttpStatusCode.ServiceUnavailable, "<busy/>", CtsSubmitResult.UnavailableCode, true)]
+    [InlineData(HttpStatusCode.NotFound, "<missing/>", CtsSubmitResult.InvalidResponseCode, false)]
+    [InlineData(HttpStatusCode.OK, "<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\"><soap:Body/></soap:Envelope>", CtsSubmitResult.InvalidResponseCode, false)]
+    [InlineData(HttpStatusCode.OK, "<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\"><soap:Body><TransferDataHexResponse xmlns=\"http://www.defra.gov.uk\"><TransferDataHexResult>not base64!</TransferDataHexResult></TransferDataHexResponse></soap:Body></soap:Envelope>", CtsSubmitResult.InvalidResponseCode, false)]
+    [InlineData(HttpStatusCode.InternalServerError, "<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\"><soap:Body><soap:Fault><faultcode>soap:Server</faultcode><faultstring>Boom</faultstring></soap:Fault></soap:Body></soap:Envelope>", CtsSubmitResult.FaultCode, true)]
+    public void ParseResponse_ClassifiesTransportAndProtocolFailures(HttpStatusCode status, string body, string expectedCode, bool expectedTransient)
+    {
+        var result = CtsWebClient.ParseResponse(status, body);
+
+        Assert.False(result.IsAccepted);
+        Assert.Equal(expectedCode, result.ErrorCode);
+        Assert.Equal(expectedTransient, result.IsTransient);
+    }
+
     internal static string Receipt(long number) => Wrap(
         $"""<MsgReceipt xmlns="http://defra.bcms.ctws/asynchronous_receipt" SchemaVersion="1.0" ProgramName="CTS Webservices" ProgramVersion="1h" ResponseTimeStamp="2026-11-16T10:00:00Z"><Receipt Num="{number}"/></MsgReceipt>""");
 

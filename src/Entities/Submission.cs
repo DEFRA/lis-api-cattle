@@ -63,6 +63,8 @@ public class Submission
 
     public IReadOnlyCollection<SubmissionAnimal> Animals => animals.AsReadOnly();
 
+    // Sonar S107: one parameter per animal column, matching the SubmissionAnimal constructor it calls.
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S107:Methods should not have too many parameters", Justification = "One parameter per animal column, as the SubmissionAnimal constructor takes.")]
     public SubmissionAnimal AddAnimal(
         string earTag,
         string status = Statuses.Submitted,
