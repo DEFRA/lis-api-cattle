@@ -5,7 +5,6 @@
 namespace Defra.Lis.Api.Interfaces;
 
 using Defra.Lis.Api.Models;
-using Defra.Lis.Api.Models.Requests;
 using Defra.Lis.Api.Models.Responses;
 
 public interface ICattleService
@@ -15,6 +14,4 @@ public interface ICattleService
     Task<CattleDetailsResponse> GetCattleDetailsAsync(string earTag, CancellationToken cancellationToken = default);
 
     Task<IEnumerable<BundleResponse>> GetBundlesForHoldingAsync(string cph);
-
-    Task<BundleResponse> CreateRegistrationBundleAsync(RegistrationBundleRequest request, CancellationToken cancellationToken = default);
 }

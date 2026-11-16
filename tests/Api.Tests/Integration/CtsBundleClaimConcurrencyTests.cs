@@ -45,20 +45,40 @@ public sealed class CtsBundleClaimConcurrencyTests(PostgresFixture postgres) : I
     }
 
     [Fact]
-    public async Task TwoInstances_SendEachSubmissionToCtsExactlyOnce()
+    public async Task TwoInstances_CheckEachProcessingBundleExactlyOnce()
     {
-        var seeded = await SeedAsync(Bundles);
+        var seeded = await SeedAsync(Bundles, Statuses.Processing);
         var cts = new CountingCtsService();
 
         // Each instance runs its polling job several times, a new scope (DbContext) per run, as Quartz does.
         await Task.WhenAll(RunInstanceAsync(cts), RunInstanceAsync(cts));
 
-        Assert.Equal(Bundles * AnimalsPerBundle, cts.Submissions.Count);
-        Assert.All(cts.Submissions.Values, count => Assert.Equal(1, count));
+        Assert.Equal(Bundles * AnimalsPerBundle, cts.Checks.Count);
+        Assert.All(cts.Checks.Values, count => Assert.Equal(1, count));
 
         await using var db = postgres.CreateDbContext();
         var statuses = await db.Set<Submission>().Where(s => seeded.Contains(s.Id)).Select(s => s.Status).ToListAsync(TestContext.Current.CancellationToken);
         Assert.All(statuses, status => Assert.Equal(Statuses.Complete, status));
+    }
+
+    [Fact]
+    public async Task PollingJob_LeavesSubmittedAndErroredBundlesToTheRegistrationBundleWorker()
+    {
+        // LREG-925: the queue worker sends "submitted" bundles and marks CTS failures "error"; the job must touch neither.
+        var submitted = await SeedAsync(2, Statuses.Submitted, truncate: true);
+        var errored = await SeedAsync(2, Statuses.Error, truncate: false);
+        var cts = new CountingCtsService();
+
+        await RunInstanceAsync(cts);
+
+        Assert.Empty(cts.Checks);
+        await using var db = postgres.CreateDbContext();
+        Assert.All(
+            await db.Set<Submission>().Where(s => submitted.Contains(s.Id)).Select(s => s.Status).ToListAsync(TestContext.Current.CancellationToken),
+            status => Assert.Equal(Statuses.Submitted, status));
+        Assert.All(
+            await db.Set<Submission>().Where(s => errored.Contains(s.Id)).Select(s => s.Status).ToListAsync(TestContext.Current.CancellationToken),
+            status => Assert.Equal(Statuses.Error, status));
     }
 
     [Fact]
@@ -108,17 +128,20 @@ public sealed class CtsBundleClaimConcurrencyTests(PostgresFixture postgres) : I
         }
     }
 
-    private async Task<List<Guid>> SeedAsync(int count)
+    private async Task<List<Guid>> SeedAsync(int count, string status = Statuses.Submitted, bool truncate = true)
     {
         await using var db = postgres.CreateDbContext();
-        await db.Database.ExecuteSqlRawAsync("TRUNCATE public.submissions CASCADE", TestContext.Current.CancellationToken);
+        if (truncate)
+        {
+            await db.Database.ExecuteSqlRawAsync("TRUNCATE public.submissions CASCADE", TestContext.Current.CancellationToken);
+        }
 
         var submissions = Enumerable.Range(0, count).Select(i =>
         {
-            var submission = new Submission($"REF-{Guid.NewGuid():N}", "10/100/1000", "integration-test");
+            var submission = new Submission($"REF-{Guid.NewGuid():N}", "10/100/1000", "integration-test", status);
             for (var a = 0; a < AnimalsPerBundle; a++)
             {
-                submission.AddAnimal($"UK{i:D6}{a:D6}");
+                submission.AddAnimal($"UK{i:D6}{a:D6}", status);
             }
 
             return submission;
@@ -134,16 +157,13 @@ public sealed class CtsBundleClaimConcurrencyTests(PostgresFixture postgres) : I
     /// </summary>
     private sealed class CountingCtsService : ICtsService
     {
-        public ConcurrentDictionary<Guid, int> Submissions { get; } = new();
+        public ConcurrentDictionary<Guid, int> Checks { get; } = new();
 
-        public async Task<CtsAnimalStatusResponse> SubmitAnimalRegistrationAsync(SubmissionAnimal animal, CancellationToken cancellationToken = default)
+        public async Task<CtsAnimalStatusResponse> CheckAnimalStatusAsync(string earTag, Guid animalId, CancellationToken cancellationToken = default)
         {
-            Submissions.AddOrUpdate(animal.Id, 1, (_, count) => count + 1);
+            Checks.AddOrUpdate(animalId, 1, (_, count) => count + 1);
             await Task.Delay(20, cancellationToken);
-            return new CtsAnimalStatusResponse { EarTag = animal.EarTag, Status = Statuses.Processing };
+            return new CtsAnimalStatusResponse { EarTag = earTag, Status = "clean" };
         }
-
-        public Task<CtsAnimalStatusResponse> CheckAnimalStatusAsync(string earTag, Guid animalId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new CtsAnimalStatusResponse { EarTag = earTag, Status = "clean" });
     }
 }

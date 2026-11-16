@@ -6,50 +6,25 @@ namespace Defra.Lis.Api.Services;
 
 using Defra.Database.Postgres;
 using Defra.Lis.Api.Interfaces;
-using Defra.Lis.Api.Messaging;
 using Defra.Lis.Api.Models;
-using Defra.Lis.Api.Models.Requests;
 using Defra.Lis.Api.Models.Responses;
 using Defra.Lis.Entities;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 
-public partial class CattleService : ICattleService
+public class CattleService : ICattleService
 {
     private readonly ICadsService cadsService;
     private readonly DbContext dbContext;
-    private readonly ISubmissionMessagePublisher? submissionMessagePublisher;
-    private readonly ILogger<CattleService>? logger;
 
     public CattleService(ICadsService cadsService, PostgresDbContext dbContext)
-        : this(cadsService, (DbContext)dbContext, null, null)
+        : this(cadsService, (DbContext)dbContext)
     {
     }
 
     public CattleService(ICadsService cadsService, DbContext dbContext)
-        : this(cadsService, dbContext, null, null)
-    {
-    }
-
-    public CattleService(
-        ICadsService cadsService,
-        PostgresDbContext dbContext,
-        ISubmissionMessagePublisher? submissionMessagePublisher,
-        ILogger<CattleService>? logger)
-        : this(cadsService, (DbContext)dbContext, submissionMessagePublisher, logger)
-    {
-    }
-
-    public CattleService(
-        ICadsService cadsService,
-        DbContext dbContext,
-        ISubmissionMessagePublisher? submissionMessagePublisher,
-        ILogger<CattleService>? logger)
     {
         this.cadsService = cadsService;
         this.dbContext = dbContext;
-        this.submissionMessagePublisher = submissionMessagePublisher;
-        this.logger = logger;
     }
 
     public async Task<IEnumerable<CattleResponse>> GetCattleForHoldingAsync(string cph, CattleFilter? filter = null, CancellationToken cancellationToken = default)
@@ -156,87 +131,5 @@ public partial class CattleService : ICattleService
                 }).ToList(),
             }).ToList(),
         }).ToList();
-    }
-
-    public async Task<BundleResponse> CreateRegistrationBundleAsync(RegistrationBundleRequest request, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.ClientReference);
-        ArgumentNullException.ThrowIfNull(request.Holding);
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.Holding.Cph);
-
-        var submittedBy = string.IsNullOrWhiteSpace(request.SubmittedBy) ? "BE4FE" : request.SubmittedBy;
-
-        var submission = new Submission(
-            clientReference: request.ClientReference,
-            countyParishHolding: request.Holding.Cph,
-            submittedBy: submittedBy,
-            status: Statuses.Pending);
-
-        foreach (var animalRequest in request.Animals)
-        {
-            submission.AddAnimal(
-                earTag: animalRequest.EarTag,
-                status: Statuses.Pending,
-                dateBirth: animalRequest.DateOfBirth,
-                sex: animalRequest.Sex,
-                breed: animalRequest.Breed,
-                damType: animalRequest.Dam?.Type,
-                damGeneticEarTag: animalRequest.Dam?.GeneticDamEarTag,
-                damSurrogateEarTag: animalRequest.Dam?.SurrogateDamEarTag,
-                sireEarTag: animalRequest.Sire?.EarTag,
-                sireName: animalRequest.Sire?.Name);
-        }
-
-        await dbContext.Set<Submission>().AddAsync(submission, cancellationToken);
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        if (submissionMessagePublisher != null)
-        {
-            try
-            {
-                await submissionMessagePublisher.PublishSubmissionForValidationAsync(
-                    new SubmissionValidationMessage
-                    {
-                        SubmissionId = submission.Id,
-                        CountyParishHolding = submission.CountyParishHolding,
-                        ClientReference = submission.ClientReference,
-                        SubmittedBy = submission.SubmittedBy,
-                        AnimalCount = submission.Animals.Count,
-                        Timestamp = submission.CreatedAt,
-                    },
-                    cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                LogFailedToPublishValidationMessageForSubmissionSubmissionid(submission.Id, ex);
-            }
-        }
-
-        return new BundleResponse
-        {
-            Id = submission.Id,
-            ClientReference = submission.ClientReference,
-            CountyParishHolding = submission.CountyParishHolding,
-            SubmittedBy = submission.SubmittedBy,
-            Status = submission.Status,
-            CreatedAt = submission.CreatedAt,
-            Animals = submission.Animals.Select(a => new BundleAnimalResponse
-            {
-                Id = a.Id,
-                SubmissionId = a.SubmissionId,
-                Status = a.Status,
-                EarTag = a.EarTag,
-                DateBirth = a.DateBirth,
-                Sex = a.Sex,
-                Breed = a.Breed,
-                DamType = a.DamType,
-                DamGeneticEarTag = a.DamGeneticEarTag,
-                DamSurrogateEarTag = a.DamSurrogateEarTag,
-                SireEarTag = a.SireEarTag,
-                SireName = a.SireName,
-                Errors = [],
-            }).ToList(),
-        };
     }
 }

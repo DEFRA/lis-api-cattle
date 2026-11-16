@@ -16,36 +16,6 @@ public partial class FakeCtsService(
 {
     private readonly ILogger logger = logger ?? NullLogger<FakeCtsService>.Instance;
 
-    public Task<CtsAnimalStatusResponse> SubmitAnimalRegistrationAsync(SubmissionAnimal animal, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(animal);
-
-        LogFakeCtsReceivedSubmissionForAnimalAnimalidWithEartagEartag(animal.Id, animal.EarTag);
-
-        if (animal.EarTag.Contains("SUBMIT_ERR", StringComparison.OrdinalIgnoreCase))
-        {
-            return Task.FromResult(new CtsAnimalStatusResponse
-            {
-                EarTag = animal.EarTag,
-                Status = Statuses.Error,
-                Errors =
-                [
-                    new CtsErrorResponse
-                    {
-                        ErrorCode = "CTS_SUBMIT_FAIL",
-                        ErrorText = "Submission rejected by CTS validation",
-                    },
-                ],
-            });
-        }
-
-        return Task.FromResult(new CtsAnimalStatusResponse
-        {
-            EarTag = animal.EarTag,
-            Status = Statuses.Processing,
-        });
-    }
-
     public Task<CtsAnimalStatusResponse> CheckAnimalStatusAsync(string earTag, Guid animalId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(earTag);

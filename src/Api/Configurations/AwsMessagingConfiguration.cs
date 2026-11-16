@@ -12,6 +12,7 @@ using Defra.Lis.Api.Messaging;
 using Defra.Lis.Api.Validation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -72,6 +73,17 @@ public static class AwsMessagingConfiguration
         if (awsOptions.EnableBackgroundConsumer)
         {
             services.AddHostedService<SubmissionValidationBackgroundService>();
+        }
+
+        // LREG-925: bundles are queued by POST /v1/registrations, then stored and sent to CTS by this consumer.
+        services.AddScoped<IRegistrationBundlePublisher, RegistrationBundlePublisher>();
+        services.AddScoped<IRegistrationBundleHandler, RegistrationBundleHandler>();
+        services.AddSingleton<IRegistrationBundleQueueProcessor, RegistrationBundleQueueProcessor>();
+        services.TryAddSingleton(TimeProvider.System);
+
+        if (awsOptions.EnableBackgroundConsumer && awsOptions.EnableRegistrationBundleConsumer)
+        {
+            services.AddHostedService<RegistrationBundleBackgroundService>();
         }
 
         return services;

@@ -21,7 +21,11 @@ public partial class CtsBundleProcessorService(
     ILogger<CtsBundleProcessorService> logger)
     : ICtsBundleProcessorService
 {
-    private static readonly string[] TargetStatuses = [Statuses.Submitted, Statuses.Processing, Statuses.Error, Statuses.Pending];
+    // Bundles are sent to CTS by the registration bundle queue worker (LREG-925), which leaves them "submitted" with a
+    // receipt, or "error" with the CTS error. This job only checks bundles that are already being processed; it must
+    // not touch "submitted" bundles (that would send them a second time) or "error" bundles (that would overwrite
+    // the CTS error). Polling CTS with the receipt replaces it in part two.
+    private static readonly string[] TargetStatuses = [Statuses.Processing];
 
     private readonly CtsPollingJobOptions options = options.Value;
 
@@ -102,21 +106,10 @@ public partial class CtsBundleProcessorService(
 
     private async Task ProcessBundleAsync(Submission bundle, CancellationToken cancellationToken)
     {
-        string[] toProcess = [Statuses.Submitted, Statuses.Pending];
-        string[] beingProcess = [Statuses.Processing, Statuses.Error];
-
-        if (toProcess.Contains(bundle.Status))
-        {
-            bundle.MarkAsProcessing();
-            await SubmitAnimalRegistrationAndHandleResponse(bundle, cancellationToken);
-        }
-        else if (beingProcess.Contains(bundle.Status))
-        {
-            var targetAnimals = bundle.Animals
-                .Where(a => a.Status == Statuses.Processing || a.Status == Statuses.Error || a.Status == Statuses.Submitted || a.Status == Statuses.Pending)
-                .ToList();
-            await CheckAnimalStatusAndUpdate(targetAnimals, cancellationToken);
-        }
+        var targetAnimals = bundle.Animals
+            .Where(a => a.Status == Statuses.Processing || a.Status == Statuses.Error || a.Status == Statuses.Submitted || a.Status == Statuses.Pending)
+            .ToList();
+        await CheckAnimalStatusAndUpdate(targetAnimals, cancellationToken);
 
         bundle.RefreshStatusFromAnimals();
     }
@@ -136,24 +129,6 @@ public partial class CtsBundleProcessorService(
                 var errorCode = response.Errors.FirstOrDefault()?.ErrorCode ?? "CTS_ERR";
                 var errorText = response.Errors.FirstOrDefault()?.ErrorText ?? "CTS Validation Error";
                 animal.MarkAsError(errorCode, errorText);
-            }
-            else
-            {
-                animal.MarkAsProcessing();
-            }
-        }
-    }
-
-    private async Task SubmitAnimalRegistrationAndHandleResponse(Submission bundle, CancellationToken cancellationToken)
-    {
-        foreach (var animal in bundle.Animals)
-        {
-            var response = await ctsService.SubmitAnimalRegistrationAsync(animal, cancellationToken);
-            if (response.IsError)
-            {
-                animal.MarkAsError(
-                    response.Errors.FirstOrDefault()?.ErrorCode ?? "CTS_ERR",
-                    response.Errors.FirstOrDefault()?.ErrorText ?? "CTS Submission Error");
             }
             else
             {

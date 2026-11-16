@@ -12,33 +12,6 @@ public class FakeCtsServiceTests
     private readonly FakeCtsService fakeCtsService = new(null);
 
     [Fact]
-    public async Task SubmitAnimalRegistrationAsync_WithNormalEarTag_ReturnsProcessing()
-    {
-        var submission = new Submission("CLIENT1", "10/100/1000", "testUser");
-        var animal = submission.AddAnimal("UK123456700001");
-
-        var response = await fakeCtsService.SubmitAnimalRegistrationAsync(animal, TestContext.Current.CancellationToken);
-
-        Assert.Equal("UK123456700001", response.EarTag);
-        Assert.Equal(Statuses.Processing, response.Status);
-        Assert.False(response.IsError);
-        Assert.False(response.IsClean);
-    }
-
-    [Fact]
-    public async Task SubmitAnimalRegistrationAsync_WithSubmitErrTag_ReturnsError()
-    {
-        var submission = new Submission("CLIENT1", "10/100/1000", "testUser");
-        var animal = submission.AddAnimal("UK_SUBMIT_ERR_01");
-
-        var response = await fakeCtsService.SubmitAnimalRegistrationAsync(animal, TestContext.Current.CancellationToken);
-
-        Assert.True(response.IsError);
-        Assert.Single(response.Errors);
-        Assert.Equal("CTS_SUBMIT_FAIL", response.Errors[0].ErrorCode);
-    }
-
-    [Fact]
     public async Task CheckAnimalStatusAsync_WithCleanTag_ReturnsClean()
     {
         var response = await fakeCtsService.CheckAnimalStatusAsync("UK123456700001", Guid.NewGuid(), TestContext.Current.CancellationToken);

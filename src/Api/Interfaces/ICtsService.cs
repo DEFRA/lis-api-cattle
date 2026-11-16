@@ -5,11 +5,8 @@
 namespace Defra.Lis.Api.Interfaces;
 
 using Defra.Lis.Api.Models.Responses;
-using Defra.Lis.Entities;
 
 public interface ICtsService
 {
-    Task<CtsAnimalStatusResponse> SubmitAnimalRegistrationAsync(SubmissionAnimal animal, CancellationToken cancellationToken = default);
-
     Task<CtsAnimalStatusResponse> CheckAnimalStatusAsync(string earTag, Guid animalId, CancellationToken cancellationToken = default);
 }

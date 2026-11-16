@@ -5,7 +5,8 @@
 namespace Defra.Lis.Api.Endpoints.Registration;
 
 using Defra.Lis.Api.Authentication;
-using Defra.Lis.Api.Interfaces;
+using Defra.Lis.Api.Correlation;
+using Defra.Lis.Api.Messaging;
 using Defra.Lis.Api.Models.Requests;
 using Defra.Lis.Api.Models.Responses;
 using Defra.Lis.Api.Validation;
@@ -38,8 +39,10 @@ public static class RegistrationEndpoints
             .WithName(OpenApiMetadata.CreateRegistrationBundleRoute.Name)
             .WithSummary(OpenApiMetadata.CreateRegistrationBundleRoute.Summary)
             .WithDescription(OpenApiMetadata.CreateRegistrationBundleRoute.Description)
-            .Produces<BundleResponse>(StatusCodes.Status201Created)
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .AddEndpointFilter<ValidationFilter<RegistrationBundleRequest>>()
+            .Produces<RegistrationAcceptedResponse>()
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
 
         group.MapPost("/{id:guid}/validate", ValidateRegistrationBundle)
             .WithName(OpenApiMetadata.ValidateRegistrationBundleRoute.Name)
@@ -53,23 +56,27 @@ public static class RegistrationEndpoints
 
     private static async Task<IResult> CreateRegistrationBundle(
         [FromBody] RegistrationBundleRequest request,
-        [FromServices] ICattleService cattleService,
+        [FromServices] IRegistrationBundlePublisher publisher,
         CancellationToken cancellationToken)
     {
-        try
+        // The shape was checked by the validation filter. The bundle is only queued here; the worker stores it
+        // and sends it to CTS, so the caller is not kept waiting for Postgres or CTS. A queue failure surfaces as
+        // a ServiceUnavailableException, which the exception handler turns into 503.
+        var message = new RegistrationBundleMessage
         {
-            var result = await cattleService.CreateRegistrationBundleAsync(request, cancellationToken);
-            return Results.Created($"/v1/holdings/{result.CountyParishHolding}/bundles", result);
-        }
-        catch (ArgumentException ex)
+            SubmissionId = Guid.NewGuid(),
+            CorrelationId = CorrelationIdContext.Value,
+            AcceptedAt = DateTimeOffset.UtcNow,
+            Bundle = request,
+        };
+
+        await publisher.PublishAsync(message, cancellationToken);
+
+        return Results.Ok(new RegistrationAcceptedResponse
         {
-            return Results.BadRequest(new ProblemDetails
-            {
-                Title = "Invalid registration bundle request",
-                Detail = ex.Message,
-                Status = StatusCodes.Status400BadRequest,
-            });
-        }
+            Id = message.SubmissionId,
+            ClientReference = request.ClientReference,
+        });
     }
 
     private static async Task<IResult> ValidateRegistrationBundle(

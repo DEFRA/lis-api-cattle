@@ -95,6 +95,14 @@ services:
       AWS__UseLocalStack: "true"
       AWS__SubmissionValidationQueueUrl: "http://localstack:4567/000000000000/submission_validation_queue"
       AWS__SubmissionValidationTopicArn: "arn:aws:sns:eu-west-2:000000000000:submission_validation_topic"
+      AWS__RegistrationBundleQueueUrl: "http://localstack:4567/000000000000/lis_cattle_registration_bundle"
+      # The lis-fake-service CTS Web Services fake and its public local credentials (LREG-925).
+      CtsWeb__Url: http://host.docker.internal:3000/cts_ws/DefraDataTransferPublicNWSE.asmx
+      CtsWeb__ServiceName: DEFRA-CTWS-FULL-PROVING
+      CtsWeb__DthUsername: local-dev-dth-username
+      CtsWeb__DthPassword: local-dev-dth-password
+      CtsWeb__CtsOnlineUsername: dev-cts-usr
+      CtsWeb__CtsOnlinePassword: dev-cts-pass123
       POSTGRES_URI: http://postgres:5432
       PostgresConfiguration__UseIamAuthentication: "false"
       CadsApi__BaseUrl: http://host.docker.internal:3000/cads/

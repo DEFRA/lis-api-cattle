@@ -6,7 +6,7 @@ delegates record and manage their animals.
 The cattle API is the backend for cattle in LIS. It is a .NET 10 minimal API that returns holdings
 and the cattle on them, creates and validates cattle registration submissions, and keeps the
 accounts of signed-in users. It stores submissions in Postgres, reads holding and animal data from
-KRDS and CADS, and polls for submitted bundles to send to CTS (the Cattle Tracing System).
+KRDS and CADS, and sends submitted bundles to CTS (the Cattle Tracing System) through an SQS queue.
 
 Deployed on the Core Delivery Platform (CDP). See the
 [CDP portal service page](https://portal.cdp-int.defra.cloud/services/lis-api-cattle) for
@@ -28,8 +28,10 @@ hub → /cattle → lis-apps-cattle-home → lis-be4fe-cattle-home → this API 
 - Downstream calls:
   - KRDS (keeper and holding data) and CADS (animals on a holding) over HTTP, each with Basic
     credentials (`ClientId` and `ClientSecret`).
-  - CTS: only a fake client exists (`CtsApi__UseFake`). See [Messaging](#messaging).
-  - AWS SQS and SNS (submission validation) and S3 (the temporary CADS data patch).
+  - CTS Web Services (`CtsWeb__Url`): the `TransferDataHex` SOAP operation, for Birth requests. Locally this is
+    the lis-fake-service `/cts_ws` fake. See [Messaging](#messaging).
+  - AWS SQS (registration bundles and submission validation), SNS (validation events) and S3 (the temporary CADS
+    data patch).
   - Postgres, through Entity Framework Core.
 
 ### Endpoints
@@ -58,7 +60,7 @@ public endpoint has to be added there too.
 | `GET /v1/holdings/{county}/{parish}/{holding}/bundles` | Registration bundles for the holding |
 | `GET /v1/holdings/{cph}/bundles` | Registration bundles for the holding, by CPH |
 | `GET /v1/cattle/{earTag}` | Get the cattle details |
-| `POST /v1/registrations` | Create a cattle registration bundle |
+| `POST /v1/registrations` | Submit a cattle registration bundle (queued; returns `200` with the bundle ID) |
 | `POST /v1/registrations/{id}/validate` | Validate a cattle registration bundle |
 | `GET /v1/users/{subject}` | Get a user's details and associated CPHs |
 | `POST /v1/users` | Create or refresh a user account |
@@ -117,15 +119,34 @@ migrations itself.
 
 ### Messaging
 
-Submissions are validated asynchronously.
+Registration bundles are submitted asynchronously (LREG-925).
 
-- `SubmissionMessagePublisher` sends each submission to the SQS queue in `AWS__SubmissionValidationQueueUrl`
-  and, when `AWS__SubmissionValidationTopicArn` is set, publishes the same message to an SNS topic.
-  A failed SNS publish is logged and does not fail the request.
-- `SubmissionValidationBackgroundService` polls the queue and validates each submission. Set
-  `AWS__EnableBackgroundConsumer` to `false` to turn it off.
-- `CtsBundlePollingJob` (Quartz) claims submitted bundles from Postgres on a schedule and passes
-  them to the CTS client. Only a fake CTS client exists, so the service refuses to start when
+- `POST /v1/registrations` checks the shape of the bundle (`RegistrationBundleRequestValidator`), gives it a
+  submission ID, and sends it to the SQS queue in `AWS__RegistrationBundleQueueUrl` with the correlation ID as the
+  `CorrelationId` message attribute. It returns `200` with the ID straight away, `400` problem details for an invalid
+  shape (nothing is queued), or `503` when SQS cannot take the message.
+- `RegistrationBundleBackgroundService` reads the queue. For each message `RegistrationBundleHandler`:
+  1. stores the bundle and its animals (status `submitted`) and the CTSWeb `Register_Births_Asynchronous` request,
+     keyed by the submission ID, so a redelivered message is not stored twice. The request is stored without its
+     `Authentication` element, so the CTS Online password never reaches the database;
+  2. locks the submission row and, if the bundle has no CTS outcome yet, sends the stored request through
+     `CtsWebClient` (one `Birth` row per animal, `TxnId` = the submission ID);
+  3. stores the CTS receipt number and sent time, or marks the bundle `error` with the CTS error code and text when
+     CTS rejects it or cannot be reached after `CtsWeb__MaxAttempts` attempts. CTS failures are not retried.
+- The message is deleted only after the outcome is saved. A database failure or an unreadable message leaves it on
+  the queue, so SQS delivers it again after the visibility timeout and moves it to the dead-letter queue after the
+  queue's `maxReceiveCount`. The last attempt is logged as an error with the correlation ID.
+- Several instances can run: SQS hides a received message from the others, and the row lock stops two deliveries
+  of the same bundle both sending it.
+
+Submissions can still be validated with `POST /v1/registrations/{id}/validate`:
+
+- `SubmissionValidationBackgroundService` polls the queue in `AWS__SubmissionValidationQueueUrl` and validates
+  each submission it is sent. Since LREG-925 nothing in this service sends to that queue: bundles are no longer
+  queued for validation when they are created. Set `AWS__EnableBackgroundConsumer` to `false` to turn both
+  consumers off.
+- `CtsBundlePollingJob` (Quartz) checks bundles in the `processing` status with the fake per-animal CTS client. It
+  no longer sends bundles: polling CTS with the receipt replaces it in part two. The service refuses to start when
   `CtsApi__UseFake` is `false`.
 
 Queue and topic naming rules, and the local and planned names, are in [docs/messaging.md](docs/messaging.md).
@@ -199,6 +220,7 @@ export AWS__UseLocalStack=true
 export AWS__ServiceUrl=http://localhost:4566
 export AWS__SubmissionValidationQueueUrl=http://localhost:4566/000000000000/submission_validation_queue
 export AWS__SubmissionValidationTopicArn=arn:aws:sns:eu-west-2:000000000000:submission_validation_topic
+export AWS__RegistrationBundleQueueUrl=http://localhost:4566/000000000000/lis_cattle_registration_bundle
 dotnet run --project src/Api --no-launch-profile --urls http://localhost:8091
 ```
 
@@ -304,10 +326,14 @@ secret must be set as secrets in the CDP portal for every deployed environment.
 | `AWS__ServiceUrl` | LocalStack endpoint | none |
 | `AWS__SubmissionValidationQueueUrl` | SQS queue for submission validation | none (set in CDP) |
 | `AWS__SubmissionValidationTopicArn` | Optional SNS topic for validation events | none |
-| `AWS__EnableBackgroundConsumer` | Poll the validation queue | `true` |
+| `AWS__EnableBackgroundConsumer` | Run the queue consumers (validation and registration bundles) | `true` |
 | `AWS__PollingIntervalSeconds` | Queue polling interval | `10` |
 | `AWS__MaxNumberOfMessages` | Messages read per poll | `10` |
 | `AWS__WaitTimeSeconds` | SQS long-poll wait | `5` |
+| `AWS__RegistrationBundleQueueUrl` | SQS queue for registration bundles. Not the validation queue | none (set in CDP) |
+| `AWS__EnableRegistrationBundleConsumer` | Store queued bundles and send them to CTS | `true` |
+| `AWS__RegistrationBundleVisibilityTimeoutSeconds` | How long a received bundle is hidden from other instances. Longer than the worst-case processing time | `300` |
+| `AWS__RegistrationBundleMaxReceiveCount` | The queue's redrive `maxReceiveCount`, used to log the last attempt | `5` |
 | `SubmissionValidation__MinDamAgeInMonths` | Minimum dam age | `15` |
 | `SubmissionValidation__MaxDamAgeInYears` | Maximum dam age | `20` |
 | `SubmissionValidation__MinCalvingIntervalDays` | Minimum days between calvings | `240` |
@@ -316,7 +342,16 @@ secret must be set as secrets in the CDP portal for every deployed environment.
 | `CtsPollingJob__CronSchedule` | Quartz cron schedule | `0/30 * * * * ?` |
 | `CtsPollingJob__PollingIntervalSeconds` | Polling interval | `30` |
 | `CtsPollingJob__BatchSize` | Bundles claimed per run | `10` |
-| `CtsApi__UseFake` | Use the fake CTS client. Must be `true` for now | `true` |
+| `CtsApi__UseFake` | Use the fake per-animal CTS status client. Must be `true` for now | `true` |
+| `CtsWeb__Url` | CTS Web Services `DefraDataTransferPublicNWSE.asmx` URL | `http://lis-fake-service/cts_ws/DefraDataTransferPublicNWSE.asmx` |
+| `CtsWeb__ServiceName` | CTS service name in the `TransferDataHex` envelope | set in CDP |
+| `CtsWeb__DthUsername` | Secret. `TransferDataHex` user name | empty |
+| `CtsWeb__DthPassword` | Secret. `TransferDataHex` password (sent MD5-hashed) | empty |
+| `CtsWeb__CtsOnlineUsername` | Secret. CTS Online system account user name | empty |
+| `CtsWeb__CtsOnlinePassword` | Secret. CTS Online system account password | empty |
+| `CtsWeb__TimeoutMilliseconds` | Timeout for one CTS call | `30000` |
+| `CtsWeb__MaxAttempts` | Attempts when CTS is unavailable, before the bundle is marked as errored | `3` |
+| `CtsWeb__RetryDelayMilliseconds` | Delay before the second attempt, doubling after each | `1000` |
 | `KrdsApi__BaseUrl` | KRDS base URL, with trailing slash | `http://lis-fake-service/krds/` |
 | `KrdsApi__ClientId` | KRDS Basic client ID | empty |
 | `KrdsApi__ClientSecret` | Secret. KRDS Basic client secret | empty |

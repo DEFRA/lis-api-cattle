@@ -19,11 +19,12 @@ public static class OpenApiMetadata
         public const string Name = "CreateRegistrationBundle";
 
         /// <summary>Gets the endpoint summary.</summary>
-        public const string Summary = "Create a cattle registration bundle.";
+        public const string Summary = "Submit a cattle registration bundle.";
 
         /// <summary>Gets the endpoint description.</summary>
         public const string Description =
-            "Creates a bundle of cattle registrations for asynchronous validation and processing.";
+            "Checks the shape of a bundle of cattle registrations and queues it, returning the bundle ID at once. " +
+            "The bundle is then stored and sent to CTS as one Birth request in the background.";
     }
 
     /// <summary>Contains metadata for the validate-registration-bundle endpoint.</summary>

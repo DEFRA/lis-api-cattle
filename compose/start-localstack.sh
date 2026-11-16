@@ -32,6 +32,30 @@ sub_queue_url=$(awslocal sqs create-queue  \
 
 echo "SQS Submission Validation Queue created: $sub_queue_url"
 
+# LREG-925: the registration bundle queue and its dead-letter queue. A bundle that fails 5 times moves to the DLQ.
+# The visibility timeout must be longer than the worst-case processing time (Postgres plus every CTS attempt).
+bundle_dlq_url=$(awslocal sqs create-queue \
+  --queue-name lis_cattle_registration_bundle_dlq \
+  --endpoint-url=http://localhost:4566 \
+  --output text \
+  --query 'QueueUrl')
+
+bundle_dlq_arn=$(awslocal sqs get-queue-attributes \
+  --queue-url "$bundle_dlq_url" \
+  --endpoint-url=http://localhost:4566 \
+  --attribute-name QueueArn \
+  --output text \
+  --query 'Attributes.QueueArn')
+
+bundle_queue_url=$(awslocal sqs create-queue \
+  --queue-name lis_cattle_registration_bundle \
+  --endpoint-url=http://localhost:4566 \
+  --attributes "{\"VisibilityTimeout\":\"300\",\"RedrivePolicy\":\"{\\\"deadLetterTargetArn\\\":\\\"$bundle_dlq_arn\\\",\\\"maxReceiveCount\\\":\\\"5\\\"}\"}" \
+  --output text \
+  --query 'QueueUrl')
+
+echo "SQS Registration Bundle Queue created: $bundle_queue_url (dead-letter queue: $bundle_dlq_url)"
+
 # Get the SQS Queue ARN
 queue_arn=$(awslocal sqs get-queue-attributes \
   --queue-url "$queue_url" \
