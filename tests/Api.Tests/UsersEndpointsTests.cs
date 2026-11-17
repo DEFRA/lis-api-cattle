@@ -15,6 +15,7 @@ using Defra.Lis.Api.Models.Requests;
 using Defra.Lis.Api.Models.Responses;
 using Defra.Lis.Api.Tests.Authentication;
 using Defra.Lis.Core.Exceptions;
+using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Exceptions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;

@@ -7,6 +7,7 @@ namespace Defra.Lis.Api.Exceptions;
 using Defra.Lis.Api.Configurations;
 using Defra.Lis.Api.Logging;
 using Defra.Lis.Core.Exceptions;
+using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Exceptions;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Serilog.Context;
@@ -21,11 +22,18 @@ public sealed partial class ApiExceptionHandler(ILogger<ApiExceptionHandler> log
         var (statusCode, title, type) = exception switch
         {
             NotFoundException => (StatusCodes.Status404NotFound, "Not Found", "https://httpstatuses.com/404"),
+            EntityNotFoundException => (StatusCodes.Status404NotFound, "Not Found", "https://httpstatuses.com/404"),
+            ExistenceRuleException => (StatusCodes.Status404NotFound, "Not Found", "https://httpstatuses.com/404"),
             ConflictException => (StatusCodes.Status409Conflict, "Conflict", "https://httpstatuses.com/409"),
+            ConflictRuleException => (StatusCodes.Status409Conflict, "Conflict", "https://httpstatuses.com/409"),
             BusinessRuleException => (StatusCodes.Status400BadRequest, "Bad Request", "https://httpstatuses.com/400"),
+            ReferenceRuleException => (StatusCodes.Status400BadRequest, "Bad Request", "https://httpstatuses.com/400"),
+            RequestValidationException => (StatusCodes.Status400BadRequest, "Bad Request", "https://httpstatuses.com/400"),
             ArgumentException => (StatusCodes.Status400BadRequest, "Bad Request", "https://httpstatuses.com/400"),
-            UnauthorizedAccessException => (StatusCodes.Status403Forbidden, "Forbidden", "https://httpstatuses.com/403"),
-            ServiceUnavailableException => (StatusCodes.Status503ServiceUnavailable, "Service Unavailable", "https://httpstatuses.com/503"),
+            UnauthorizedAccessException => (StatusCodes.Status403Forbidden, "Forbidden",
+                "https://httpstatuses.com/403"),
+            ServiceUnavailableException => (StatusCodes.Status503ServiceUnavailable, "Service Unavailable",
+                "https://httpstatuses.com/503"),
             _ => (StatusCodes.Status500InternalServerError, "Internal Server Error", "https://httpstatuses.com/500"),
         };
 
@@ -46,7 +54,12 @@ public sealed partial class ApiExceptionHandler(ILogger<ApiExceptionHandler> log
             }
             else
             {
-                LogRequestFailedWithStatusCodeTitleForMethodPath(statusCode, title, httpContext.Request.Method, path, exception);
+                LogRequestFailedWithStatusCodeTitleForMethodPath(
+                    statusCode,
+                    title,
+                    httpContext.Request.Method,
+                    path,
+                    exception);
             }
         }
 
@@ -57,11 +70,7 @@ public sealed partial class ApiExceptionHandler(ILogger<ApiExceptionHandler> log
             Type = type,
             Detail = exception.Message,
             Instance = httpContext.Request.Path,
-            Extensions =
-            {
-                ["traceId"] = httpContext.TraceIdentifier,
-                ["correlationId"] = correlationId,
-            },
+            Extensions = { ["traceId"] = httpContext.TraceIdentifier, ["correlationId"] = correlationId, },
         };
 
         httpContext.Response.StatusCode = statusCode;
