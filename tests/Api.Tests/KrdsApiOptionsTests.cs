@@ -27,9 +27,9 @@ public class KrdsApiOptionsTests
         Assert.Equal(60_000, options.EnsureUserAccountTimeout);
         Assert.Null(options.CircuitBreakerConsecutiveFailureThreshold);
         Assert.Null(options.CircuitBreakerFailureRatio);
-        Assert.Equal(0, options.CircuitBreakerSamplingDuration);
-        Assert.Equal(0, options.CircuitBreakerDurationOfBreak);
-        Assert.Equal(0, options.CircuitBreakerMinimumThroughput);
+        Assert.Equal(30_000, options.CircuitBreakerSamplingDuration);
+        Assert.Equal(30_000, options.CircuitBreakerDurationOfBreak);
+        Assert.Equal(2, options.CircuitBreakerMinimumThroughput);
     }
 
     [Fact]
