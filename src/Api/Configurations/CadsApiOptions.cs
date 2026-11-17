@@ -54,15 +54,15 @@ public sealed class CadsApiOptions
     /// <summary>
     /// Gets the sampling duration in milliseconds for circuit breaker.
     /// </summary>
-    public int CircuitBreakerSamplingDuration { get; init; }
+    public int CircuitBreakerSamplingDuration { get; init; } = 30_000;
 
     /// <summary>
     /// Gets the duration of break in milliseconds for circuit breaker.
     /// </summary>
-    public int CircuitBreakerDurationOfBreak { get; init; }
+    public int CircuitBreakerDurationOfBreak { get; init; } = 30_000;
 
     /// <summary>
     /// Gets the minimum throughput for circuit breaker.
     /// </summary>
-    public int CircuitBreakerMinimumThroughput { get; init; }
+    public int CircuitBreakerMinimumThroughput { get; init; } = 2;
 }
