@@ -40,4 +40,29 @@ public sealed class CadsApiOptions
     /// Gets the timeout in milliseconds for the animal details CADS API call.
     /// </summary>
     public int GetAnimalDetailsTimeout { get; init; } = 60_000;
+
+    /// <summary>
+    /// Gets the consecutive failure threshold for circuit breaker.
+    /// </summary>
+    public int? CircuitBreakerConsecutiveFailureThreshold { get; init; }
+
+    /// <summary>
+    /// Gets the failure ratio threshold for circuit breaker.
+    /// </summary>
+    public double? CircuitBreakerFailureRatio { get; init; }
+
+    /// <summary>
+    /// Gets the sampling duration in milliseconds for circuit breaker.
+    /// </summary>
+    public int CircuitBreakerSamplingDuration { get; init; }
+
+    /// <summary>
+    /// Gets the duration of break in milliseconds for circuit breaker.
+    /// </summary>
+    public int CircuitBreakerDurationOfBreak { get; init; }
+
+    /// <summary>
+    /// Gets the minimum throughput for circuit breaker.
+    /// </summary>
+    public int CircuitBreakerMinimumThroughput { get; init; }
 }

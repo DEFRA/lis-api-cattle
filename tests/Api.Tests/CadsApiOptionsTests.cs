@@ -24,6 +24,11 @@ public class CadsApiOptionsTests
         Assert.Equal(100, options.PageSize);
         Assert.Equal(60_000, options.GetAnimalsOnHoldingTimeout);
         Assert.Equal(60_000, options.GetAnimalDetailsTimeout);
+        Assert.Null(options.CircuitBreakerConsecutiveFailureThreshold);
+        Assert.Null(options.CircuitBreakerFailureRatio);
+        Assert.Equal(0, options.CircuitBreakerSamplingDuration);
+        Assert.Equal(0, options.CircuitBreakerDurationOfBreak);
+        Assert.Equal(0, options.CircuitBreakerMinimumThroughput);
     }
 
     [Fact]
@@ -38,6 +43,11 @@ public class CadsApiOptionsTests
             PageSize = 250,
             GetAnimalsOnHoldingTimeout = 30_000,
             GetAnimalDetailsTimeout = 45_000,
+            CircuitBreakerConsecutiveFailureThreshold = 5,
+            CircuitBreakerFailureRatio = 0.5,
+            CircuitBreakerSamplingDuration = 30_000,
+            CircuitBreakerDurationOfBreak = 30_000,
+            CircuitBreakerMinimumThroughput = 2,
         };
 
         Assert.Equal("https://fake-service.test/cads/", options.BaseUrl);
@@ -47,6 +57,11 @@ public class CadsApiOptionsTests
         Assert.Equal(250, options.PageSize);
         Assert.Equal(30_000, options.GetAnimalsOnHoldingTimeout);
         Assert.Equal(45_000, options.GetAnimalDetailsTimeout);
+        Assert.Equal(5, options.CircuitBreakerConsecutiveFailureThreshold);
+        Assert.Equal(0.5, options.CircuitBreakerFailureRatio);
+        Assert.Equal(30_000, options.CircuitBreakerSamplingDuration);
+        Assert.Equal(30_000, options.CircuitBreakerDurationOfBreak);
+        Assert.Equal(2, options.CircuitBreakerMinimumThroughput);
     }
 
     [Fact]
@@ -130,6 +145,11 @@ public class CadsApiOptionsTests
         Assert.Equal(500, options.PageSize);
         Assert.Equal(60_000, options.GetAnimalsOnHoldingTimeout);
         Assert.Equal(60_000, options.GetAnimalDetailsTimeout);
+        Assert.Equal(5, options.CircuitBreakerConsecutiveFailureThreshold);
+        Assert.Equal(0.5, options.CircuitBreakerFailureRatio);
+        Assert.Equal(30_000, options.CircuitBreakerSamplingDuration);
+        Assert.Equal(30_000, options.CircuitBreakerDurationOfBreak);
+        Assert.Equal(2, options.CircuitBreakerMinimumThroughput);
     }
 
     [Fact]
@@ -149,5 +169,10 @@ public class CadsApiOptionsTests
         Assert.Equal(500, options.PageSize);
         Assert.Equal(60_000, options.GetAnimalsOnHoldingTimeout);
         Assert.Equal(60_000, options.GetAnimalDetailsTimeout);
+        Assert.Equal(5, options.CircuitBreakerConsecutiveFailureThreshold);
+        Assert.Equal(0.5, options.CircuitBreakerFailureRatio);
+        Assert.Equal(30_000, options.CircuitBreakerSamplingDuration);
+        Assert.Equal(30_000, options.CircuitBreakerDurationOfBreak);
+        Assert.Equal(2, options.CircuitBreakerMinimumThroughput);
     }
 }
