@@ -295,7 +295,7 @@ public sealed partial class KrdsService : IKrdsService
                         address?.Postcode, address?.Country,
                     }
                     .Where(line => !string.IsNullOrWhiteSpace(line))
-                    .Select(line => line!.Trim())
+                    .Select(line => line!.Trim()),
             ],
             KeeperName = holding.Associations?
                 .FirstOrDefault(association => association.Roles?.Any(role =>
@@ -342,7 +342,7 @@ public sealed partial class KrdsService : IKrdsService
                 .Select(mark => new HoldingMarkResponse
                 {
                     Mark = mark.Mark, StartDate = mark.StartDate, EndDate = mark.EndDate, Species = mark.Species ?? [],
-                })
+                }),
             ],
             AllowedSpecies =
                 (holding.AllowedSpecies ?? []).Where(species => !string.IsNullOrWhiteSpace(species)).ToList(),
@@ -370,14 +370,14 @@ public sealed partial class KrdsService : IKrdsService
                                 association.Address?.AddressCountryCode,
                             }
                             .Where(line => !string.IsNullOrWhiteSpace(line))
-                            .Select(line => line!.Trim())
+                            .Select(line => line!.Trim()),
                     ],
                     Roles =
                     [
                         .. (association.Roles ?? [])
-                        .Select(role => new HoldingRoleResponse { Code = role.Code, Species = role.Species ?? [], })
+                        .Select(role => new HoldingRoleResponse { Code = role.Code, Species = role.Species ?? [], }),
                     ],
-                })
+                }),
             ],
         };
     }
@@ -399,7 +399,7 @@ public sealed partial class KrdsService : IKrdsService
             Items =
             [
                 .. (result.Values ?? [])
-                .Select(holding => ToHoldingResponse(holding.Identifier ?? string.Empty, holding))
+                .Select(holding => ToHoldingResponse(holding.Identifier ?? string.Empty, holding)),
             ],
         };
     }

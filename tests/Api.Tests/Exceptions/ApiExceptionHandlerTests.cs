@@ -22,53 +22,53 @@ using Serilog.Extensions.Logging;
 
 public class ApiExceptionHandlerTests
 {
-    public static TheoryData<Exception, int, string, string> ExceptionMappings => new()
+    public static TheoryData<Type, int, string, string> ExceptionMappings => new()
     {
         {
-            new NotFoundException("missing"), StatusCodes.Status404NotFound, "Not Found", "https://httpstatuses.com/404"
+            typeof(NotFoundException), StatusCodes.Status404NotFound, "Not Found", "https://httpstatuses.com/404"
         },
         {
-            new EntityNotFoundException("entity missing"), StatusCodes.Status404NotFound, "Not Found",
+            typeof(EntityNotFoundException), StatusCodes.Status404NotFound, "Not Found",
             "https://httpstatuses.com/404"
         },
         {
-            new ExistenceRuleException("existence rule failed"), StatusCodes.Status404NotFound, "Not Found",
+            typeof(ExistenceRuleException), StatusCodes.Status404NotFound, "Not Found",
             "https://httpstatuses.com/404"
         },
         {
-            new ConflictException("already exists"), StatusCodes.Status409Conflict, "Conflict",
+            typeof(ConflictException), StatusCodes.Status409Conflict, "Conflict",
             "https://httpstatuses.com/409"
         },
         {
-            new ConflictRuleException("conflict rule failed"), StatusCodes.Status409Conflict, "Conflict",
+            typeof(ConflictRuleException), StatusCodes.Status409Conflict, "Conflict",
             "https://httpstatuses.com/409"
         },
         {
-            new BusinessRuleException("business rule broken"), StatusCodes.Status400BadRequest, "Bad Request",
+            typeof(BusinessRuleException), StatusCodes.Status400BadRequest, "Bad Request",
             "https://httpstatuses.com/400"
         },
         {
-            new ReferenceRuleException("reference rule broken"), StatusCodes.Status400BadRequest, "Bad Request",
+            typeof(ReferenceRuleException), StatusCodes.Status400BadRequest, "Bad Request",
             "https://httpstatuses.com/400"
         },
         {
-            new RequestValidationException("validation error"), StatusCodes.Status400BadRequest, "Bad Request",
+            typeof(RequestValidationException), StatusCodes.Status400BadRequest, "Bad Request",
             "https://httpstatuses.com/400"
         },
         {
-            new ArgumentException("invalid argument"), StatusCodes.Status400BadRequest, "Bad Request",
+            typeof(ArgumentException), StatusCodes.Status400BadRequest, "Bad Request",
             "https://httpstatuses.com/400"
         },
         {
-            new UnauthorizedAccessException("forbidden"), StatusCodes.Status403Forbidden, "Forbidden",
+            typeof(UnauthorizedAccessException), StatusCodes.Status403Forbidden, "Forbidden",
             "https://httpstatuses.com/403"
         },
         {
-            new ServiceUnavailableException("service unavailable"), StatusCodes.Status503ServiceUnavailable,
+            typeof(ServiceUnavailableException), StatusCodes.Status503ServiceUnavailable,
             "Service Unavailable", "https://httpstatuses.com/503"
         },
         {
-            new InvalidOperationException("unexpected error"), StatusCodes.Status500InternalServerError,
+            typeof(InvalidOperationException), StatusCodes.Status500InternalServerError,
             "Internal Server Error", "https://httpstatuses.com/500"
         },
     };
@@ -76,12 +76,14 @@ public class ApiExceptionHandlerTests
     [Theory]
     [MemberData(nameof(ExceptionMappings))]
     public async Task TryHandleAsync_MapsExceptionToExpectedProblemDetails(
-        Exception exception,
+        Type exceptionType,
         int expectedStatusCode,
         string expectedTitle,
         string expectedType)
     {
         // Arrange
+        const string detail = "An error occurred.";
+        var exception = (Exception)Activator.CreateInstance(exceptionType, detail)!;
         var context = new DefaultHttpContext
         {
             TraceIdentifier = "trace-123",
@@ -108,7 +110,7 @@ public class ApiExceptionHandlerTests
         Assert.Equal(expectedStatusCode, problem.RootElement.GetProperty("status").GetInt32());
         Assert.Equal(expectedTitle, problem.RootElement.GetProperty("title").GetString());
         Assert.Equal(expectedType, problem.RootElement.GetProperty("type").GetString());
-        Assert.Equal(exception.Message, problem.RootElement.GetProperty("detail").GetString());
+        Assert.Equal(detail, problem.RootElement.GetProperty("detail").GetString());
         Assert.Equal("/v1/test/path", problem.RootElement.GetProperty("instance").GetString());
         Assert.Equal("corr-456", problem.RootElement.GetProperty("correlationId").GetString());
         Assert.Equal("trace-123", problem.RootElement.GetProperty("traceId").GetString());
