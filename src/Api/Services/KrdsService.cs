@@ -7,7 +7,6 @@ namespace Defra.Lis.Api.Services;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using Defra.Lis.Api.Configurations;
-using Defra.Lis.Api.Exceptions;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models.Krds;
 using Defra.Lis.Api.Models.Requests;
@@ -211,7 +210,7 @@ public sealed partial class KrdsService : IKrdsService
         {
             throw new ArgumentException(
                 "The user account was rejected by KRDS.",
-                nameof(request),`
+                nameof(request),
                 ex);
         }
         catch (RestResponseException ex) when (ex.IsConflict())

@@ -42,7 +42,7 @@ public interface IKrdsService
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <exception cref="ArgumentException">A claim is missing or invalid, or was rejected by the keeper data service.</exception>
     /// <exception cref="Defra.Lis.Core.Exceptions.ConflictException">The email belongs to a different account.</exception>
-    /// <exception cref="Defra.Lis.Api.Exceptions.ServiceUnavailableException">The keeper data service is temporarily unavailable.</exception>
+    /// <exception cref="Defra.Livestock.Sdk.Api.Strategies.Abstractions.Exceptions.ServiceUnavailableException">The keeper data service is temporarily unavailable.</exception>
     /// <returns>The user's details and associated CPHs.</returns>
     Task<UserDetailsResponse> EnsureUserAccountAsync(CreateUserRequest request, CancellationToken cancellationToken = default);
 }
