@@ -15,8 +15,11 @@ public class CtsRequestConfiguration : IEntityTypeConfiguration<CtsRequest>
 
         builder.HasKey(e => e.Id).HasName("cts_request_pk");
 
+        // The entity creates its own ID, so a request recorded against a bundle that is already stored is inserted
+        // rather than mistaken for an existing row.
         builder.Property(e => e.Id)
-            .HasColumnName(nameof(CtsRequest.Id).ToSnakeCase());
+            .HasColumnName(nameof(CtsRequest.Id).ToSnakeCase())
+            .ValueGeneratedNever();
 
         builder.Property(e => e.SubmissionId)
             .HasColumnName(nameof(CtsRequest.SubmissionId).ToSnakeCase())

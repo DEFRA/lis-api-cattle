@@ -17,9 +17,11 @@ public class SubmissionAnimalConfiguration : IEntityTypeConfiguration<Submission
 
         builder.Ignore(e => e.HasFinalCtsOutcome);
 
+        // The entity creates its own ID, so an animal added to a bundle that is already stored is inserted rather
+        // than mistaken for an existing row.
         builder.Property(e => e.Id)
             .HasColumnName("id")
-            .HasDefaultValueSql("uuid_generate_v4()");
+            .ValueGeneratedNever();
 
         builder.Property(e => e.SubmissionId)
             .HasColumnName(nameof(SubmissionAnimal.SubmissionId).ToSnakeCase())
