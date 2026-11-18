@@ -15,8 +15,11 @@ public class SubmissionAnimalErrorConfiguration : IEntityTypeConfiguration<Submi
 
         builder.HasKey(e => e.Id).HasName("submission_animal_errors_pk");
 
+        // The entity creates its own ID, so an error added to an animal that is already stored is inserted rather
+        // than mistaken for an existing row (LREG-926 adds CTS errors to stored animals).
         builder.Property(e => e.Id)
-            .HasColumnName(nameof(SubmissionAnimalError.Id).ToSnakeCase());
+            .HasColumnName(nameof(SubmissionAnimalError.Id).ToSnakeCase())
+            .ValueGeneratedNever();
 
         builder.Property(e => e.AnimalId)
             .HasColumnName(nameof(SubmissionAnimalError.AnimalId).ToSnakeCase())

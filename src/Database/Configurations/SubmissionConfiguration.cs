@@ -58,6 +58,12 @@ public class SubmissionConfiguration : IEntityTypeConfiguration<Submission>
         builder.Property(e => e.ErrorText)
             .HasColumnName(nameof(Submission.ErrorText).ToSnakeCase());
 
+        builder.Property(e => e.CompletedAt)
+            .HasColumnName(nameof(Submission.CompletedAt).ToSnakeCase());
+
+        builder.Property(e => e.CtsLastPolledAt)
+            .HasColumnName(nameof(Submission.CtsLastPolledAt).ToSnakeCase());
+
         builder.Ignore(e => e.HasCtsOutcome);
 
         // Postgres row version (the xmin system column), so a save that overwrites another writer's change fails.

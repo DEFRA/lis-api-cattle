@@ -15,6 +15,8 @@ public class SubmissionAnimalConfiguration : IEntityTypeConfiguration<Submission
 
         builder.HasKey(e => e.Id).HasName("submission_animal_pk");
 
+        builder.Ignore(e => e.HasFinalCtsOutcome);
+
         builder.Property(e => e.Id)
             .HasColumnName("id")
             .HasDefaultValueSql("uuid_generate_v4()");

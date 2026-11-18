@@ -33,4 +33,10 @@ public class CtsPollingJobOptions
     /// Gets or sets the maximum number of pending submission bundles to process in a single batch.
     /// </summary>
     public int BatchSize { get; set; } = 10;
+
+    /// <summary>
+    /// Gets or sets how long, in hours after it was sent, a bundle whose receipt CTS does not recognise
+    /// (<c>CTWS002</c>) keeps being polled before it is marked as errored.
+    /// </summary>
+    public int UnknownReceiptMaxAgeHours { get; set; } = 24;
 }

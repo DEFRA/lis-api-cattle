@@ -7,4 +7,5 @@
     <include file="schema/01/initial.sql" />
     <include file="schema/02/update_status_check.sql" />
     <include file="schema/03/cts_requests.sql" />
+    <include file="schema/04/cts_results_polling.sql" />
 </databaseChangeLog>

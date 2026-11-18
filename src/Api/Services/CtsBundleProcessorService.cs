@@ -4,7 +4,11 @@
 
 namespace Defra.Lis.Api.Services;
 
+using System.Globalization;
+using System.Xml.Linq;
 using Defra.Database.Postgres;
+using Defra.Lis.Api.Correlation;
+using Defra.Lis.Api.Cts;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models;
 using Defra.Lis.Database.Claims;
@@ -12,30 +16,33 @@ using Defra.Lis.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Serilog.Context;
 
+/// <summary>
+/// Polls CTS for the validation results of bundles the registration bundle worker sent (LREG-926). Each claimed
+/// bundle gets one <c>Get_Register_Births_Validation_Results</c> call with its receipt. Every row CTS returns is
+/// recorded on its animal; rows CTS has not returned yet are left for the next poll. A bundle completes once every
+/// animal has its final outcome.
+/// </summary>
 public partial class CtsBundleProcessorService(
     DbContext dbContext,
     ISubmissionBatchClaimer claimer,
-    ICtsService ctsService,
+    ICtsWebClient ctsWebClient,
+    TimeProvider timeProvider,
     IOptions<CtsPollingJobOptions> options,
     ILogger<CtsBundleProcessorService> logger)
     : ICtsBundleProcessorService
 {
-    // Bundles are sent to CTS by the registration bundle queue worker (LREG-925), which leaves them "submitted" with a
-    // receipt, or "error" with the CTS error. This job only checks bundles that are already being processed; it must
-    // not touch "submitted" bundles (that would send them a second time) or "error" bundles (that would overwrite
-    // the CTS error). Polling CTS with the receipt replaces it in part two.
-    private static readonly string[] TargetStatuses = [Statuses.Processing];
-
     private readonly CtsPollingJobOptions options = options.Value;
 
     public CtsBundleProcessorService(
         PostgresDbContext dbContext,
         ISubmissionBatchClaimer claimer,
-        ICtsService ctsService,
+        ICtsWebClient ctsWebClient,
+        TimeProvider timeProvider,
         IOptions<CtsPollingJobOptions> options,
         ILogger<CtsBundleProcessorService> logger)
-        : this((DbContext)dbContext, claimer, ctsService, options, logger)
+        : this((DbContext)dbContext, claimer, ctsWebClient, timeProvider, options, logger)
     {
     }
 
@@ -49,13 +56,34 @@ public partial class CtsBundleProcessorService(
         await strategy.ExecuteAsync(ct => ProcessBatchAsync(batchSize, ct), cancellationToken);
     }
 
+    /// <summary>
+    /// Reads the row number and ear tag of every Birth row in a stored request, so CTS results can be mapped back to
+    /// the animals that were actually sent.
+    /// </summary>
+    /// <param name="payload">The stored Birth request XML.</param>
+    /// <returns>The ear tag sent in each row, by row number.</returns>
+    internal static IReadOnlyDictionary<int, string> RowsOf(string payload)
+    {
+        var rows = new Dictionary<int, string>();
+        foreach (var birth in XElement.Parse(payload).Descendants(CtsBirthRequestBuilder.Namespace + "Birth"))
+        {
+            if (int.TryParse(birth.Attribute("RowNum")?.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var rowNum)
+                && birth.Attribute("Etg")?.Value is { Length: > 0 } earTag)
+            {
+                rows[rowNum] = earTag;
+            }
+        }
+
+        return rows;
+    }
+
     private async Task ProcessBatchAsync(int batchSize, CancellationToken cancellationToken)
     {
         // A retried attempt must not save changes tracked by the attempt that failed.
         dbContext.ChangeTracker.Clear();
 
         // Claim the batch so that other instances of the service skip these rows until this one commits.
-        await using var claim = await claimer.ClaimAsync(dbContext, batchSize, TargetStatuses, cancellationToken);
+        await using var claim = await claimer.ClaimAwaitingCtsResultsAsync(dbContext, batchSize, cancellationToken);
 
         if (claim.SubmissionIds.Count == 0)
         {
@@ -65,10 +93,12 @@ public partial class CtsBundleProcessorService(
 
         var claimedIds = claim.SubmissionIds;
         var bundles = await dbContext.Set<Submission>()
+            .Include(s => s.CtsRequest)
             .Include(s => s.Animals)
                 .ThenInclude(a => a.Errors)
             .Where(s => claimedIds.Contains(s.Id))
             .OrderBy(s => s.CreatedAt)
+            .AsSplitQuery()
             .ToListAsync(cancellationToken);
 
         LogFoundCountBundlesToProcessWithCts(bundles.Count);
@@ -80,13 +110,20 @@ public partial class CtsBundleProcessorService(
                 break;
             }
 
+            CorrelationIdContext.Value = bundle.CorrelationId;
+            using var correlationProperty = LogContext.PushProperty("CorrelationId", bundle.CorrelationId);
             try
             {
                 await ProcessBundleAsync(bundle, cancellationToken);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
+                // One bundle's failure must not stop the rest of the batch; this bundle is polled again next time.
                 LogErrorProcessingBundleBundleid(bundle.Id, ex);
+            }
+            finally
+            {
+                CorrelationIdContext.Value = null;
             }
         }
 
@@ -106,34 +143,102 @@ public partial class CtsBundleProcessorService(
 
     private async Task ProcessBundleAsync(Submission bundle, CancellationToken cancellationToken)
     {
-        var targetAnimals = bundle.Animals
-            .Where(a => a.Status == Statuses.Processing || a.Status == Statuses.Error || a.Status == Statuses.Submitted || a.Status == Statuses.Pending)
-            .ToList();
-        await CheckAnimalStatusAndUpdate(targetAnimals, cancellationToken);
+        if (bundle.CtsReceiptNumber is not { } receiptNumber || bundle.CtsRequest is null)
+        {
+            LogBundleHasNoCtsRequest(bundle.Id);
+            return;
+        }
 
-        bundle.RefreshStatusFromAnimals();
+        var results = await ctsWebClient.GetBirthResultsAsync(receiptNumber, cancellationToken);
+        var now = timeProvider.GetUtcNow();
+        bundle.RecordCtsPoll(now);
+
+        switch (results.State)
+        {
+            case CtsBirthResultsState.NotReady:
+                LogCtsResultsNotReady(bundle.Id, receiptNumber);
+                return;
+
+            case CtsBirthResultsState.Failed:
+                HandleFailure(bundle, receiptNumber, results, now);
+                return;
+        }
+
+        if (!string.IsNullOrEmpty(results.TxnId) && results.TxnId != bundle.CtsRequest.TxnId)
+        {
+            LogCtsResultsForAnotherTransaction(bundle.Id, receiptNumber);
+            return;
+        }
+
+        var updated = ApplyResults(bundle, results);
+
+        if (bundle.TryCompleteFromCtsResults(now))
+        {
+            LogBundleCompleted(bundle.Id, bundle.Status, results.AcceptedRows.Count, results.RejectedRows.Count);
+        }
+        else
+        {
+            LogBundlePartiallyProcessed(bundle.Id, updated, bundle.Animals.Count(a => !a.HasFinalCtsOutcome));
+        }
     }
 
-    private async Task CheckAnimalStatusAndUpdate(List<SubmissionAnimal> targetAnimals, CancellationToken cancellationToken)
+    private void HandleFailure(Submission bundle, long receiptNumber, CtsBirthResults results, DateTimeOffset now)
     {
-        foreach (var animal in targetAnimals)
-        {
-            var response = await ctsService.CheckAnimalStatusAsync(animal.EarTag, animal.Id, cancellationToken);
+        var maxAge = TimeSpan.FromHours(Math.Max(0, options.UnknownReceiptMaxAgeHours));
+        var sentAt = bundle.CtsSentAt ?? bundle.CreatedAt;
 
-            if (response.IsClean)
+        if (results.ErrorCode == CtsBirthResults.ReceiptNotFoundExNum && now - sentAt >= maxAge)
+        {
+            // CTS still does not know the receipt long after it issued it, so the results can never be fetched.
+            bundle.MarkAsCtsResultsFailed(results.ErrorCode, results.ErrorText ?? "CTS does not recognise the receipt.", now);
+            LogBundleReceiptUnknown(bundle.Id, receiptNumber);
+            return;
+        }
+
+        // CTS is unavailable or answered with an error: leave the bundle as it is for the next poll.
+        LogCtsResultsFailed(bundle.Id, receiptNumber, results.ErrorCode, results.ErrorText, results.IsTransient);
+    }
+
+    private int ApplyResults(Submission bundle, CtsBirthResults results)
+    {
+        var sentRows = RowsOf(bundle.CtsRequest!.Payload);
+        var animalsByEarTag = bundle.Animals
+            .GroupBy(a => CtsFormat.EarTag(a.EarTag) ?? string.Empty, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.Ordinal);
+
+        var updated = 0;
+        foreach (var rowNum in results.AcceptedRows)
+        {
+            if (AnimalFor(bundle, rowNum, null) is { } animal && animal.RecordCtsAccepted())
             {
-                animal.MarkAsComplete();
+                updated++;
             }
-            else if (response.IsError)
+        }
+
+        foreach (var rejected in results.RejectedRows)
+        {
+            if (AnimalFor(bundle, rejected.RowNum, rejected.EarTag) is { } animal
+                && animal.RecordCtsRejected(rejected.Causes.Select(c => (c.Code, c.Description))))
             {
-                var errorCode = response.Errors.FirstOrDefault()?.ErrorCode ?? "CTS_ERR";
-                var errorText = response.Errors.FirstOrDefault()?.ErrorText ?? "CTS Validation Error";
-                animal.MarkAsError(errorCode, errorText);
+                updated++;
             }
-            else
+        }
+
+        return updated;
+
+        SubmissionAnimal? AnimalFor(Submission submission, int rowNum, string? echoedEarTag)
+        {
+            if (!sentRows.TryGetValue(rowNum, out var earTag)
+                || (echoedEarTag != null && !string.Equals(echoedEarTag, earTag, StringComparison.Ordinal))
+                || !animalsByEarTag.TryGetValue(earTag, out var matches)
+                || matches.Count != 1)
             {
-                animal.MarkAsProcessing();
+                // Leave the animal as it is rather than record an outcome against the wrong one.
+                LogCtsRowNotMatched(submission.Id, rowNum);
+                return null;
             }
+
+            return matches[0];
         }
     }
 }

@@ -70,6 +70,9 @@ public class SubmissionAnimal
 
     public IReadOnlyCollection<SubmissionAnimalError> Errors => errors.AsReadOnly();
 
+    /// <summary>Gets a value indicating whether CTS has given this animal its final outcome (accepted or rejected).</summary>
+    public bool HasFinalCtsOutcome => Status == Statuses.Complete || Status == Statuses.Error;
+
     public SubmissionAnimalError AddError(string errorCode, string errorText)
     {
         var error = new SubmissionAnimalError(Id, errorCode, errorText);
@@ -103,5 +106,57 @@ public class SubmissionAnimal
     public void ClearErrors()
     {
         errors.Clear();
+    }
+
+    /// <summary>
+    /// Records that CTS accepted the animal. An animal that already has its final outcome is left as it is, so
+    /// polling the same CTS results again changes nothing.
+    /// </summary>
+    /// <returns><see langword="true"/> if the animal changed.</returns>
+    public bool RecordCtsAccepted()
+    {
+        if (HasFinalCtsOutcome)
+        {
+            return false;
+        }
+
+        Status = Statuses.Complete;
+        return true;
+    }
+
+    /// <summary>
+    /// Records that CTS rejected the animal, with one error row per distinct cause. An animal that already has its
+    /// final outcome is left as it is, so polling the same CTS results again adds no duplicate error rows.
+    /// </summary>
+    /// <param name="causes">The CTS causes (error code and text).</param>
+    /// <returns><see langword="true"/> if the animal changed.</returns>
+    public bool RecordCtsRejected(IEnumerable<(string ErrorCode, string ErrorText)> causes)
+    {
+        ArgumentNullException.ThrowIfNull(causes);
+
+        if (HasFinalCtsOutcome)
+        {
+            return false;
+        }
+
+        var distinct = causes
+            .Where(c => !string.IsNullOrWhiteSpace(c.ErrorCode))
+            .Select(c => (c.ErrorCode, ErrorText: string.IsNullOrWhiteSpace(c.ErrorText) ? c.ErrorCode : c.ErrorText))
+            .Distinct()
+            .ToList();
+
+        if (distinct.Count == 0)
+        {
+            // CTS rejected the row without saying why; the failure must still be visible on the animal.
+            distinct.Add(("CTS_REJECTED", "CTS rejected the animal without giving a cause."));
+        }
+
+        Status = Statuses.Error;
+        foreach (var (errorCode, errorText) in distinct)
+        {
+            AddError(errorCode, errorText);
+        }
+
+        return true;
     }
 }

@@ -57,6 +57,10 @@ public class Submission
 
     public string? ErrorText { get; private set; }
 
+    public DateTimeOffset? CompletedAt { get; private set; }
+
+    public DateTimeOffset? CtsLastPolledAt { get; private set; }
+
     public CtsRequest? CtsRequest { get; private set; }
 
     public bool HasCtsOutcome => CtsReceiptNumber.HasValue || Status == Statuses.Error;
@@ -161,6 +165,50 @@ public class Submission
         ErrorText = errorText;
         Status = Statuses.Error;
         UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>Records when CTS was last asked for this bundle's results, so the poller can take the longest-waiting bundles first.</summary>
+    /// <param name="polledAt">When CTS was asked.</param>
+    public void RecordCtsPoll(DateTimeOffset polledAt)
+    {
+        CtsLastPolledAt = polledAt;
+    }
+
+    /// <summary>
+    /// Completes the bundle once every animal has its final CTS outcome: <see cref="Statuses.Complete"/> when CTS
+    /// accepted them all, otherwise <see cref="Statuses.CompleteWithErrors"/>, with the failures on the animals.
+    /// </summary>
+    /// <param name="completedAt">When the bundle completed.</param>
+    /// <returns><see langword="true"/> if the bundle was completed by this call.</returns>
+    public bool TryCompleteFromCtsResults(DateTimeOffset completedAt)
+    {
+        if (CompletedAt.HasValue || animals.Count == 0 || !animals.All(a => a.HasFinalCtsOutcome))
+        {
+            return false;
+        }
+
+        Status = animals.Any(a => a.Status == Statuses.Error) ? Statuses.CompleteWithErrors : Statuses.Complete;
+        CompletedAt = completedAt;
+        UpdatedAt = completedAt;
+        return true;
+    }
+
+    /// <summary>
+    /// Marks a sent bundle as errored because its CTS results can never be fetched (for example CTS does not know
+    /// the receipt). The receipt is kept for reconciliation; the bundle is not polled again.
+    /// </summary>
+    /// <param name="errorCode">The CTS error code.</param>
+    /// <param name="errorText">The CTS error text.</param>
+    /// <param name="failedAt">When the bundle was marked as errored.</param>
+    public void MarkAsCtsResultsFailed(string errorCode, string errorText, DateTimeOffset failedAt)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(errorCode);
+        ArgumentException.ThrowIfNullOrWhiteSpace(errorText);
+
+        ErrorCode = errorCode;
+        ErrorText = errorText;
+        Status = Statuses.Error;
+        UpdatedAt = failedAt;
     }
 
     public void RefreshStatusFromAnimals()

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--  this message type is used to request the results of an asynchronus processing request -->
+<xs:schema targetNamespace="http://defra.bcms.ctws/get_asynchronus_results" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns="http://defra.bcms.ctws/get_asynchronus_results" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<!-- This schema defines the format of a request for obtaining asynchronous resuts-->
+	<!-- This schema has been defined in accordance to the "e-Government Schema Guidelines For XML" specification version 3.0c -->	
+	<xs:include schemaLocation="ctws_types-V1-0.xsd">
+		<!-- reference the common ctws type definitions-->
+	</xs:include>
+	<xs:element name="GetResults" type="GetResults_Structure">
+		<!-- the root element for the get results document-->
+		<xs:annotation>
+			<xs:documentation source="http://www.rpa.gov.uk/">The XML document format for obtaining asynchronous resuts from ctws</xs:documentation>
+		</xs:annotation>
+	</xs:element>
+	<xs:complexType name="GetResults_Structure">	
+		<!-- the definition of the get results document element-->
+		<xs:sequence>
+			<xs:element name="Authentication" type="Authentication_Structure">
+				<!-- element to hold SIS or CTS Online authentication details-->
+			</xs:element>
+			<xs:element name="Receipt" type="Receipt_Structure">
+				<!-- this element holds the reciept identifier returned in response to the original request -->
+			</xs:element>
+		</xs:sequence>
+				<xs:attributeGroup ref="RequestHeaderAttributes_Type"/>
+	</xs:complexType>
+</xs:schema>

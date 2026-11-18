@@ -36,6 +36,9 @@ public partial class CtsWebClient(
     /// <summary>The namespace of the asynchronous receipt (MsgReceipt) response.</summary>
     public static readonly XNamespace ReceiptNamespace = "http://defra.bcms.ctws/asynchronous_receipt";
 
+    /// <summary>The namespace of the birth validation results (BirthResults) response.</summary>
+    public static readonly XNamespace BirthResultsNamespace = "http://defra.bcms.ctws/register_births_request_results";
+
     // CTSWeb is a legacy service, so both declarations copy the CTS proving-facility sender byte for byte: the SOAP
     // envelope uses single quotes and lower-case utf-8, the base64 data payload double quotes and upper-case UTF-8.
     private const string EnvelopeXmlDeclaration = "<?xml version='1.0' encoding='utf-8'?>";
@@ -54,27 +57,16 @@ public partial class CtsWebClient(
         // Validated here rather than on start-up, so the service can boot before the CTS secrets are configured.
         var settings = options.Value;
         var envelope = BuildEnvelope(settings, operation, AddAuthentication(payload, settings));
-        var delay = TimeSpan.FromMilliseconds(settings.RetryDelayMilliseconds);
-        var attempts = Math.Max(1, settings.MaxAttempts);
+        return ToSubmitResult(await CallAsync(settings, envelope, cancellationToken));
+    }
 
-        CtsSubmitResult result = CtsSubmitResult.Failed(CtsSubmitResult.UnavailableCode, "CTS was not called.", true);
-        for (var attempt = 1; attempt <= attempts; attempt++)
-        {
-            result = await SendOnceAsync(settings, envelope, cancellationToken);
-            if (result.IsAccepted || !result.IsTransient)
-            {
-                return result;
-            }
-
-            LogCtsAttemptFailed(attempt, attempts, result.ErrorCode, result.ErrorText);
-            if (attempt < attempts && delay > TimeSpan.Zero)
-            {
-                await Task.Delay(delay, cancellationToken);
-                delay *= 2;
-            }
-        }
-
-        return result;
+    /// <inheritdoc />
+    public async Task<CtsBirthResults> GetBirthResultsAsync(long receiptNumber, CancellationToken cancellationToken = default)
+    {
+        var settings = options.Value;
+        var request = CtsGetResultsRequestBuilder.Build(receiptNumber, DateTimeOffset.UtcNow);
+        var envelope = BuildEnvelope(settings, CtsGetResultsRequestBuilder.BirthResultsOperation, AddAuthentication(request, settings));
+        return ToBirthResults(await CallAsync(settings, envelope, cancellationToken));
     }
 
     /// <summary>
@@ -122,66 +114,30 @@ public partial class CtsWebClient(
     }
 
     /// <summary>
-    /// Reads a TransferDataHex response: a <c>MsgReceipt</c> with a receipt number, or a <c>SystemException</c>.
+    /// Reads a TransferDataHex response to a Register request: a <c>MsgReceipt</c> with a receipt number, or a
+    /// <c>SystemException</c>.
     /// </summary>
     /// <param name="statusCode">The HTTP status code.</param>
     /// <param name="body">The response body.</param>
     /// <returns>The outcome.</returns>
-    internal static CtsSubmitResult ParseResponse(HttpStatusCode statusCode, string body)
+    internal static CtsSubmitResult ParseResponse(HttpStatusCode statusCode, string body) =>
+        ToSubmitResult(ReadEnvelope(statusCode, body));
+
+    /// <summary>
+    /// Reads a TransferDataHex response to a <c>Get_Register_Births_Validation_Results</c> request: a
+    /// <c>BirthResults</c> document, or a <c>SystemException</c> (<c>CTWS806</c> while CTS is still validating).
+    /// </summary>
+    /// <param name="statusCode">The HTTP status code.</param>
+    /// <param name="body">The response body.</param>
+    /// <returns>The outcome.</returns>
+    internal static CtsBirthResults ParseBirthResultsResponse(HttpStatusCode statusCode, string body) =>
+        ToBirthResults(ReadEnvelope(statusCode, body));
+
+    private static CtsSubmitResult ToSubmitResult(CtsCallOutcome outcome)
     {
-        var code = (int)statusCode;
-        XElement envelope;
-        try
+        if (outcome.Result is not { } inner)
         {
-            envelope = XElement.Parse(body);
-        }
-        catch (XmlException)
-        {
-            return CtsSubmitResult.Failed(
-                code >= 500 ? CtsSubmitResult.UnavailableCode : CtsSubmitResult.InvalidResponseCode,
-                $"CTS returned HTTP {code} with a body that is not XML.",
-                code >= 500 || statusCode == HttpStatusCode.RequestTimeout || statusCode == HttpStatusCode.TooManyRequests);
-        }
-
-        var fault = envelope.Descendants(SoapNamespace + "Fault").FirstOrDefault();
-        if (fault != null)
-        {
-            // soap:Client means our request (for example the DTH credentials) is wrong, so a retry cannot help.
-            var faultCode = fault.Element("faultcode")?.Value ?? string.Empty;
-            var faultString = fault.Element("faultstring")?.Value ?? "SOAP fault";
-            var isClientFault = faultCode.EndsWith("Client", StringComparison.Ordinal);
-            return CtsSubmitResult.Failed(CtsSubmitResult.FaultCode, $"{faultCode}: {faultString}", !isClientFault);
-        }
-
-        if (statusCode != HttpStatusCode.OK)
-        {
-            return CtsSubmitResult.Failed(
-                code >= 500 ? CtsSubmitResult.UnavailableCode : CtsSubmitResult.InvalidResponseCode,
-                $"CTS returned HTTP {code}.",
-                code >= 500 || statusCode == HttpStatusCode.RequestTimeout || statusCode == HttpStatusCode.TooManyRequests);
-        }
-
-        var result = envelope.Descendants(DefraNamespace + "TransferDataHexResult").FirstOrDefault()?.Value;
-        if (string.IsNullOrWhiteSpace(result))
-        {
-            return CtsSubmitResult.Failed(CtsSubmitResult.InvalidResponseCode, "CTS returned no TransferDataHexResult.", false);
-        }
-
-        XElement inner;
-        try
-        {
-            inner = XElement.Parse(Encoding.UTF8.GetString(Convert.FromBase64String(result)).TrimStart('﻿'));
-        }
-        catch (Exception ex) when (ex is FormatException or XmlException)
-        {
-            return CtsSubmitResult.Failed(CtsSubmitResult.InvalidResponseCode, "CTS returned a TransferDataHexResult that could not be decoded.", false);
-        }
-
-        if (inner.Name.LocalName == "SystemException")
-        {
-            var exNum = inner.Attribute("ExNum")?.Value ?? CtsSubmitResult.InvalidResponseCode;
-            var exMsg = inner.Attribute("ExMsg")?.Value ?? "CTS rejected the request.";
-            return CtsSubmitResult.Failed(exNum, exMsg, exNum == CtsSubmitResult.ServiceUnavailableExNum);
+            return CtsSubmitResult.Failed(outcome.ErrorCode!, outcome.ErrorText!, outcome.IsTransient);
         }
 
         var receipt = inner.Element(ReceiptNamespace + "Receipt")?.Attribute("Num")?.Value;
@@ -194,6 +150,125 @@ public partial class CtsWebClient(
         return CtsSubmitResult.Failed(CtsSubmitResult.InvalidResponseCode, $"CTS returned an unexpected {inner.Name.LocalName} result.", false);
     }
 
+    private static CtsBirthResults ToBirthResults(CtsCallOutcome outcome)
+    {
+        if (outcome.Result is not { } inner)
+        {
+            return outcome.ErrorCode == CtsBirthResults.NotReadyExNum
+                ? CtsBirthResults.NotReady(outcome.ErrorText!)
+                : CtsBirthResults.Failed(outcome.ErrorCode!, outcome.ErrorText!, outcome.IsTransient);
+        }
+
+        var results = inner.Name == BirthResultsNamespace + "BirthResults"
+            ? inner.Element(BirthResultsNamespace + "Results")
+            : null;
+        if (results == null)
+        {
+            return CtsBirthResults.Failed(CtsSubmitResult.InvalidResponseCode, $"CTS returned an unexpected {inner.Name.LocalName} result.", false);
+        }
+
+        var accepted = new List<int>();
+        foreach (var accept in results.Elements(BirthResultsNamespace + "Accepted").Elements(BirthResultsNamespace + "Accept"))
+        {
+            if (!TryReadRowNum(accept, out var rowNum))
+            {
+                return InvalidRow();
+            }
+
+            accepted.Add(rowNum);
+        }
+
+        var rejected = new List<CtsRejectedBirth>();
+        foreach (var reject in results.Elements(BirthResultsNamespace + "Rejected").Elements(BirthResultsNamespace + "Reject"))
+        {
+            var birth = reject.Element(BirthResultsNamespace + "Birth");
+            if (birth == null || !TryReadRowNum(birth, out var rowNum))
+            {
+                return InvalidRow();
+            }
+
+            var causes = reject.Elements(BirthResultsNamespace + "Causes").Elements(BirthResultsNamespace + "Cause")
+                .Select(c => new CtsCause(
+                    c.Attribute("Code")?.Value ?? string.Empty,
+                    c.Attribute("Desc")?.Value ?? string.Empty,
+                    c.Attribute("Sev")?.Value,
+                    c.Attribute("Field")?.Value))
+                .ToList();
+            rejected.Add(new CtsRejectedBirth(rowNum, birth.Attribute("Etg")?.Value, causes));
+        }
+
+        return CtsBirthResults.Ready(results.Attribute("TxnId")?.Value, accepted, rejected);
+
+        static CtsBirthResults InvalidRow() =>
+            CtsBirthResults.Failed(CtsSubmitResult.InvalidResponseCode, "CTS returned a result row without a valid RowNum.", false);
+    }
+
+    private static bool TryReadRowNum(XElement row, out int rowNum) =>
+        int.TryParse(row.Attribute("RowNum")?.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out rowNum) && rowNum > 0;
+
+    /// <summary>
+    /// Reads the TransferDataHex envelope down to the decoded CTSWeb result, or the failure.
+    /// </summary>
+    private static CtsCallOutcome ReadEnvelope(HttpStatusCode statusCode, string body)
+    {
+        var code = (int)statusCode;
+        XElement envelope;
+        try
+        {
+            envelope = XElement.Parse(body);
+        }
+        catch (XmlException)
+        {
+            return CtsCallOutcome.Failed(
+                code >= 500 ? CtsSubmitResult.UnavailableCode : CtsSubmitResult.InvalidResponseCode,
+                $"CTS returned HTTP {code} with a body that is not XML.",
+                code >= 500 || statusCode == HttpStatusCode.RequestTimeout || statusCode == HttpStatusCode.TooManyRequests);
+        }
+
+        var fault = envelope.Descendants(SoapNamespace + "Fault").FirstOrDefault();
+        if (fault != null)
+        {
+            // soap:Client means our request (for example the DTH credentials) is wrong, so a retry cannot help.
+            var faultCode = fault.Element("faultcode")?.Value ?? string.Empty;
+            var faultString = fault.Element("faultstring")?.Value ?? "SOAP fault";
+            var isClientFault = faultCode.EndsWith("Client", StringComparison.Ordinal);
+            return CtsCallOutcome.Failed(CtsSubmitResult.FaultCode, $"{faultCode}: {faultString}", !isClientFault);
+        }
+
+        if (statusCode != HttpStatusCode.OK)
+        {
+            return CtsCallOutcome.Failed(
+                code >= 500 ? CtsSubmitResult.UnavailableCode : CtsSubmitResult.InvalidResponseCode,
+                $"CTS returned HTTP {code}.",
+                code >= 500 || statusCode == HttpStatusCode.RequestTimeout || statusCode == HttpStatusCode.TooManyRequests);
+        }
+
+        var result = envelope.Descendants(DefraNamespace + "TransferDataHexResult").FirstOrDefault()?.Value;
+        if (string.IsNullOrWhiteSpace(result))
+        {
+            return CtsCallOutcome.Failed(CtsSubmitResult.InvalidResponseCode, "CTS returned no TransferDataHexResult.", false);
+        }
+
+        XElement inner;
+        try
+        {
+            inner = XElement.Parse(Encoding.UTF8.GetString(Convert.FromBase64String(result)).TrimStart('\uFEFF'));
+        }
+        catch (Exception ex) when (ex is FormatException or XmlException)
+        {
+            return CtsCallOutcome.Failed(CtsSubmitResult.InvalidResponseCode, "CTS returned a TransferDataHexResult that could not be decoded.", false);
+        }
+
+        if (inner.Name.LocalName == "SystemException")
+        {
+            var exNum = inner.Attribute("ExNum")?.Value ?? CtsSubmitResult.InvalidResponseCode;
+            var exMsg = inner.Attribute("ExMsg")?.Value ?? "CTS rejected the request.";
+            return CtsCallOutcome.Failed(exNum, exMsg, exNum == CtsSubmitResult.ServiceUnavailableExNum);
+        }
+
+        return new CtsCallOutcome(inner, null, null, false);
+    }
+
     // MD5 matches the real service's PasswordHelper. It is required for wire compatibility with this legacy
     // protocol and is not used as a security control.
 #pragma warning disable CA5351, S4790
@@ -201,7 +276,35 @@ public partial class CtsWebClient(
         Convert.ToHexStringLower(MD5.HashData(Encoding.ASCII.GetBytes(password)));
 #pragma warning restore CA5351, S4790
 
-    private async Task<CtsSubmitResult> SendOnceAsync(CtsWebOptions settings, string envelope, CancellationToken cancellationToken)
+    /// <summary>
+    /// Sends one envelope, trying again while the failure is transient, up to <see cref="CtsWebOptions.MaxAttempts"/> times.
+    /// </summary>
+    private async Task<CtsCallOutcome> CallAsync(CtsWebOptions settings, string envelope, CancellationToken cancellationToken)
+    {
+        var delay = TimeSpan.FromMilliseconds(settings.RetryDelayMilliseconds);
+        var attempts = Math.Max(1, settings.MaxAttempts);
+
+        var outcome = CtsCallOutcome.Failed(CtsSubmitResult.UnavailableCode, "CTS was not called.", true);
+        for (var attempt = 1; attempt <= attempts; attempt++)
+        {
+            outcome = await SendOnceAsync(settings, envelope, cancellationToken);
+            if (outcome.Result != null || !outcome.IsTransient)
+            {
+                return outcome;
+            }
+
+            LogCtsAttemptFailed(attempt, attempts, outcome.ErrorCode, outcome.ErrorText);
+            if (attempt < attempts && delay > TimeSpan.Zero)
+            {
+                await Task.Delay(delay, cancellationToken);
+                delay *= 2;
+            }
+        }
+
+        return outcome;
+    }
+
+    private async Task<CtsCallOutcome> SendOnceAsync(CtsWebOptions settings, string envelope, CancellationToken cancellationToken)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(settings.TimeoutMilliseconds);
@@ -222,16 +325,23 @@ public partial class CtsWebClient(
         {
             using var response = await httpClient.SendAsync(request, timeout.Token);
             var body = await response.Content.ReadAsStringAsync(timeout.Token);
-            return ParseResponse(response.StatusCode, body);
+            return ReadEnvelope(response.StatusCode, body);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            return CtsSubmitResult.Failed(CtsSubmitResult.UnavailableCode, $"CTS did not answer within {settings.TimeoutMilliseconds} ms.", true);
+            return CtsCallOutcome.Failed(CtsSubmitResult.UnavailableCode, $"CTS did not answer within {settings.TimeoutMilliseconds} ms.", true);
         }
         catch (HttpRequestException ex)
         {
             LogCtsCouldNotBeReached(ex);
-            return CtsSubmitResult.Failed(CtsSubmitResult.UnavailableCode, "CTS could not be reached.", true);
+            return CtsCallOutcome.Failed(CtsSubmitResult.UnavailableCode, "CTS could not be reached.", true);
         }
+    }
+
+    /// <summary>One TransferDataHex call: the decoded CTSWeb result, or why there is none.</summary>
+    private sealed record CtsCallOutcome(XElement? Result, string? ErrorCode, string? ErrorText, bool IsTransient)
+    {
+        public static CtsCallOutcome Failed(string errorCode, string errorText, bool isTransient) =>
+            new(null, errorCode, errorText, isTransient);
     }
 }

@@ -4,6 +4,7 @@
 
 namespace Defra.Lis.Database.Claims;
 
+using Defra.Lis.Entities;
 using Microsoft.EntityFrameworkCore.Storage;
 
 /// <summary>
@@ -12,7 +13,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 /// </summary>
 public sealed class PostgresSubmissionBatchClaimer : ISubmissionBatchClaimer
 {
-    public async Task<ISubmissionBatchClaim> ClaimAsync(
+    public Task<ISubmissionBatchClaim> ClaimAsync(
         DbContext dbContext,
         int batchSize,
         IReadOnlyCollection<string> statuses,
@@ -22,22 +23,54 @@ public sealed class PostgresSubmissionBatchClaimer : ISubmissionBatchClaimer
         ArgumentNullException.ThrowIfNull(statuses);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchSize);
 
+        var statusArray = statuses.ToArray();
+        return ClaimWhereAsync(
+            dbContext,
+            db => db.Database.SqlQuery<Guid>($"""
+                SELECT id AS "Value"
+                FROM public.submissions
+                WHERE status = ANY({statusArray})
+                ORDER BY created_at
+                LIMIT {batchSize}
+                FOR UPDATE SKIP LOCKED
+                """),
+            cancellationToken);
+    }
+
+    public Task<ISubmissionBatchClaim> ClaimAwaitingCtsResultsAsync(
+        DbContext dbContext,
+        int batchSize,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dbContext);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchSize);
+
+        const string submitted = Statuses.Submitted;
+        return ClaimWhereAsync(
+            dbContext,
+            db => db.Database.SqlQuery<Guid>($"""
+                SELECT id AS "Value"
+                FROM public.submissions
+                WHERE status = {submitted}
+                  AND cts_receipt_number IS NOT NULL
+                  AND completed_at IS NULL
+                ORDER BY cts_last_polled_at NULLS FIRST, created_at
+                LIMIT {batchSize}
+                FOR UPDATE SKIP LOCKED
+                """),
+            cancellationToken);
+    }
+
+    private static async Task<ISubmissionBatchClaim> ClaimWhereAsync(
+        DbContext dbContext,
+        Func<DbContext, IQueryable<Guid>> query,
+        CancellationToken cancellationToken)
+    {
         var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         try
         {
-            var statusArray = statuses.ToArray();
-            var ids = await dbContext.Database
-                .SqlQuery<Guid>($"""
-                    SELECT id AS "Value"
-                    FROM public.submissions
-                    WHERE status = ANY({statusArray})
-                    ORDER BY created_at
-                    LIMIT {batchSize}
-                    FOR UPDATE SKIP LOCKED
-                    """)
-                .ToListAsync(cancellationToken);
-
+            var ids = await query(dbContext).ToListAsync(cancellationToken);
             return new Claim(transaction, ids);
         }
         catch
