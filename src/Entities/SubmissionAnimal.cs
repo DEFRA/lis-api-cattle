@@ -8,6 +8,8 @@ public class SubmissionAnimal
 {
     private readonly List<SubmissionAnimalError> errors = [];
 
+    // Sonar S107: one parameter per animal column, matching Submission.AddAnimal, which calls it.
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S107:Methods should not have too many parameters", Justification = "One parameter per animal column, as Submission.AddAnimal passes them.")]
     public SubmissionAnimal(
         Guid submissionId,
         string earTag,
