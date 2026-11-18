@@ -36,7 +36,10 @@ public partial class CtsWebClient(
     /// <summary>The namespace of the asynchronous receipt (MsgReceipt) response.</summary>
     public static readonly XNamespace ReceiptNamespace = "http://defra.bcms.ctws/asynchronous_receipt";
 
-    private const string XmlDeclaration = "<?xml version=\"1.0\" encoding=\"utf-8\"?>";
+    // CTSWeb is a legacy service, so both declarations copy the CTS proving-facility sender byte for byte: the SOAP
+    // envelope uses single quotes and lower-case utf-8, the base64 data payload double quotes and upper-case UTF-8.
+    private const string EnvelopeXmlDeclaration = "<?xml version='1.0' encoding='utf-8'?>";
+    private const string PayloadXmlDeclaration = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
     private const string SoapAction = "http://www.defra.gov.uk/TransferDataHex";
 #pragma warning restore S5332
 
@@ -102,7 +105,7 @@ public partial class CtsWebClient(
     /// <returns>The SOAP envelope.</returns>
     internal static string BuildEnvelope(CtsWebOptions settings, string operation, string request)
     {
-        var data = Convert.ToBase64String(Encoding.UTF8.GetBytes(XmlDeclaration + request));
+        var data = Convert.ToBase64String(Encoding.UTF8.GetBytes(PayloadXmlDeclaration + request));
         var envelope = new XElement(
             SoapNamespace + "Envelope",
             new XAttribute(XNamespace.Xmlns + "soap", SoapNamespace),
@@ -115,7 +118,7 @@ public partial class CtsWebClient(
                     new XElement(DefraNamespace + "serviceName", settings.ServiceName),
                     new XElement(DefraNamespace + "data", data),
                     new XElement(DefraNamespace + "type", operation))));
-        return XmlDeclaration + envelope.ToString(SaveOptions.DisableFormatting);
+        return EnvelopeXmlDeclaration + envelope.ToString(SaveOptions.DisableFormatting);
     }
 
     /// <summary>

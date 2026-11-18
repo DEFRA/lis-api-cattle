@@ -49,7 +49,7 @@ public class RegistrationBundleRequestValidator : AbstractValidator<Registration
             {
                 animal.RuleFor(a => a.EarTag)
                     .Must(BeAnEarTag)
-                    .WithMessage($"The ear tag is required and cannot be longer than {CtsFormat.MaxEarTagLength} characters without spaces.");
+                    .WithMessage($"The ear tag is required and cannot be longer than {CtsFormat.MaxEarTagLength} characters in CTS form.");
 
                 animal.RuleFor(a => a.Sex)
                     .Must(sex => CtsFormat.Sex(sex) != null)
@@ -68,17 +68,17 @@ public class RegistrationBundleRequestValidator : AbstractValidator<Registration
 
                 animal.RuleFor(a => a.Dam.GeneticDamEarTag)
                     .Must(BeAnEarTag)
-                    .WithMessage($"The genetic dam ear tag is required and cannot be longer than {CtsFormat.MaxEarTagLength} characters without spaces.")
+                    .WithMessage($"The genetic dam ear tag is required and cannot be longer than {CtsFormat.MaxEarTagLength} characters in CTS form.")
                     .When(a => a.Dam != null);
 
                 animal.RuleFor(a => a.Dam.SurrogateDamEarTag)
                     .Must(BeAnOptionalEarTag)
-                    .WithMessage($"The surrogate dam ear tag cannot be longer than {CtsFormat.MaxEarTagLength} characters without spaces.")
+                    .WithMessage($"The surrogate dam ear tag cannot be longer than {CtsFormat.MaxEarTagLength} characters in CTS form.")
                     .When(a => a.Dam != null);
 
                 animal.RuleFor(a => a.Sire!.EarTag)
                     .Must(BeAnOptionalEarTag)
-                    .WithMessage($"The sire ear tag cannot be longer than {CtsFormat.MaxEarTagLength} characters without spaces.")
+                    .WithMessage($"The sire ear tag cannot be longer than {CtsFormat.MaxEarTagLength} characters in CTS form.")
                     .When(a => a.Sire != null);
             });
     }

@@ -18,12 +18,25 @@ public static partial class CtsFormat
     public const int MaxBreedCodeLength = 5;
 
     /// <summary>
-    /// Removes the spaces people write in ear tags (<c>UK 12 3456 100003</c> becomes <c>UK123456100003</c>).
+    /// Converts an ear tag to the form CTS holds it in. A current-format tag (two letters and twelve digits, which
+    /// people often write as <c>UK 12 3456 100003</c>) is sent without spaces. Any other tag, such as the older
+    /// herd-mark form <c>UK A1213 00003</c>, keeps its inner spaces, because CTS treats <c>UKAA2233 00012</c> and
+    /// <c>UKAA223300012</c> as different tags. In every case the ends are trimmed, runs of whitespace become one
+    /// space, and letters are upper-cased.
     /// </summary>
     /// <param name="earTag">The ear tag as entered.</param>
     /// <returns>The ear tag in CTS form, or <see langword="null"/> when none was supplied.</returns>
-    public static string? EarTag(string? earTag) =>
-        string.IsNullOrWhiteSpace(earTag) ? null : Whitespace().Replace(earTag, string.Empty).ToUpperInvariant();
+    public static string? EarTag(string? earTag)
+    {
+        if (string.IsNullOrWhiteSpace(earTag))
+        {
+            return null;
+        }
+
+        var tag = Whitespace().Replace(earTag.Trim(), " ").ToUpperInvariant();
+        var compact = tag.Replace(" ", string.Empty, StringComparison.Ordinal);
+        return CurrentFormatEarTag().IsMatch(compact) ? compact : tag;
+    }
 
     /// <summary>
     /// Maps the sex values the registration journey uses to the CTS values <c>m</c> and <c>f</c>.
@@ -49,6 +62,9 @@ public static partial class CtsFormat
 
     [GeneratedRegex(@"\s+", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
     private static partial Regex Whitespace();
+
+    [GeneratedRegex(@"^[A-Z]{2}\d{12}$", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
+    private static partial Regex CurrentFormatEarTag();
 
     [GeneratedRegex("^[A-Z]{1,5}$", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
     private static partial Regex BreedCode();

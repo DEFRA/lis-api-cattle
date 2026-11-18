@@ -71,6 +71,22 @@ public class CtsBirthRequestBuilderTests
     }
 
     [Fact]
+    public void Build_OlderFormatParentTags_KeepTheirSpacesAndValidateAgainstTheCtsSchema()
+    {
+        var submission = new Submission(Guid.NewGuid(), "REF", "10/081/1234", "user");
+        submission.AddAnimal("UK 12 3456 100001", Statuses.Submitted, new DateOnly(2026, 2, 1), "f", "HF", "surrogate", "UKAA2233 00009", "uk a1213  00003", "UK A1213 00003", null);
+
+        var payload = CtsBirthRequestBuilder.Build(submission, DateTimeOffset.UtcNow);
+        var birth = XElement.Parse(payload).Descendants(Ns + "Birth").Single();
+
+        AssertValidAgainstSchema(CtsWebClient.AddAuthentication(payload, Options));
+        Assert.Equal("UK123456100001", birth.Attribute("Etg")?.Value);
+        Assert.Equal("UKAA2233 00009", birth.Attribute("GdEtg")?.Value);
+        Assert.Equal("UK A1213 00003", birth.Attribute("SuEtg")?.Value);
+        Assert.Equal("UK A1213 00003", birth.Attribute("SiEtg")?.Value);
+    }
+
+    [Fact]
     public void Build_UsesTheSubmissionIdAsTheTransactionId()
     {
         var submission = Bundle(2);

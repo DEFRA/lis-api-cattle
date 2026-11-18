@@ -110,6 +110,7 @@ public class RegistrationEndpointsTests
     [InlineData("breed", "ABCDEF")]
     [InlineData("geneticDamEarTag", "")]
     [InlineData("surrogateDamEarTag", "UK 12 3456 0000031")]
+    [InlineData("geneticDamEarTag", "UK A1213 000031")]
     [InlineData("type", "")]
     public async Task CreateRegistrationBundle_WhenShapeIsInvalid_Returns400ProblemDetailsAndQueuesNothing(string field, string value)
     {

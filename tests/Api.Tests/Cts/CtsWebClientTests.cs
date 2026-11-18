@@ -56,6 +56,7 @@ public class CtsWebClientTests
         Assert.Equal("corr-cts", Assert.Single(request.Headers.GetValues(TraceHeaders.CdpRequestId)));
         Assert.Contains("TransferDataHex", Assert.Single(request.Headers.GetValues("SOAPAction")), StringComparison.Ordinal);
 
+        Assert.StartsWith("<?xml version='1.0' encoding='utf-8'?><soap:Envelope", handler.Bodies[0], StringComparison.Ordinal);
         var envelope = XElement.Parse(handler.Bodies[0]);
         var transfer = envelope.Descendants(CtsWebClient.DefraNamespace + "TransferDataHex").Single();
         Assert.Equal("soap", envelope.GetPrefixOfNamespace(CtsWebClient.SoapNamespace));
@@ -65,7 +66,7 @@ public class CtsWebClientTests
         Assert.Equal(CtsBirthRequestBuilder.Operation, transfer.Element(CtsWebClient.DefraNamespace + "type")?.Value);
 
         var data = Encoding.UTF8.GetString(Convert.FromBase64String(transfer.Element(CtsWebClient.DefraNamespace + "data")!.Value));
-        Assert.StartsWith("<?xml version=\"1.0\" encoding=\"utf-8\"?>", data, StringComparison.Ordinal);
+        Assert.StartsWith("<?xml version=\"1.0\" encoding=\"UTF-8\"?><RegBirths", data, StringComparison.Ordinal);
         var regBirths = XElement.Parse(data);
         var user = regBirths.Element(Births + "Authentication")?.Element("CTS_OL_User");
         Assert.NotNull(user);
