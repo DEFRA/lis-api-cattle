@@ -278,8 +278,6 @@ public sealed partial class KrdsService : IKrdsService
     {
         ArgumentNullException.ThrowIfNull(holding);
 
-        var address = holding.Location?.Address;
-
         return new HoldingResponse
         {
             Cph = string.IsNullOrWhiteSpace(holding.Identifier) ? cph : holding.Identifier,
@@ -288,22 +286,25 @@ public sealed partial class KrdsService : IKrdsService
             StartDate = holding.StartDate,
             EndDate = holding.EndDate,
             Active = IsHoldingActive(holding),
-            Address =
-            [
-                .. new[]
-                    {
-                        address?.AddressLine1, address?.AddressLine2, address?.PostTown, address?.Locality,
-                        address?.Postcode, address?.Country,
-                    }
-                    .Where(line => !string.IsNullOrWhiteSpace(line))
-                    .Select(line => line!.Trim())
-            ],
+            Address = ToAddressLines(holding.Location?.Address),
+            CorrespondenceAddress = ToAddressLines(holding.Location?.CorrespondenceAddress),
             KeeperName = holding.Associations?
                 .FirstOrDefault(association => association.Roles?.Any(role =>
                     string.Equals(role.Code, KeeperRoleCode, StringComparison.OrdinalIgnoreCase)) == true)?
                 .Name,
         };
     }
+
+    private static List<string> ToAddressLines(KrdsAddress? address) =>
+    [
+        .. new[]
+            {
+                address?.AddressLine1, address?.AddressLine2, address?.PostTown, address?.Locality,
+                address?.Postcode, address?.Country,
+            }
+            .Where(line => !string.IsNullOrWhiteSpace(line))
+            .Select(line => line!.Trim())
+    ];
 
     private static bool IsHoldingActive(KrdsHolding holding)
     {
@@ -335,6 +336,7 @@ public sealed partial class KrdsService : IKrdsService
             EndDate = baseResponse.EndDate,
             Active = baseResponse.Active,
             Address = baseResponse.Address,
+            CorrespondenceAddress = baseResponse.CorrespondenceAddress,
             KeeperName = baseResponse.KeeperName,
             HerdMarks =
             [
