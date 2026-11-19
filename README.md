@@ -340,9 +340,14 @@ secret must be set as secrets in the CDP portal for every deployed environment.
 ## Running tests
 
 ```bash
-dotnet test Cattle.slnx          # all tests, with coverage
+dotnet test --solution Cattle.slnx          # all tests (integration tests require Docker)
+dotnet test --solution Cattle.slnx --filter-not-trait "Category=Integration"
+dotnet test --solution Cattle.slnx --coverage --coverage-output-format cobertura --coverage-output coverage.cobertura.xml --coverage-settings tests/coverage.settings.xml --report-trx --results-directory ./coverage/Api.Tests
 dotnet format --verify-no-changes Cattle.slnx    # formatting
 ```
+
+The solution uses Microsoft.Testing.Platform, selected in `global.json`, with the native xUnit v3 runner.
+Coverage uses `Microsoft.Testing.Extensions.CodeCoverage`, configured in `tests/coverage.settings.xml` to measure the API, Database and Entities assemblies; the Cake Test task produces HTML, Cobertura and TRX reports under `coverage/`.
 
 The solution has one test project, `tests/Api.Tests` (xUnit). Most tests are unit tests. The
 tests in `tests/Api.Tests/Integration` start a Postgres container with Testcontainers and apply
@@ -385,7 +390,7 @@ rather than merging `main` in. Incomplete work goes behind a feature flag.
 - Follow the [Defra software development standards](https://github.com/DEFRA/software-development-standards).
 - Follow [CODINGSTANDARDS.md](CODINGSTANDARDS.md) (minimal API endpoints in `Endpoints/`, domain-driven design, StyleCop).
 - Add a Liquibase changeset under [changelog/](changelog) for any schema change.
-- Run `dotnet format Cattle.slnx` and `dotnet test Cattle.slnx` before you push.
+- Run `dotnet format Cattle.slnx` and `dotnet test --solution Cattle.slnx` before you push.
 - Open a pull request against `main` using the PR template. CI must pass and the Sonar quality gate must be green before merge.
 
 ## Licence

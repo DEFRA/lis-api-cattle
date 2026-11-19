@@ -7,6 +7,7 @@ namespace Defra.Lis.Api.Exceptions;
 using Defra.Lis.Api.Configurations;
 using Defra.Lis.Api.Logging;
 using Defra.Lis.Core.Exceptions;
+using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Exceptions;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Serilog.Context;

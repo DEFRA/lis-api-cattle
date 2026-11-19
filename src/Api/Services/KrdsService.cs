@@ -20,6 +20,7 @@ using Defra.Livestock.Sdk.Api.Strategies.Operations;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using ServiceUnavailableException = Defra.Lis.Api.Exceptions.ServiceUnavailableException;
 
 /// <summary>
 /// Reads holding details and reads or ensures user accounts through the keeper-data-api (KRDS) V2 endpoints, using

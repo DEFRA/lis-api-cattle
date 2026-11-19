@@ -1,4 +1,4 @@
-﻿ARG PARENT_VERSION=10.0
+ARG PARENT_VERSION=10.0
 ARG PORT=8085
 
 # Build stage image
@@ -6,7 +6,7 @@ FROM mcr.microsoft.com/dotnet/sdk:${PARENT_VERSION} AS build
 WORKDIR /src
 COPY . .
 WORKDIR "/src"
-RUN dotnet test Cattle.slnx --filter "Category!=Integration"
+RUN dotnet test --solution Cattle.slnx --filter-not-trait "Category=Integration"
 RUN dotnet publish src/Api -c Release -o /app/publish /p:UseAppHost=false
 
 # Final production image

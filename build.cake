@@ -143,13 +143,15 @@ Task("Test")
                 project.GetFilenameWithoutExtension().ToString());
             testSettings.ResultsDirectory = coverageOutput.Combine(projectCoverageDirectory);
             testSettings.ArgumentCustomization = args => args
-                .AppendQuoted("--collect:XPlat Code Coverage")
-                .Append("--logger trx");
-            DotNetTest(project.ToString(), testSettings);
+                .Append("--project").AppendQuoted(project.ToString())
+                .Append("--coverage --coverage-output-format cobertura --coverage-output coverage.cobertura.xml")
+                .Append("--coverage-settings").AppendQuoted(MakeAbsolute(File("./tests/coverage.settings.xml")).FullPath)
+                .Append("--report-trx");
+            DotNetTest(string.Empty, testSettings);
         });
         
         Information($"Directory Path : { coverageOutput.ToString()}");
-        var glob = new GlobPattern($"./{coverageOutput}/**/coverage.cobertura.xml");
+        var glob = new GlobPattern($"./{coverageOutput}/*/coverage.cobertura.xml");
                  
         Information($"globpattern : { glob.ToString()}");
         var outputDirectory = Directory($"./coverage/reports");
