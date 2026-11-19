@@ -145,11 +145,24 @@ Submissions can still be validated with `POST /v1/registrations/{id}/validate`:
   each submission it is sent. Since LREG-925 nothing in this service sends to that queue: bundles are no longer
   queued for validation when they are created. Set `AWS__EnableBackgroundConsumer` to `false` to turn both
   consumers off.
-- `CtsBundlePollingJob` (Quartz) checks bundles in the `processing` status with the fake per-animal CTS client. It
-  no longer sends bundles: polling CTS with the receipt replaces it in part two. The service refuses to start when
-  `CtsApi__UseFake` is `false`.
 
 Queue and topic naming rules, and the local and planned names, are in [docs/messaging.md](docs/messaging.md).
+
+CTS validates a bundle after it accepts it, so `CtsBundlePollingJob` (Quartz) fetches the results (LREG-926):
+
+- Each run claims up to `CtsPollingJob__BatchSize` bundles that are `submitted` with a receipt and no
+  `completed_at`, with `FOR UPDATE SKIP LOCKED` (bundles polled longest ago first), so two instances never poll the
+  same bundle in one cycle.
+- It makes one `Get_Register_Births_Validation_Results` call per bundle with the receipt. Each accepted row marks
+  its animal `complete`; each rejected row marks its animal `error` and stores one `submission_animal_errors` row
+  per CTS cause. Rows are matched to animals by `RowNum` through the stored request. Animals CTS has not returned
+  yet, and animals that already have an outcome, are left as they are, so polling the same results twice changes
+  nothing.
+- When every animal has an outcome the bundle is completed: `complete` if CTS accepted them all, otherwise
+  `complete_with_errors`, with `completed_at` and `updated_at` set. A completed bundle is not polled again.
+- "Results not ready" (`CTWS806`), CTS being unavailable and other CTS errors leave the bundle for the next run and
+  are logged with the bundle ID and correlation ID. A receipt CTS does not recognise (`CTWS002`) is retried until
+  `CtsPollingJob__UnknownReceiptMaxAgeHours` after the bundle was sent, then the bundle is marked `error`.
 
 ### Temporary CADS data patch
 
@@ -342,7 +355,7 @@ secret must be set as secrets in the CDP portal for every deployed environment.
 | `CtsPollingJob__CronSchedule` | Quartz cron schedule | `0/30 * * * * ?` |
 | `CtsPollingJob__PollingIntervalSeconds` | Polling interval | `30` |
 | `CtsPollingJob__BatchSize` | Bundles claimed per run | `10` |
-| `CtsApi__UseFake` | Use the fake per-animal CTS status client. Must be `true` for now | `true` |
+| `CtsPollingJob__UnknownReceiptMaxAgeHours` | Hours after sending that a bundle whose receipt CTS does not recognise is marked `error` | `24` |
 | `CtsWeb__Url` | CTS Web Services `DefraDataTransferPublicNWSE.asmx` URL | `http://lis-fake-service/cts_ws/DefraDataTransferPublicNWSE.asmx` |
 | `CtsWeb__ServiceName` | CTS service name in the `TransferDataHex` envelope | set in CDP |
 | `CtsWeb__DthUsername` | Secret. `TransferDataHex` user name | empty |

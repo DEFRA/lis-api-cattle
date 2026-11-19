@@ -4,10 +4,12 @@
 
 namespace Defra.Lis.Api.Tests;
 
-using Defra.Lis.Api.Interfaces;
+using System.Globalization;
+using Defra.Lis.Api.Correlation;
+using Defra.Lis.Api.Cts;
 using Defra.Lis.Api.Models;
-using Defra.Lis.Api.Models.Responses;
 using Defra.Lis.Api.Services;
+using Defra.Lis.Api.Tests.Cts;
 using Defra.Lis.Database.Claims;
 using Defra.Lis.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -17,161 +19,379 @@ using Moq;
 
 public class CtsBundleProcessorServiceTests
 {
-    private readonly Mock<ICtsService> mockCtsService;
+    private static readonly DateTimeOffset SentAt = DateTimeOffset.Parse("2026-11-18T09:00:00Z", CultureInfo.InvariantCulture);
+
+    private readonly Mock<ICtsWebClient> cts = new();
+    private readonly MutableTimeProvider clock = new(SentAt.AddMinutes(5));
     private readonly TestDbContext context;
+    private long nextReceipt = 1000;
 
     public CtsBundleProcessorServiceTests()
     {
-        mockCtsService = new Mock<ICtsService>();
-
-        var dbName = Guid.NewGuid().ToString();
         var options = new DbContextOptionsBuilder<TestDbContext>()
-            .UseInMemoryDatabase(dbName)
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
 
         context = new TestDbContext(options);
     }
 
     [Fact]
-    public async Task ProcessPendingBundlesAsync_WhenProcessingBundleAnimalsComeBackClean_CompletesBundle()
+    public async Task ProcessPendingBundlesAsync_WhenCtsAcceptsEveryAnimal_CompletesTheBundle()
     {
-        // Arrange
-        var submission = new Submission("REF2", "10/100/1000", "testUser", status: Statuses.Processing);
-        submission.AddAnimal("UK100001", status: "processing");
-        submission.AddAnimal("UK100002", status: "processing");
+        var bundle = await SeedSentBundleAsync(2);
+        Respond(bundle, Ready(bundle, accepted: [1, 2]));
 
-        context.Set<Submission>().Add(submission);
-        await context.SaveChangesAsync(TestContext.Current.CancellationToken);
+        await CreateService().ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
 
-        mockCtsService.Setup(s => s.CheckAnimalStatusAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new CtsAnimalStatusResponse { Status = "clean" });
-
-        var options = Options.Create(new CtsPollingJobOptions { BatchSize = 10 });
-        var service = new CtsBundleProcessorService(context, new InMemoryClaimer(), mockCtsService.Object, options, NullLogger<CtsBundleProcessorService>.Instance);
-
-        // Act
-        await service.ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
-
-        // Assert
-        var updated = await context.Set<Submission>().Include(s => s.Animals).FirstAsync(s => s.Id == submission.Id, TestContext.Current.CancellationToken);
+        var updated = await ReloadAsync(bundle.Id);
         Assert.Equal(Statuses.Complete, updated.Status);
+        Assert.Equal(clock.GetUtcNow(), updated.CompletedAt);
+        Assert.Equal(clock.GetUtcNow(), updated.UpdatedAt);
         Assert.All(updated.Animals, a => Assert.Equal(Statuses.Complete, a.Status));
+        Assert.All(updated.Animals, a => Assert.Empty(a.Errors));
+        cts.Verify(c => c.GetBirthResultsAsync(bundle.CtsReceiptNumber!.Value, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
-    public async Task ProcessPendingBundlesAsync_WhenProcessingBundleHasErrors_SetsAnimalAndBundleError()
+    public async Task ProcessPendingBundlesAsync_WhenCtsRejectsSomeAnimals_CompletesWithErrorsAndStoresEachCause()
     {
-        // Arrange
-        var submission = new Submission("REF3", "10/100/1000", "testUser", status: Statuses.Processing);
-        var animal1 = submission.AddAnimal("UK100001", status: Statuses.Processing);
-        var animal2 = submission.AddAnimal("UK100002", status: Statuses.Processing);
+        var bundle = await SeedSentBundleAsync(2);
+        Respond(bundle, Ready(bundle, accepted: [1], rejected: [Reject(bundle, 2, ("CTWS014", "Invalid Breed"), ("CTWS003", "Missing Ear Tag"))]));
 
-        context.Set<Submission>().Add(submission);
-        await context.SaveChangesAsync(TestContext.Current.CancellationToken);
+        await CreateService().ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
 
-        mockCtsService.Setup(s => s.CheckAnimalStatusAsync("UK100001", animal1.Id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new CtsAnimalStatusResponse { Status = "clean" });
+        var updated = await ReloadAsync(bundle.Id);
+        Assert.Equal(Statuses.CompleteWithErrors, updated.Status);
+        Assert.NotNull(updated.CompletedAt);
 
-        mockCtsService.Setup(s => s.CheckAnimalStatusAsync("UK100002", animal2.Id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new CtsAnimalStatusResponse
-            {
-                Status = Statuses.Error,
-                Errors = [new CtsErrorResponse { ErrorCode = "ERR_AGE", ErrorText = "Animal age exceeds maximum" }],
-            });
+        var rows = CtsBirthRequestBuilder.OrderedAnimals(updated);
+        Assert.Equal(Statuses.Complete, rows[0].Status);
+        Assert.Equal(Statuses.Error, rows[1].Status);
+        Assert.Equal(["CTWS003", "CTWS014"], rows[1].Errors.Select(e => e.ErrorCode).Order(StringComparer.Ordinal));
+        Assert.Contains(rows[1].Errors, e => e.ErrorText == "Invalid Breed");
+    }
 
-        var options = Options.Create(new CtsPollingJobOptions { BatchSize = 10 });
-        var service = new CtsBundleProcessorService(context, new InMemoryClaimer(), mockCtsService.Object, options, NullLogger<CtsBundleProcessorService>.Instance);
+    [Fact]
+    public async Task ProcessPendingBundlesAsync_WhenCtsReturnsSomeRows_LeavesTheRestForALaterPollThatCompletesTheBundle()
+    {
+        var bundle = await SeedSentBundleAsync(3);
+        Respond(bundle, Ready(bundle, accepted: [1]));
 
-        // Act
-        await service.ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
+        await CreateService().ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
 
-        // Assert
-        var updated = await context.Set<Submission>().Include(s => s.Animals).ThenInclude(a => a.Errors).FirstAsync(s => s.Id == submission.Id, TestContext.Current.CancellationToken);
+        var afterFirst = await ReloadAsync(bundle.Id);
+        Assert.Equal(Statuses.Submitted, afterFirst.Status);
+        Assert.Null(afterFirst.CompletedAt);
+        Assert.Equal(clock.GetUtcNow(), afterFirst.CtsLastPolledAt);
+        Assert.Equal([Statuses.Complete, Statuses.Submitted, Statuses.Submitted], CtsBirthRequestBuilder.OrderedAnimals(afterFirst).Select(a => a.Status));
+
+        clock.Advance(TimeSpan.FromSeconds(30));
+        Respond(bundle, Ready(bundle, accepted: [1, 3], rejected: [Reject(bundle, 2, ("CTWS014", "Invalid Breed"))]));
+
+        await CreateService().ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
+
+        var afterSecond = await ReloadAsync(bundle.Id);
+        Assert.Equal(Statuses.CompleteWithErrors, afterSecond.Status);
+        Assert.Equal(clock.GetUtcNow(), afterSecond.CompletedAt);
+        Assert.Equal([Statuses.Complete, Statuses.Error, Statuses.Complete], CtsBirthRequestBuilder.OrderedAnimals(afterSecond).Select(a => a.Status));
+    }
+
+    [Fact]
+    public async Task ProcessPendingBundlesAsync_WhenTheSameResultsArePolledTwice_AddsNoDuplicateErrorsAndChangesNothing()
+    {
+        var bundle = await SeedSentBundleAsync(2);
+        Respond(bundle, Ready(bundle, rejected: [Reject(bundle, 1, ("CTWS014", "Invalid Breed"))]));
+
+        await CreateService().ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
+        await CreateService().ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
+
+        var updated = await ReloadAsync(bundle.Id);
+        var rows = CtsBirthRequestBuilder.OrderedAnimals(updated);
+        Assert.Equal(Statuses.Error, rows[0].Status);
+        Assert.Single(rows[0].Errors);
+        Assert.Equal(Statuses.Submitted, rows[1].Status);
+        Assert.Equal(Statuses.Submitted, updated.Status);
+        Assert.Single(await context.Set<SubmissionAnimalError>().ToListAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task ProcessPendingBundlesAsync_WhenAnAcceptedAnimalComesBackRejected_KeepsItsFirstOutcome()
+    {
+        var bundle = await SeedSentBundleAsync(2);
+        Respond(bundle, Ready(bundle, accepted: [1]));
+        await CreateService().ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
+
+        Respond(bundle, Ready(bundle, rejected: [Reject(bundle, 1, ("CTWS014", "Invalid Breed"))]));
+        await CreateService().ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
+
+        var row = CtsBirthRequestBuilder.OrderedAnimals(await ReloadAsync(bundle.Id))[0];
+        Assert.Equal(Statuses.Complete, row.Status);
+        Assert.Empty(row.Errors);
+    }
+
+    [Fact]
+    public async Task ProcessPendingBundlesAsync_WhenCtsIsStillValidating_LeavesTheBundleAndRecordsThePoll()
+    {
+        var bundle = await SeedSentBundleAsync(1);
+        Respond(bundle, CtsBirthResults.NotReady("Results not yet available"));
+
+        await CreateService().ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
+
+        var updated = await ReloadAsync(bundle.Id);
+        Assert.Equal(Statuses.Submitted, updated.Status);
+        Assert.Null(updated.CompletedAt);
+        Assert.Equal(clock.GetUtcNow(), updated.CtsLastPolledAt);
+        Assert.All(updated.Animals, a => Assert.Equal(Statuses.Submitted, a.Status));
+    }
+
+    [Fact]
+    public async Task ProcessPendingBundlesAsync_WhenCtsIsUnavailableForOneBundle_LeavesItAndProcessesTheRest()
+    {
+        var unavailable = await SeedSentBundleAsync(1);
+        var available = await SeedSentBundleAsync(1);
+        Respond(unavailable, CtsBirthResults.Failed(CtsSubmitResult.UnavailableCode, "CTS could not be reached.", true));
+        Respond(available, Ready(available, accepted: [1]));
+
+        await CreateService().ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
+
+        var left = await ReloadAsync(unavailable.Id);
+        Assert.Equal(Statuses.Submitted, left.Status);
+        Assert.Null(left.ErrorCode);
+        Assert.All(left.Animals, a => Assert.Equal(Statuses.Submitted, a.Status));
+        Assert.Equal(Statuses.Complete, (await ReloadAsync(available.Id)).Status);
+    }
+
+    [Fact]
+    public async Task ProcessPendingBundlesAsync_WhenTheCtsClientThrowsForOneBundle_ProcessesTheRest()
+    {
+        var failing = await SeedSentBundleAsync(1);
+        var healthy = await SeedSentBundleAsync(1);
+        cts.Setup(c => c.GetBirthResultsAsync(failing.CtsReceiptNumber!.Value, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Unexpected"));
+        Respond(healthy, Ready(healthy, accepted: [1]));
+
+        await CreateService().ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(Statuses.Submitted, (await ReloadAsync(failing.Id)).Status);
+        Assert.Equal(Statuses.Complete, (await ReloadAsync(healthy.Id)).Status);
+    }
+
+    [Fact]
+    public async Task ProcessPendingBundlesAsync_WhenCtsDoesNotKnowARecentReceipt_KeepsPolling()
+    {
+        var bundle = await SeedSentBundleAsync(1);
+        Respond(bundle, CtsBirthResults.Failed(CtsBirthResults.ReceiptNotFoundExNum, "Receipt not found", false));
+
+        await CreateService(unknownReceiptMaxAgeHours: 24).ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
+
+        var updated = await ReloadAsync(bundle.Id);
+        Assert.Equal(Statuses.Submitted, updated.Status);
+        Assert.Null(updated.ErrorCode);
+    }
+
+    [Fact]
+    public async Task ProcessPendingBundlesAsync_WhenCtsStillDoesNotKnowTheReceiptAfterTheMaxAge_MarksTheBundleAsErrored()
+    {
+        var bundle = await SeedSentBundleAsync(1);
+        Respond(bundle, CtsBirthResults.Failed(CtsBirthResults.ReceiptNotFoundExNum, "Receipt not found", false));
+        clock.Set(SentAt.AddHours(24));
+
+        await CreateService(unknownReceiptMaxAgeHours: 24).ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
+
+        var updated = await ReloadAsync(bundle.Id);
         Assert.Equal(Statuses.Error, updated.Status);
+        Assert.Equal(CtsBirthResults.ReceiptNotFoundExNum, updated.ErrorCode);
+        Assert.Equal("Receipt not found", updated.ErrorText);
+        Assert.Equal(bundle.CtsReceiptNumber, updated.CtsReceiptNumber);
+        Assert.Null(updated.CompletedAt);
 
-        var a1 = updated.Animals.First(a => a.EarTag == "UK100001");
-        Assert.Equal(Statuses.Complete, a1.Status);
-
-        var a2 = updated.Animals.First(a => a.EarTag == "UK100002");
-        Assert.Equal(Statuses.Error, a2.Status);
-        Assert.Single(a2.Errors);
-        Assert.Equal("ERR_AGE", a2.Errors.First().ErrorCode);
+        // An errored bundle is no longer claimed.
+        cts.Invocations.Clear();
+        await CreateService().ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
+        cts.Verify(c => c.GetBirthResultsAsync(It.IsAny<long>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
-    public async Task ProcessPendingBundlesAsync_WhenNoPendingBundles_CompletesGracefully()
+    public async Task ProcessPendingBundlesAsync_WhenTheResultsAreForAnotherTransaction_IgnoresThem()
     {
-        var options = Options.Create(new CtsPollingJobOptions { BatchSize = 10 });
-        var service = new CtsBundleProcessorService(context, new InMemoryClaimer(), mockCtsService.Object, options, NullLogger<CtsBundleProcessorService>.Instance);
+        var bundle = await SeedSentBundleAsync(1);
+        Respond(bundle, CtsBirthResults.Ready("another-transaction", [1], []));
 
-        await service.ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
+        await CreateService().ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
 
-        mockCtsService.Verify(s => s.CheckAnimalStatusAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        var updated = await ReloadAsync(bundle.Id);
+        Assert.Equal(Statuses.Submitted, updated.Status);
+        Assert.All(updated.Animals, a => Assert.Equal(Statuses.Submitted, a.Status));
     }
 
     [Fact]
-    public async Task ProcessPendingBundlesAsync_OnlyProcessesTheBundlesItClaimed()
+    public async Task ProcessPendingBundlesAsync_WhenARowDoesNotMatchTheStoredRequest_LeavesThatAnimal()
     {
-        var claimed = new Submission("REF5", "10/100/1000", "testUser", status: Statuses.Processing);
-        claimed.AddAnimal("UK100001", status: Statuses.Processing);
-        var heldElsewhere = new Submission("REF6", "10/100/1000", "testUser", status: Statuses.Processing);
-        heldElsewhere.AddAnimal("UK100002", status: Statuses.Processing);
-        context.Set<Submission>().AddRange(claimed, heldElsewhere);
+        var bundle = await SeedSentBundleAsync(2);
+        Respond(bundle, Ready(
+            bundle,
+            accepted: [7],
+            rejected: [new CtsRejectedBirth(2, "UK999999999999", [new CtsCause("CTWS014", "Invalid Breed", "e", "Brd")]), Reject(bundle, 1, ("CTWS003", "Missing Ear Tag"))]));
+
+        await CreateService().ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
+
+        var rows = CtsBirthRequestBuilder.OrderedAnimals(await ReloadAsync(bundle.Id));
+        Assert.Equal(Statuses.Error, rows[0].Status);
+        Assert.Equal(Statuses.Submitted, rows[1].Status);
+        Assert.Empty(rows[1].Errors);
+    }
+
+    [Fact]
+    public async Task ProcessPendingBundlesAsync_CallsCtsWithTheBundlesCorrelationId()
+    {
+        var bundle = await SeedSentBundleAsync(1, correlationId: "corr-926");
+        string? seen = null;
+        cts.Setup(c => c.GetBirthResultsAsync(bundle.CtsReceiptNumber!.Value, It.IsAny<CancellationToken>()))
+            .Callback(() => seen = CorrelationIdContext.Value)
+            .ReturnsAsync(Ready(bundle, accepted: [1]));
+
+        await CreateService().ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal("corr-926", seen);
+        Assert.Null(CorrelationIdContext.Value);
+    }
+
+    [Fact]
+    public async Task ProcessPendingBundlesAsync_DoesNotPollBundlesWithoutAReceiptOrAlreadyCompleted()
+    {
+        var unsent = new Submission(Guid.NewGuid(), "REF-UNSENT", "10/081/1234", "user");
+        unsent.AddAnimal("UK123456100001");
+        var completed = await SeedSentBundleAsync(1);
+        Respond(completed, Ready(completed, accepted: [1]));
+        await CreateService().ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
+        context.Set<Submission>().Add(unsent);
         await context.SaveChangesAsync(TestContext.Current.CancellationToken);
+        cts.Invocations.Clear();
 
-        mockCtsService.Setup(s => s.CheckAnimalStatusAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new CtsAnimalStatusResponse { Status = Statuses.Processing });
+        await CreateService().ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
 
-        var claimer = new InMemoryClaimer(claimed.Id);
-        var service = new CtsBundleProcessorService(context, claimer, mockCtsService.Object, Options.Create(new CtsPollingJobOptions { BatchSize = 10 }), NullLogger<CtsBundleProcessorService>.Instance);
-
-        await service.ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
-
-        mockCtsService.Verify(s => s.CheckAnimalStatusAsync("UK100001", It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Once);
-        mockCtsService.Verify(s => s.CheckAnimalStatusAsync("UK100002", It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
-        Assert.True(claimer.Committed);
-        Assert.True(claimer.Disposed);
+        cts.Verify(c => c.GetBirthResultsAsync(It.IsAny<long>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
-    public async Task ProcessPendingBundlesAsync_ClaimsTheConfiguredBatchOfTargetStatuses()
+    public async Task ProcessPendingBundlesAsync_WhenNoBundlesAreWaiting_DoesNotCallCts()
     {
         var claimer = new InMemoryClaimer();
-        var service = new CtsBundleProcessorService(context, claimer, mockCtsService.Object, Options.Create(new CtsPollingJobOptions { BatchSize = 25 }), NullLogger<CtsBundleProcessorService>.Instance);
 
-        await service.ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
+        await CreateService(claimer: claimer).ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(25, claimer.RequestedBatchSize);
-
-        // Submitted bundles are sent by the registration bundle worker and error bundles carry the CTS error, so the
-        // polling job must claim neither (LREG-925).
-        Assert.Equal([Statuses.Processing], claimer.RequestedStatuses);
+        cts.Verify(c => c.GetBirthResultsAsync(It.IsAny<long>(), It.IsAny<CancellationToken>()), Times.Never);
         Assert.False(claimer.Committed);
         Assert.True(claimer.Disposed);
     }
 
     [Fact]
+    public async Task ProcessPendingBundlesAsync_OnlyPollsTheBundlesItClaimed()
+    {
+        var claimed = await SeedSentBundleAsync(1);
+        var heldElsewhere = await SeedSentBundleAsync(1);
+        Respond(claimed, Ready(claimed, accepted: [1]));
+
+        var claimer = new InMemoryClaimer(claimed.Id);
+        await CreateService(claimer: claimer).ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
+
+        cts.Verify(c => c.GetBirthResultsAsync(claimed.CtsReceiptNumber!.Value, It.IsAny<CancellationToken>()), Times.Once);
+        cts.Verify(c => c.GetBirthResultsAsync(heldElsewhere.CtsReceiptNumber!.Value, It.IsAny<CancellationToken>()), Times.Never);
+        Assert.True(claimer.Committed);
+        Assert.True(claimer.Disposed);
+    }
+
+    [Fact]
+    public async Task ProcessPendingBundlesAsync_ClaimsTheConfiguredBatchSize()
+    {
+        var claimer = new InMemoryClaimer();
+
+        await CreateService(batchSize: 25, claimer: claimer).ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(25, claimer.RequestedBatchSize);
+    }
+
+    [Fact]
     public async Task ProcessPendingBundlesAsync_DoesNotCommit_WhenAnotherWriterChangedTheBatch()
     {
-        var submission = new Submission("REF7", "10/100/1000", "testUser", status: Statuses.Processing);
-        submission.AddAnimal("UK100001", status: Statuses.Processing);
-        context.Set<Submission>().Add(submission);
-        await context.SaveChangesAsync(TestContext.Current.CancellationToken);
-
-        mockCtsService.Setup(s => s.CheckAnimalStatusAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new CtsAnimalStatusResponse { Status = "clean" });
+        var bundle = await SeedSentBundleAsync(1);
+        Respond(bundle, Ready(bundle, accepted: [1]));
 
         var claimer = new InMemoryClaimer { CommitFailure = new DbUpdateConcurrencyException("Row version changed") };
-        var service = new CtsBundleProcessorService(context, claimer, mockCtsService.Object, Options.Create(new CtsPollingJobOptions { BatchSize = 10 }), NullLogger<CtsBundleProcessorService>.Instance);
-
-        await service.ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
+        await CreateService(claimer: claimer).ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
 
         Assert.False(claimer.Committed);
         Assert.True(claimer.Disposed);
         Assert.Empty(context.ChangeTracker.Entries());
     }
 
-    private class TestDbContext(DbContextOptions<TestDbContext> options)
+    [Fact]
+    public void RowsOf_ReadsTheEarTagSentInEachRow()
+    {
+        var bundle = CtsBirthRequestBuilderTests.Bundle(2);
+
+        var rows = CtsBundleProcessorService.RowsOf(CtsBirthRequestBuilder.Build(bundle, SentAt));
+
+        Assert.Equal(new Dictionary<int, string> { [1] = "UK123456100001", [2] = "UK123456100002" }, rows);
+    }
+
+    private static CtsBirthResults Ready(Submission bundle, int[]? accepted = null, CtsRejectedBirth[]? rejected = null) =>
+        CtsBirthResults.Ready(CtsBirthRequestBuilder.TxnIdFor(bundle), accepted ?? [], rejected ?? []);
+
+    private static CtsRejectedBirth Reject(Submission bundle, int rowNum, params (string Code, string Desc)[] causes) =>
+        new(
+            rowNum,
+            CtsFormat.EarTag(CtsBirthRequestBuilder.OrderedAnimals(bundle)[rowNum - 1].EarTag),
+            causes.Select(c => new CtsCause(c.Code, c.Desc, "e", "Brd")).ToList());
+
+    private void Respond(Submission bundle, CtsBirthResults results) =>
+        cts.Setup(c => c.GetBirthResultsAsync(bundle.CtsReceiptNumber!.Value, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(results);
+
+    private async Task<Submission> SeedSentBundleAsync(int animals, string? correlationId = null)
+    {
+        var bundle = CtsBirthRequestBuilderTests.Bundle(animals);
+        bundle.RecordCorrelationId(correlationId);
+        bundle.RecordCtsRequest(CtsBirthRequestBuilder.TxnIdFor(bundle), CtsBirthRequestBuilder.Operation, CtsBirthRequestBuilder.Build(bundle, SentAt));
+        bundle.MarkAsSentToCts(nextReceipt++, SentAt);
+
+        context.Set<Submission>().Add(bundle);
+        await context.SaveChangesAsync(TestContext.Current.CancellationToken);
+        context.ChangeTracker.Clear();
+        return bundle;
+    }
+
+    private async Task<Submission> ReloadAsync(Guid id)
+    {
+        context.ChangeTracker.Clear();
+        return await context.Set<Submission>()
+            .Include(s => s.CtsRequest)
+            .Include(s => s.Animals)
+                .ThenInclude(a => a.Errors)
+            .SingleAsync(s => s.Id == id, TestContext.Current.CancellationToken);
+    }
+
+    private CtsBundleProcessorService CreateService(int batchSize = 10, int unknownReceiptMaxAgeHours = 24, InMemoryClaimer? claimer = null) =>
+        new(
+            context,
+            claimer ?? new InMemoryClaimer(),
+            cts.Object,
+            clock,
+            Options.Create(new CtsPollingJobOptions { BatchSize = batchSize, UnknownReceiptMaxAgeHours = unknownReceiptMaxAgeHours }),
+            NullLogger<CtsBundleProcessorService>.Instance);
+
+    private sealed class MutableTimeProvider(DateTimeOffset now) : TimeProvider
+    {
+        private DateTimeOffset now = now;
+
+        public override DateTimeOffset GetUtcNow() => now;
+
+        public void Advance(TimeSpan by) => now += by;
+
+        public void Set(DateTimeOffset to) => now = to;
+    }
+
+    private sealed class TestDbContext(DbContextOptions<TestDbContext> options)
         : DbContext(options)
     {
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -181,7 +401,16 @@ public class CtsBundleProcessorServiceTests
                 builder.ToTable("submissions", "public");
                 builder.HasKey(e => e.Id);
                 builder.Property(e => e.Id).ValueGeneratedNever();
+                builder.Ignore(e => e.HasCtsOutcome);
                 builder.HasMany(e => e.Animals).WithOne(a => a.Submission).HasForeignKey(a => a.SubmissionId);
+                builder.HasOne(e => e.CtsRequest).WithOne(r => r.Submission).HasForeignKey<CtsRequest>(r => r.SubmissionId);
+            });
+
+            modelBuilder.Entity<CtsRequest>(builder =>
+            {
+                builder.ToTable("cts_requests", "public");
+                builder.HasKey(e => e.Id);
+                builder.Property(e => e.Id).ValueGeneratedNever();
             });
 
             modelBuilder.Entity<SubmissionAnimal>(builder =>
@@ -189,6 +418,7 @@ public class CtsBundleProcessorServiceTests
                 builder.ToTable("submission_animals", "public");
                 builder.HasKey(e => e.Id);
                 builder.Property(e => e.Id).ValueGeneratedNever();
+                builder.Ignore(e => e.HasFinalCtsOutcome);
                 builder.HasMany(e => e.Errors).WithOne(a => a.Animal).HasForeignKey(a => a.AnimalId);
             });
 
@@ -202,8 +432,8 @@ public class CtsBundleProcessorServiceTests
     }
 
     /// <summary>
-    /// Stands in for the Postgres claimer, which needs FOR UPDATE SKIP LOCKED: claims the given submissions,
-    /// or every submission in a target status when none are given.
+    /// Stands in for the Postgres claimer, which needs FOR UPDATE SKIP LOCKED: claims the given submissions, or
+    /// every submission waiting for CTS results when none are given.
     /// </summary>
     private sealed class InMemoryClaimer(params Guid[] onlyThese) : ISubmissionBatchClaimer, ISubmissionBatchClaim
     {
@@ -211,21 +441,26 @@ public class CtsBundleProcessorServiceTests
 
         public int RequestedBatchSize { get; private set; }
 
-        public IReadOnlyCollection<string> RequestedStatuses { get; private set; } = [];
-
         public bool Committed { get; private set; }
 
         public bool Disposed { get; private set; }
 
         public Exception? CommitFailure { get; init; }
 
-        public async Task<ISubmissionBatchClaim> ClaimAsync(DbContext dbContext, int batchSize, IReadOnlyCollection<string> statuses, CancellationToken cancellationToken = default)
+        public Task<ISubmissionBatchClaim> ClaimAsync(DbContext dbContext, int batchSize, IReadOnlyCollection<string> statuses, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("The CTS polling job claims bundles waiting for CTS results.");
+
+        public async Task<ISubmissionBatchClaim> ClaimAwaitingCtsResultsAsync(DbContext dbContext, int batchSize, CancellationToken cancellationToken = default)
         {
             RequestedBatchSize = batchSize;
-            RequestedStatuses = statuses;
             SubmissionIds = onlyThese.Length > 0
                 ? onlyThese
-                : await dbContext.Set<Submission>().Where(s => statuses.Contains(s.Status)).OrderBy(s => s.CreatedAt).Take(batchSize).Select(s => s.Id).ToListAsync(cancellationToken);
+                : await dbContext.Set<Submission>()
+                    .Where(s => s.Status == Statuses.Submitted && s.CtsReceiptNumber != null && s.CompletedAt == null)
+                    .OrderBy(s => s.CtsLastPolledAt).ThenBy(s => s.CreatedAt)
+                    .Take(batchSize)
+                    .Select(s => s.Id)
+                    .ToListAsync(cancellationToken);
             return this;
         }
 

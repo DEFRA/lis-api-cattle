@@ -12,6 +12,8 @@ using System.Xml.Linq;
 using Defra.Lis.Api.Configurations;
 using Defra.Lis.Api.Cts;
 using Defra.Lis.Api.Messaging;
+using Defra.Lis.Api.Models;
+using Defra.Lis.Api.Services;
 using Defra.Lis.Api.Tests.Messaging;
 using Defra.Lis.Database.Claims;
 using Defra.Lis.Entities;
@@ -23,7 +25,8 @@ using Microsoft.Extensions.Options;
 /// <summary>
 /// The whole LREG-925 path: the publisher puts a bundle on LocalStack SQS, the queue processor reads it, and the
 /// handler stores it in Postgres and sends it through <see cref="CtsWebClient"/> to an in-process CTS fake that
-/// speaks the same TransferDataHex protocol as lis-fake-service's <c>/cts_ws</c>.
+/// speaks the same TransferDataHex protocol as lis-fake-service's <c>/cts_ws</c>. Then the LREG-926 path: the CTS
+/// polling job fetches the bundle's validation results by receipt until it completes.
 /// </summary>
 [Trait("Category", "Integration")]
 public sealed class RegistrationBundleIntegrationTests(PostgresFixture postgres, LocalStackFixture localStack)
@@ -142,6 +145,46 @@ public sealed class RegistrationBundleIntegrationTests(PostgresFixture postgres,
         Assert.Equal(1, await localStack.CountMessagesAsync(deadLetterQueueUrl));
     }
 
+    [Fact]
+    public async Task ASentBundleIsPolledByReceiptUntilCtsHasProcessedEveryAnimal()
+    {
+        var (queueUrl, _) = await localStack.CreateQueueAsync(visibilityTimeoutSeconds: 30, maxReceiveCount: 5);
+
+        // CTS reports "not ready" first, then releases two more rows on each call; it rejects the second animal.
+        var cts = new CtsWebFake { RowsReleasedPerPoll = 2, RejectedEarTags = { "UK123456100002" } };
+        var message = RegistrationBundleHandlerTests.Message(animals: 3);
+        await CreatePublisher(queueUrl).PublishAsync(message, TestContext.Current.CancellationToken);
+        await DrainAsync(CreateProcessor(queueUrl, cts), expected: 1);
+
+        await PollAsync(cts);
+        var notReady = await LoadAsync(message.SubmissionId);
+        Assert.Equal(Statuses.Submitted, notReady.Status);
+        Assert.NotNull(notReady.CtsLastPolledAt);
+        Assert.All(notReady.Animals, a => Assert.Equal(Statuses.Submitted, a.Status));
+
+        await PollAsync(cts);
+        var partial = await LoadAsync(message.SubmissionId);
+        Assert.Equal(Statuses.Submitted, partial.Status);
+        Assert.Null(partial.CompletedAt);
+        Assert.Equal([Statuses.Complete, Statuses.Error, Statuses.Submitted], CtsBirthRequestBuilder.OrderedAnimals(partial).Select(a => a.Status));
+
+        await PollAsync(cts);
+        var completed = await LoadAsync(message.SubmissionId);
+        Assert.Equal(Statuses.CompleteWithErrors, completed.Status);
+        Assert.NotNull(completed.CompletedAt);
+        Assert.NotNull(completed.UpdatedAt);
+        var rows = CtsBirthRequestBuilder.OrderedAnimals(completed);
+        Assert.Equal([Statuses.Complete, Statuses.Error, Statuses.Complete], rows.Select(a => a.Status));
+        Assert.Equal("CTWS014", Assert.Single(rows[1].Errors).ErrorCode);
+        Assert.Equal(3, cts.ResultPolls[completed.CtsReceiptNumber!.Value]);
+        Assert.All(cts.CorrelationIds, id => Assert.Equal("corr-925", id));
+
+        // A completed bundle is not polled again.
+        await PollAsync(cts);
+        Assert.Equal(3, cts.ResultPolls[completed.CtsReceiptNumber.Value]);
+        Assert.Single((await LoadAsync(message.SubmissionId)).Animals.SelectMany(a => a.Errors));
+    }
+
     private static async Task DrainAsync(RegistrationBundleQueueProcessor processor, int? expected)
     {
         var handled = 0;
@@ -183,6 +226,28 @@ public sealed class RegistrationBundleIntegrationTests(PostgresFixture postgres,
         return await CreateHandler(db, cts).HandleAsync(message, TestContext.Current.CancellationToken);
     }
 
+    private async Task PollAsync(CtsWebFake cts)
+    {
+        await using var db = postgres.CreateRetryingDbContext();
+        var poller = new CtsBundleProcessorService(
+            db,
+            new PostgresSubmissionBatchClaimer(),
+            CreateCtsClient(cts),
+            TimeProvider.System,
+            Options.Create(new CtsPollingJobOptions { BatchSize = 50 }),
+            NullLogger<CtsBundleProcessorService>.Instance);
+        await poller.ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
+    }
+
+    private async Task<Submission> LoadAsync(Guid id)
+    {
+        await using var db = postgres.CreateDbContext();
+        return await db.Set<Submission>()
+            .Include(s => s.Animals).ThenInclude(a => a.Errors)
+            .AsSplitQuery()
+            .SingleAsync(s => s.Id == id, TestContext.Current.CancellationToken);
+    }
+
     private RegistrationBundlePublisher CreatePublisher(string queueUrl) =>
         new(localStack.CreateClient(), Options.Create(new AwsMessagingOptions { RegistrationBundleQueueUrl = queueUrl }), NullLogger<RegistrationBundlePublisher>.Instance);
 
@@ -208,11 +273,23 @@ public sealed class RegistrationBundleIntegrationTests(PostgresFixture postgres,
 
     /// <summary>
     /// Replays lis-fake-service's cts_ws behaviour that matters here: the TransferDataHex and CTS Online
-    /// credentials are checked, a TxnId is accepted once (a resend gets CTWS807), and a receipt is returned.
+    /// credentials are checked, a TxnId is accepted once (a resend gets CTWS807), and a receipt is returned. Asked
+    /// for a receipt's results, it answers CTWS002 for an unknown receipt and CTWS806 on the first call, then returns
+    /// <see cref="RowsReleasedPerPoll"/> more rows on each call, rejecting <see cref="RejectedEarTags"/> with CTWS014.
     /// </summary>
     private sealed class CtsWebFake : HttpMessageHandler
     {
-        private long nextReceipt = 1000;
+        // Receipts are unique across fakes, as real CTS receipts are, because bundles from earlier tests stay in the
+        // database and the polling job asks about them too.
+        private static readonly System.Runtime.CompilerServices.StrongBox<long> NextReceipt = new(1000);
+
+        private readonly ConcurrentDictionary<long, (string TxnId, List<(int RowNum, string EarTag)> Rows)> submissions = new();
+
+        public ConcurrentDictionary<long, int> ResultPolls { get; } = new();
+
+        public int RowsReleasedPerPoll { get; init; } = int.MaxValue;
+
+        public HashSet<string> RejectedEarTags { get; } = new(StringComparer.Ordinal);
 
         public ConcurrentDictionary<string, int> Sends { get; } = new();
 
@@ -238,13 +315,18 @@ public sealed class RegistrationBundleIntegrationTests(PostgresFixture postgres,
             }
 
             var regBirths = XElement.Parse(Encoding.UTF8.GetString(Convert.FromBase64String(transfer.Element(CtsWebClient.DefraNamespace + "data")!.Value)));
-            var user = regBirths.Element(CtsBirthRequestBuilder.Namespace + "Authentication")?.Element("CTS_OL_User");
+            var user = regBirths.Element(regBirths.Name.Namespace + "Authentication")?.Element("CTS_OL_User");
             if (user?.Attribute("Usr")?.Value != CtsOnlineUser || user.Attribute("Pwd")?.Value != CtsOnlineSecretValue)
             {
                 return Result("<SystemException ExNum=\"CTWS001\" ExMsg=\"Authentication failed\"/>");
             }
 
             await Task.Delay(Delay, cancellationToken);
+
+            if (transfer.Element(CtsWebClient.DefraNamespace + "type")?.Value == CtsGetResultsRequestBuilder.BirthResultsOperation)
+            {
+                return BirthResults(long.Parse(regBirths.Element(CtsGetResultsRequestBuilder.Namespace + "Receipt")!.Attribute("Num")!.Value, System.Globalization.CultureInfo.InvariantCulture));
+            }
 
             if (Reject is { } reject)
             {
@@ -257,7 +339,12 @@ public sealed class RegistrationBundleIntegrationTests(PostgresFixture postgres,
                 return Result("<SystemException ExNum=\"CTWS807\" ExMsg=\"Request rejected - already submitted\"/>");
             }
 
-            return Result($"<MsgReceipt xmlns=\"http://defra.bcms.ctws/asynchronous_receipt\"><Receipt Num=\"{Interlocked.Increment(ref nextReceipt)}\"/></MsgReceipt>");
+            var receipt = Interlocked.Increment(ref NextReceipt.Value);
+            var rows = regBirths.Descendants(CtsBirthRequestBuilder.Namespace + "Birth")
+                .Select(b => (int.Parse(b.Attribute("RowNum")!.Value, System.Globalization.CultureInfo.InvariantCulture), b.Attribute("Etg")!.Value))
+                .ToList();
+            submissions[receipt] = (txnId, rows);
+            return Result($"<MsgReceipt xmlns=\"http://defra.bcms.ctws/asynchronous_receipt\"><Receipt Num=\"{receipt}\"/></MsgReceipt>");
         }
 
         private static HttpResponseMessage Result(string inner)
@@ -275,5 +362,29 @@ public sealed class RegistrationBundleIntegrationTests(PostgresFixture postgres,
 #pragma warning disable CA5351, S4790
         private static string Md5(string value) => Convert.ToHexStringLower(MD5.HashData(Encoding.ASCII.GetBytes(value)));
 #pragma warning restore CA5351, S4790
+
+        private HttpResponseMessage BirthResults(long receipt)
+        {
+            if (!submissions.TryGetValue(receipt, out var submission))
+            {
+                return Result($"<SystemException ExNum=\"CTWS002\" ExMsg=\"Receipt '{receipt}' not found\"/>");
+            }
+
+            var poll = ResultPolls.AddOrUpdate(receipt, 1, (_, count) => count + 1);
+            if (poll == 1)
+            {
+                return Result("<SystemException ExNum=\"CTWS806\" ExMsg=\"Results not yet available\"/>");
+            }
+
+            var released = submission.Rows.Take((int)Math.Min(int.MaxValue, (long)RowsReleasedPerPoll * (poll - 1))).ToList();
+            var accepted = string.Concat(released.Where(r => !RejectedEarTags.Contains(r.EarTag)).Select(r => $"<Accept RowNum=\"{r.RowNum}\"/>"));
+            var rejected = string.Concat(released.Where(r => RejectedEarTags.Contains(r.EarTag)).Select(r =>
+                $"<Reject><Birth RowNum=\"{r.RowNum}\" Etg=\"{r.EarTag}\"/><Causes><Cause Code=\"CTWS014\" Desc=\"Invalid Breed\" Sev=\"e\" Field=\"Brd\"/></Causes></Reject>"));
+            return Result(
+                $"<BirthResults xmlns=\"http://defra.bcms.ctws/register_births_request_results\"><Results TxnId=\"{submission.TxnId}\">"
+                + (accepted.Length > 0 ? $"<Accepted>{accepted}</Accepted>" : string.Empty)
+                + (rejected.Length > 0 ? $"<Rejected>{rejected}</Rejected>" : string.Empty)
+                + "</Results></BirthResults>");
+        }
     }
 }

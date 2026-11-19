@@ -211,6 +211,136 @@ public class CtsWebClientTests
         Assert.Equal(expectedTransient, result.IsTransient);
     }
 
+    [Fact]
+    public async Task GetBirthResultsAsync_SendsAGetResultsRequestForTheReceiptWithCredentials()
+    {
+        var handler = new CtsStubHandler().Respond(HttpStatusCode.OK, BirthResults("txn-1", "<Accepted><Accept RowNum=\"1\"/></Accepted>"));
+        var client = CreateClient(handler);
+
+        await client.GetBirthResultsAsync(4242, TestContext.Current.CancellationToken);
+
+        var transfer = XElement.Parse(Assert.Single(handler.Bodies)).Descendants(CtsWebClient.DefraNamespace + "TransferDataHex").Single();
+        Assert.Equal(CtsGetResultsRequestBuilder.BirthResultsOperation, transfer.Element(CtsWebClient.DefraNamespace + "type")?.Value);
+
+        var getResults = XElement.Parse(Encoding.UTF8.GetString(Convert.FromBase64String(transfer.Element(CtsWebClient.DefraNamespace + "data")!.Value)));
+        var ns = CtsGetResultsRequestBuilder.Namespace;
+        Assert.Equal(ns + "GetResults", getResults.Name);
+        Assert.Equal("cts-user", getResults.Element(ns + "Authentication")?.Element("CTS_OL_User")?.Attribute("Usr")?.Value);
+        Assert.Equal("4242", getResults.Element(ns + "Receipt")?.Attribute("Num")?.Value);
+    }
+
+    [Fact]
+    public async Task GetBirthResultsAsync_ReturnsTheAcceptedAndRejectedRows()
+    {
+        var rows = "<Accepted><Accept RowNum=\"1\"/><Accept RowNum=\"3\"/></Accepted>"
+            + "<Rejected><Reject><Birth RowNum=\"2\" Etg=\"UK123456100002\" Brd=\"ZZ\"/><Causes>"
+            + "<Cause Code=\"CTWS014\" Desc=\"Invalid Breed\" Sev=\"e\" Field=\"Brd\"/>"
+            + "<Cause Code=\"CTWS003\" Desc=\"Missing Ear Tag\" Sev=\"e\" Field=\"Etg\"/>"
+            + "</Causes></Reject></Rejected>";
+        var handler = new CtsStubHandler().Respond(HttpStatusCode.OK, BirthResults("txn-1", rows));
+
+        var results = await CreateClient(handler).GetBirthResultsAsync(4242, TestContext.Current.CancellationToken);
+
+        Assert.Equal(CtsBirthResultsState.Ready, results.State);
+        Assert.Equal("txn-1", results.TxnId);
+        Assert.Equal([1, 3], results.AcceptedRows);
+        var rejected = Assert.Single(results.RejectedRows);
+        Assert.Equal(2, rejected.RowNum);
+        Assert.Equal("UK123456100002", rejected.EarTag);
+        Assert.Equal(
+            [new CtsCause("CTWS014", "Invalid Breed", "e", "Brd"), new CtsCause("CTWS003", "Missing Ear Tag", "e", "Etg")],
+            rejected.Causes);
+    }
+
+    [Fact]
+    public async Task GetBirthResultsAsync_WhenCtsHasNotFinished_ReturnsNotReadyWithoutRetrying()
+    {
+        var handler = new CtsStubHandler().Respond(HttpStatusCode.OK, SystemException(CtsBirthResults.NotReadyExNum, "Results not yet available"));
+
+        var results = await CreateClient(handler).GetBirthResultsAsync(4242, TestContext.Current.CancellationToken);
+
+        Assert.Equal(CtsBirthResultsState.NotReady, results.State);
+        Assert.Single(handler.Requests);
+    }
+
+    [Fact]
+    public async Task GetBirthResultsAsync_WhenTheReceiptIsUnknown_ReturnsAPermanentFailure()
+    {
+        var handler = new CtsStubHandler().Respond(HttpStatusCode.OK, SystemException(CtsBirthResults.ReceiptNotFoundExNum, "Receipt not found"));
+
+        var results = await CreateClient(handler).GetBirthResultsAsync(4242, TestContext.Current.CancellationToken);
+
+        Assert.Equal(CtsBirthResultsState.Failed, results.State);
+        Assert.Equal(CtsBirthResults.ReceiptNotFoundExNum, results.ErrorCode);
+        Assert.False(results.IsTransient);
+        Assert.Single(handler.Requests);
+    }
+
+    [Fact]
+    public async Task GetBirthResultsAsync_WhenCtsStaysUnavailable_ReturnsATransientFailureAfterMaxAttempts()
+    {
+        var handler = new CtsStubHandler()
+            .Respond(HttpStatusCode.OK, SystemException(CtsSubmitResult.ServiceUnavailableExNum, "Service unavailable"))
+            .Fail()
+            .Respond(HttpStatusCode.ServiceUnavailable, "<busy/>");
+
+        var results = await CreateClient(handler).GetBirthResultsAsync(4242, TestContext.Current.CancellationToken);
+
+        Assert.Equal(CtsBirthResultsState.Failed, results.State);
+        Assert.True(results.IsTransient);
+        Assert.Equal(3, handler.Requests.Count);
+    }
+
+    [Fact]
+    public async Task GetBirthResultsAsync_WhenCtsIsBrieflyUnavailable_RetriesAndReturnsTheResults()
+    {
+        var handler = new CtsStubHandler()
+            .Fail()
+            .Respond(HttpStatusCode.OK, BirthResults("txn-1", "<Accepted><Accept RowNum=\"1\"/></Accepted>"));
+
+        var results = await CreateClient(handler).GetBirthResultsAsync(4242, TestContext.Current.CancellationToken);
+
+        Assert.Equal(CtsBirthResultsState.Ready, results.State);
+        Assert.Equal([1], results.AcceptedRows);
+    }
+
+    [Fact]
+    public void ParseBirthResultsResponse_WithNoRowsYet_ReturnsAnEmptyReadyResult()
+    {
+        var results = CtsWebClient.ParseBirthResultsResponse(HttpStatusCode.OK, BirthResults("txn-1", string.Empty));
+
+        Assert.Equal(CtsBirthResultsState.Ready, results.State);
+        Assert.Empty(results.AcceptedRows);
+        Assert.Empty(results.RejectedRows);
+    }
+
+    [Theory]
+    [InlineData("<MsgReceipt xmlns=\"http://defra.bcms.ctws/asynchronous_receipt\"><Receipt Num=\"1\"/></MsgReceipt>")]
+    [InlineData("<BirthResults xmlns=\"http://defra.bcms.ctws/register_births_request_results\"/>")]
+    [InlineData("<BirthResults xmlns=\"http://defra.bcms.ctws/register_births_request_results\"><Results TxnId=\"t\"><Accepted><Accept RowNum=\"x\"/></Accepted></Results></BirthResults>")]
+    [InlineData("<BirthResults xmlns=\"http://defra.bcms.ctws/register_births_request_results\"><Results TxnId=\"t\"><Rejected><Reject><Causes/></Reject></Rejected></Results></BirthResults>")]
+    public void ParseBirthResultsResponse_WhenTheResultIsNotValidBirthResults_ReturnsAnInvalidResponse(string inner)
+    {
+        var results = CtsWebClient.ParseBirthResultsResponse(HttpStatusCode.OK, Wrap(inner));
+
+        Assert.Equal(CtsBirthResultsState.Failed, results.State);
+        Assert.Equal(CtsSubmitResult.InvalidResponseCode, results.ErrorCode);
+        Assert.False(results.IsTransient);
+    }
+
+    [Fact]
+    public void ParseBirthResultsResponse_WhenTheTransportFails_ReturnsTheFailure()
+    {
+        var results = CtsWebClient.ParseBirthResultsResponse(HttpStatusCode.InternalServerError, "<html>down</html>");
+
+        Assert.Equal(CtsBirthResultsState.Failed, results.State);
+        Assert.Equal(CtsSubmitResult.UnavailableCode, results.ErrorCode);
+        Assert.True(results.IsTransient);
+    }
+
+    internal static string BirthResults(string txnId, string rows) => Wrap(
+        $"""<BirthResults xmlns="http://defra.bcms.ctws/register_births_request_results" SchemaVersion="1.0" ProgramName="CTS Webservices" ProgramVersion="1h" ResponseTimeStamp="2026-11-18T10:00:00Z"><Results TxnId="{txnId}">{rows}</Results></BirthResults>""");
+
     internal static string Receipt(long number) => Wrap(
         $"""<MsgReceipt xmlns="http://defra.bcms.ctws/asynchronous_receipt" SchemaVersion="1.0" ProgramName="CTS Webservices" ProgramVersion="1h" ResponseTimeStamp="2026-11-16T10:00:00Z"><Receipt Num="{number}"/></MsgReceipt>""");
 

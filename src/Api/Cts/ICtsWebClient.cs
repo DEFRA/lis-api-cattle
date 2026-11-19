@@ -18,4 +18,13 @@ public interface ICtsWebClient
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>The outcome. A failure is returned, not thrown.</returns>
     Task<CtsSubmitResult> SubmitAsync(string operation, string payload, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Asks CTS for the birth validation results of a submitted bundle (<c>Get_Register_Births_Validation_Results</c>),
+    /// adding the CTS Online credentials. Transient failures are retried as for <see cref="SubmitAsync"/>.
+    /// </summary>
+    /// <param name="receiptNumber">The receipt CTS returned when the bundle was submitted.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>The results, "not ready yet", or the failure. A failure is returned, not thrown.</returns>
+    Task<CtsBirthResults> GetBirthResultsAsync(long receiptNumber, CancellationToken cancellationToken = default);
 }
