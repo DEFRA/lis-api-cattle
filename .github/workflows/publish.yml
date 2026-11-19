@@ -1,4 +1,4 @@
-name: 'Publish Container Image'
+name: 'Publish NuGet Packages'
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - '*.*.*'
 
 concurrency:
-  group: container-publish-${{ github.ref }}
+  group: nuget-publish-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
@@ -17,7 +17,18 @@ permissions:
 jobs:
   publish:
     name: 'Publish'
-    uses: DEFRA/lis-github-actions/.github/workflows/container-publish.yml@0.5.0
-    with:
-      migrations-path: changelog
-    secrets: inherit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: release
+    steps:
+      - name: Publish Container
+        uses: DEFRA/lis-github-actions/actions/publish-container@feature/LREG-900-convert-to-actions # temporary branch test
+        with:
+          version: ${{ github.ref_name }}
+          aws-account-id: ${{ secrets.LIS_AWS_ACCOUNT_ID }}
+
+      - name: Publish Liquibase
+        uses: DEFRA/lis-github-actions/actions/publish-liquibase@feature/LREG-900-convert-to-actions # temporary branch test
+        with:
+          version: ${{ github.ref_name }}
+          aws-account-id: ${{ secrets.LIS_AWS_ACCOUNT_ID }}
