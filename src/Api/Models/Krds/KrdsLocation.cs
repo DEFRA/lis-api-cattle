@@ -8,4 +8,5 @@ namespace Defra.Lis.Api.Models.Krds;
 /// Location details returned by the keeper-data-api V2 holdings endpoint.
 /// </summary>
 /// <param name="Address">The address of the location.</param>
-public sealed record KrdsLocation(KrdsAddress? Address);
+/// <param name="CorrespondenceAddress">The address the correspondence for the location is sent to.</param>
+public sealed record KrdsLocation(KrdsAddress? Address, KrdsAddress? CorrespondenceAddress);

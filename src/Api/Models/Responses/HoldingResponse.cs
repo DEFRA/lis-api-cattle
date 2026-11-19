@@ -55,6 +55,12 @@ public class HoldingResponse
     public IReadOnlyList<string> Address { get; init; } = [];
 
     /// <summary>
+    /// Gets the address the correspondence for the holding is sent to, as lines.
+    /// </summary>
+    [Description("The address the correspondence for the holding is sent to, as lines. Empty when none is held.")]
+    public IReadOnlyList<string> CorrespondenceAddress { get; init; } = [];
+
+    /// <summary>
     /// Gets the name of the keeper.
     /// </summary>
     [Description("The name of the keeper.")]
