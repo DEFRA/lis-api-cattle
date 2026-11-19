@@ -37,7 +37,12 @@ jobs:
         with:
           version: ${{ needs.get-version.outputs.version }}
           ref: ${{ github.event.pull_request.head.sha }}
-
+          smoke-env: |
+            PostgresConfiguration__UseIamAuthentication=false
+            ConnectionStrings__ReadWritePostgresConnection=Host=postgres;Port=5432;Database=smoke;Username=smoke;Password=smoke
+            ConnectionStrings__ReadOnlyPostgresConnection=Host=postgres;Port=5432;Database=smoke;Username=smoke;Password=smoke
+            AWS__EnableBackgroundConsumer=false
+            
   sonar-analysis:
     name: 'Sonar Analysis'
     needs: get-version
