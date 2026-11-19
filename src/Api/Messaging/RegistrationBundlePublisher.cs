@@ -9,7 +9,7 @@ using Amazon.Runtime;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using Defra.Lis.Api.Configurations;
-using Defra.Lis.Api.Exceptions;
+using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Exceptions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -36,7 +36,8 @@ public partial class RegistrationBundlePublisher(
         if (string.IsNullOrWhiteSpace(options.RegistrationBundleQueueUrl))
         {
             LogRegistrationBundleQueueIsNotConfigured(message.SubmissionId);
-            throw new ServiceUnavailableException("The registration bundle queue is not configured.", new InvalidOperationException("AWS:RegistrationBundleQueueUrl is not set."));
+            throw new ServiceUnavailableException("The registration bundle queue is not configured.",
+                new InvalidOperationException("AWS:RegistrationBundleQueueUrl is not set."));
         }
 
         var request = new SendMessageRequest
@@ -49,7 +50,8 @@ public partial class RegistrationBundlePublisher(
         {
             request.MessageAttributes = new Dictionary<string, MessageAttributeValue>
             {
-                [RegistrationBundleMessage.CorrelationIdAttribute] = new() { DataType = "String", StringValue = message.CorrelationId },
+                [RegistrationBundleMessage.CorrelationIdAttribute] =
+                    new() { DataType = "String", StringValue = message.CorrelationId },
             };
         }
 
@@ -58,8 +60,9 @@ public partial class RegistrationBundlePublisher(
             var response = await sqsClient.SendMessageAsync(request, cancellationToken);
             LogEnqueuedRegistrationBundle(message.SubmissionId, response.MessageId);
         }
-        catch (Exception ex) when (ex is AmazonServiceException or AmazonClientException or HttpRequestException or TimeoutException
-                                       || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
+        catch (Exception ex) when (ex is AmazonServiceException or AmazonClientException or HttpRequestException
+                                       or TimeoutException
+                                   || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
         {
             // SQS being unreachable is retryable for the caller, so it surfaces as 503 rather than 500.
             LogFailedToEnqueueRegistrationBundle(message.SubmissionId, ex);
