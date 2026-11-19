@@ -20,7 +20,7 @@ public partial class HoldingSearchRequestValidator : AbstractValidator<HoldingSe
         "name",
         "holdingType",
         "startDate",
-        "endDate"
+        "endDate",
     ];
 
     /// <summary>

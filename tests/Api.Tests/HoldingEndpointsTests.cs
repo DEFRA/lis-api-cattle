@@ -4,6 +4,7 @@
 
 namespace Defra.Lis.Api.Tests;
 
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using Asp.Versioning;
@@ -177,7 +178,7 @@ public class HoldingEndpointsTests
                 new HoldingMarkResponse
                 {
                     Mark = "UK 324537",
-                    StartDate = DateTimeOffset.Parse("2010-04-01T00:00:00Z"),
+                    StartDate = DateTimeOffset.Parse("2010-04-01T00:00:00Z", CultureInfo.InvariantCulture),
                     Species = ["Cattle"],
                 },
             ],
@@ -244,7 +245,7 @@ public class HoldingEndpointsTests
                     Name = "Oakfield Farm",
                     HoldingType = "AH",
                     KeeperName = "Oakfield Farmer",
-                }
+                },
             ],
         };
 
@@ -602,9 +603,9 @@ public class HoldingEndpointsTests
                             {
                                 ErrorCode = "ERR01",
                                 ErrorText = "Test Error",
-                            }
+                            },
                         ],
-                    }
+                    },
                 ],
             },
         };

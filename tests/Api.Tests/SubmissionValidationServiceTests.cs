@@ -280,7 +280,7 @@ public class SubmissionValidationServiceTests
                 {
                     EarTag = "UK123456789012",
                     Sex = "F",
-                }
+                },
             ]);
 
         var submission = new Submission("REF1", "12/345/6789", "USER1");
@@ -307,7 +307,7 @@ public class SubmissionValidationServiceTests
                     EarTag = "UK999999888888",
                     Sex = "F",
                     DateBirth = damBirthDate,
-                }
+                },
             ]);
 
         var submission = new Submission("REF1", "12/345/6789", "USER1");
@@ -337,7 +337,7 @@ public class SubmissionValidationServiceTests
                     EarTag = "UK999999888888",
                     Sex = "F",
                     DateBirth = damBirthDate,
-                }
+                },
             ]);
 
         var submission = new Submission("REF1", "12/345/6789", "USER1");

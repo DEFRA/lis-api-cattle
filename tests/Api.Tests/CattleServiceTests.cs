@@ -216,7 +216,7 @@ public class CattleServiceTests
                         SurrogateDamEarTag = "UK 12 3456 000003",
                     },
                     Sire = new SireRegistrationRequest { EarTag = "UK 12 3456 000010", Name = "Example sire", },
-                }
+                },
             ],
         };
 
@@ -318,7 +318,7 @@ public class CattleServiceTests
                         GeneticDamEarTag = "UK 20 5678 000010",
                         SurrogateDamEarTag = "UK 20 5678 000011",
                     },
-                }
+                },
             ],
         };
 
@@ -369,7 +369,7 @@ public class CattleServiceTests
                         GeneticDamEarTag = "UK123456700010",
                         SurrogateDamEarTag = "UK123456700011",
                     },
-                }
+                },
             ],
         };
 
