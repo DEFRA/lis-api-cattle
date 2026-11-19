@@ -26,8 +26,12 @@ public static class AuthenticationExtensions
     {
         services.AddOptions<ApiKeyAuthenticationOptions>(ApiKeyAuthenticationOptions.SchemeName)
             .Bind(configuration.GetSection(ApiKeyAuthenticationOptions.SectionName));
+
         services.AddAuthentication()
-            .AddScheme<ApiKeyAuthenticationOptions, ApiKeyAuthenticationHandler>(ApiKeyAuthenticationOptions.SchemeName, null);
+            .AddScheme<ApiKeyAuthenticationOptions, ApiKeyAuthenticationHandler>(
+                ApiKeyAuthenticationOptions.SchemeName,
+                null);
+
         services.AddAuthorizationBuilder()
             .AddPolicy(AuthPolicies.ServiceToService, policy => policy
                 .AddAuthenticationSchemes(ApiKeyAuthenticationOptions.SchemeName)
@@ -47,7 +51,10 @@ public static class AuthenticationExtensions
     {
         builder.RequireAuthorization(AuthPolicies.ServiceToService);
         builder.Add(endpoint => endpoint.Metadata.Add(
-            new ProducesResponseTypeMetadata(StatusCodes.Status401Unauthorized, typeof(ProblemDetails), ["application/problem+json"])));
+            new ProducesResponseTypeMetadata(
+                StatusCodes.Status401Unauthorized,
+                typeof(ProblemDetails),
+                ["application/problem+json"])));
         return builder;
     }
 
@@ -78,12 +85,14 @@ public static class AuthenticationExtensions
             var requiresAuthorization = context.Description.ActionDescriptor.EndpointMetadata
                 .OfType<IAuthorizeData>()
                 .Any();
+
             if (requiresAuthorization)
             {
                 operation.Security ??= [];
                 operation.Security.Add(new OpenApiSecurityRequirement
                 {
-                    [new OpenApiSecuritySchemeReference(ApiKeyAuthenticationOptions.SchemeName, context.Document)] = [],
+                    [new OpenApiSecuritySchemeReference(ApiKeyAuthenticationOptions.SchemeName, context.Document)] =
+                        [],
                 });
             }
 

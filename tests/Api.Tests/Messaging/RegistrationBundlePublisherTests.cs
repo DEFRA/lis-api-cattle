@@ -8,8 +8,8 @@ using System.Text.Json;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using Defra.Lis.Api.Configurations;
-using Defra.Lis.Api.Exceptions;
 using Defra.Lis.Api.Messaging;
+using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Exceptions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -34,7 +34,9 @@ public class RegistrationBundlePublisherTests
         Assert.NotNull(sent);
         Assert.Equal(QueueUrl, sent.QueueUrl);
         Assert.Equal("corr-925", sent.MessageAttributes[RegistrationBundleMessage.CorrelationIdAttribute].StringValue);
-        var body = JsonSerializer.Deserialize<RegistrationBundleMessage>(sent.MessageBody, RegistrationBundlePublisher.SerializerOptions);
+        var body = JsonSerializer.Deserialize<RegistrationBundleMessage>(
+            sent.MessageBody,
+            RegistrationBundlePublisher.SerializerOptions);
         Assert.NotNull(body);
         Assert.Equal(message.SubmissionId, body.SubmissionId);
         Assert.Equal("corr-925", body.CorrelationId);
@@ -47,8 +49,10 @@ public class RegistrationBundlePublisherTests
         sqs.Setup(s => s.SendMessageAsync(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new AmazonSQSException("Service unavailable"));
 
-        await Assert.ThrowsAsync<ServiceUnavailableException>(
-            () => CreatePublisher(QueueUrl).PublishAsync(RegistrationBundleHandlerTests.Message(), TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ServiceUnavailableException>(() =>
+            CreatePublisher(QueueUrl).PublishAsync(
+                RegistrationBundleHandlerTests.Message(),
+                TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -57,19 +61,26 @@ public class RegistrationBundlePublisherTests
         sqs.Setup(s => s.SendMessageAsync(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("Connection refused"));
 
-        await Assert.ThrowsAsync<ServiceUnavailableException>(
-            () => CreatePublisher(QueueUrl).PublishAsync(RegistrationBundleHandlerTests.Message(), TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ServiceUnavailableException>(() =>
+            CreatePublisher(QueueUrl).PublishAsync(
+                RegistrationBundleHandlerTests.Message(),
+                TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task PublishAsync_WhenTheQueueIsNotConfigured_ThrowsServiceUnavailableAndSendsNothing()
     {
-        await Assert.ThrowsAsync<ServiceUnavailableException>(
-            () => CreatePublisher(string.Empty).PublishAsync(RegistrationBundleHandlerTests.Message(), TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ServiceUnavailableException>(() =>
+            CreatePublisher(string.Empty).PublishAsync(
+                RegistrationBundleHandlerTests.Message(),
+                TestContext.Current.CancellationToken));
 
         sqs.Verify(s => s.SendMessageAsync(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     private RegistrationBundlePublisher CreatePublisher(string queueUrl) =>
-        new(sqs.Object, Options.Create(new AwsMessagingOptions { RegistrationBundleQueueUrl = queueUrl }), NullLogger<RegistrationBundlePublisher>.Instance);
+        new(
+            sqs.Object,
+            Options.Create(new AwsMessagingOptions { RegistrationBundleQueueUrl = queueUrl }),
+            NullLogger<RegistrationBundlePublisher>.Instance);
 }

@@ -7,12 +7,10 @@ namespace Defra.Lis.Api.Services;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using Defra.Lis.Api.Configurations;
-using Defra.Lis.Api.Exceptions;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models.Krds;
 using Defra.Lis.Api.Models.Requests;
 using Defra.Lis.Api.Models.Responses;
-using Defra.Lis.Api.Services.Upstream;
 using Defra.Lis.Core.Exceptions;
 using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Exceptions;
 using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Operations;
@@ -31,7 +29,8 @@ public sealed partial class KrdsService : IKrdsService
     private const int MaxClaimLength = 256;
     private const int MaxEmailLength = 320;
 
-    private readonly IRestStrategyFactory<KrdsService> strategyFactory;
+    private readonly IRestStrategyFactory<KrdsService> restStrategyFactory;
+    private readonly ICircuitBreakerStrategyFactory<KrdsService> circuitBreakerStrategyFactory;
     private readonly IValidator<HoldingSearchRequest> holdingSearchRequestValidator;
     private readonly IOptions<KrdsApiOptions> options;
     private readonly ILogger<KrdsService> logger;
@@ -40,30 +39,23 @@ public sealed partial class KrdsService : IKrdsService
     /// Initializes a new instance of the <see cref="KrdsService"/> class.
     /// Reads holding details and user accounts from the keeper-data-api (KRDS) V2 endpoints through a REST strategy.
     /// </summary>
-    /// <param name="strategyFactory">The REST strategy factory used to create API requests.</param>
+    /// <param name="restStrategyFactory">The REST strategy factory used to create API requests.</param>
+    /// <param name="circuitBreakerStrategyFactory">The circuit breaker strategy factory.</param>
     /// <param name="holdingSearchRequestValidator">The validator for holding search requests.</param>
     /// <param name="options">The KRDS API configuration options.</param>
     /// <param name="logger">The logger instance.</param>
     public KrdsService(
-        IRestStrategyFactory<KrdsService> strategyFactory,
+        IRestStrategyFactory<KrdsService> restStrategyFactory,
+        ICircuitBreakerStrategyFactory<KrdsService> circuitBreakerStrategyFactory,
         IValidator<HoldingSearchRequest> holdingSearchRequestValidator,
         IOptions<KrdsApiOptions> options,
         ILogger<KrdsService> logger)
     {
-        this.strategyFactory = strategyFactory;
+        this.restStrategyFactory = restStrategyFactory;
+        this.circuitBreakerStrategyFactory = circuitBreakerStrategyFactory;
         this.holdingSearchRequestValidator = holdingSearchRequestValidator;
         this.options = options;
         this.logger = logger;
-
-        strategyFactory
-            .WithDefaultLogger(this.logger)
-            .WithDefaultApiDescription("KRDS API")
-            .WithDefaultBaseUrl(options.Value.BaseUrl)
-            .WithDefaultApiKey(
-                () => !string.IsNullOrWhiteSpace(options.Value.GatewayApiKey),
-                options.Value.GatewayApiKey!)
-            .WithDefaultBasicAuth(options.Value.ClientId, options.Value.ClientSecret)
-            .WithDefaultJsonSerializerOptions(UpstreamJson.Options);
     }
 
     public async Task<HoldingDetailedResponse> GetHoldingAsync(
@@ -80,7 +72,7 @@ public sealed partial class KrdsService : IKrdsService
 
         try
         {
-            var response = await strategyFactory
+            var response = await restStrategyFactory
                 .BuildRestStrategy()
                 .WithCancellationToken(cancellationToken)
                 .WithTimeout(options.Value.GetHoldingDetailsTimeout)
@@ -94,12 +86,13 @@ public sealed partial class KrdsService : IKrdsService
 
             return response;
         }
-        catch (RestResponseException ex) when (UpstreamErrors.IsNotFound(ex))
+        catch (RestResponseException ex) when (ex.IsNotFound())
         {
             LogHoldingNotKnownToKrds(cph);
+
             throw new NotFoundException($"Holding '{cph}' was not found.");
         }
-        catch (RestResponseException ex) when (UpstreamErrors.IsBadRequest(ex))
+        catch (RestResponseException ex) when (ex.IsBadRequest())
         {
             throw new ArgumentException($"Holding '{cph}' is not a valid CPH.", ex);
         }
@@ -113,7 +106,7 @@ public sealed partial class KrdsService : IKrdsService
 
         try
         {
-            var response = await strategyFactory
+            var response = await restStrategyFactory
                 .BuildRestStrategy()
                 .WithCancellationToken(cancellationToken)
                 .WithTimeout(options.Value.SearchHoldingsTimeout)
@@ -139,7 +132,7 @@ public sealed partial class KrdsService : IKrdsService
 
             return response;
         }
-        catch (RestResponseException ex) when (UpstreamErrors.IsBadRequest(ex))
+        catch (RestResponseException ex) when (ex.IsBadRequest())
         {
             throw new ArgumentException("Invalid search parameters provided to KRDS.", ex);
         }
@@ -157,7 +150,7 @@ public sealed partial class KrdsService : IKrdsService
 
         try
         {
-            var response = await strategyFactory
+            var response = await restStrategyFactory
                 .BuildRestStrategy()
                 .WithCancellationToken(cancellationToken)
                 .WithTimeout(options.Value.GetUserAccountTimeout)
@@ -171,13 +164,13 @@ public sealed partial class KrdsService : IKrdsService
 
             return response;
         }
-        catch (RestResponseException ex) when (UpstreamErrors.IsNotFound(ex))
+        catch (RestResponseException ex) when (ex.IsNotFound())
         {
             LogUserAccountNotKnownToKrds();
             throw new NotFoundException("The user was not found.");
         }
-        catch (RestResponseException ex) when (UpstreamErrors.IsBadRequest(ex) ||
-                                               UpstreamErrors.IsUnprocessableEntity(ex))
+        catch (RestResponseException ex) when (ex.IsBadRequest() ||
+                                               ex.IsUnprocessableEntity())
         {
             throw new ArgumentException("The subject is not valid.", nameof(subject), ex);
         }
@@ -191,7 +184,7 @@ public sealed partial class KrdsService : IKrdsService
 
         try
         {
-            var response = await strategyFactory
+            var response = await restStrategyFactory
                 .BuildRestStrategy()
                 .WithCancellationToken(cancellationToken)
                 .WithTimeout(options.Value.EnsureUserAccountTimeout)
@@ -206,20 +199,20 @@ public sealed partial class KrdsService : IKrdsService
 
             return response;
         }
-        catch (RestResponseException ex) when (UpstreamErrors.IsBadRequest(ex) ||
-                                               UpstreamErrors.IsUnprocessableEntity(ex))
+        catch (RestResponseException ex) when (ex.IsBadRequest() ||
+                                               ex.IsUnprocessableEntity())
         {
             throw new ArgumentException(
                 "The user account was rejected by KRDS.",
                 nameof(request),
                 ex);
         }
-        catch (RestResponseException ex) when (UpstreamErrors.IsConflict(ex))
+        catch (RestResponseException ex) when (ex.IsConflict())
         {
             LogUserAccountConflict();
             throw new ConflictException("The email address is already associated with a different user account.");
         }
-        catch (RestResponseException ex) when (UpstreamErrors.IsServiceUnavailable(ex))
+        catch (RestResponseException ex) when (ex.IsServiceUnavailable())
         {
             LogKrdsUnavailable("Ensure user account");
             throw new ServiceUnavailableException("KRDS is temporarily unavailable, try again later.", ex);
@@ -296,7 +289,7 @@ public sealed partial class KrdsService : IKrdsService
                         address?.Postcode, address?.Country,
                     }
                     .Where(line => !string.IsNullOrWhiteSpace(line))
-                    .Select(line => line!.Trim())
+                    .Select(line => line!.Trim()),
             ],
             KeeperName = holding.Associations?
                 .FirstOrDefault(association => association.Roles?.Any(role =>
@@ -343,7 +336,7 @@ public sealed partial class KrdsService : IKrdsService
                 .Select(mark => new HoldingMarkResponse
                 {
                     Mark = mark.Mark, StartDate = mark.StartDate, EndDate = mark.EndDate, Species = mark.Species ?? [],
-                })
+                }),
             ],
             AllowedSpecies =
                 (holding.AllowedSpecies ?? []).Where(species => !string.IsNullOrWhiteSpace(species)).ToList(),
@@ -371,14 +364,14 @@ public sealed partial class KrdsService : IKrdsService
                                 association.Address?.AddressCountryCode,
                             }
                             .Where(line => !string.IsNullOrWhiteSpace(line))
-                            .Select(line => line!.Trim())
+                            .Select(line => line!.Trim()),
                     ],
                     Roles =
                     [
                         .. (association.Roles ?? [])
-                        .Select(role => new HoldingRoleResponse { Code = role.Code, Species = role.Species ?? [], })
+                        .Select(role => new HoldingRoleResponse { Code = role.Code, Species = role.Species ?? [], }),
                     ],
-                })
+                }),
             ],
         };
     }
@@ -400,7 +393,7 @@ public sealed partial class KrdsService : IKrdsService
             Items =
             [
                 .. (result.Values ?? [])
-                .Select(holding => ToHoldingResponse(holding.Identifier ?? string.Empty, holding))
+                .Select(holding => ToHoldingResponse(holding.Identifier ?? string.Empty, holding)),
             ],
         };
     }

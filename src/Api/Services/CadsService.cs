@@ -11,7 +11,6 @@ using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models;
 using Defra.Lis.Api.Models.Cads;
 using Defra.Lis.Api.Models.Responses;
-using Defra.Lis.Api.Services.Upstream;
 using Defra.Lis.Core.Exceptions;
 using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Exceptions;
 using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Operations;
@@ -29,34 +28,27 @@ public sealed partial class CadsService : ICadsService
     private const string SurrogateDamType = "surrogate";
     private const int MaxPages = 100;
 
-    private readonly IRestStrategyFactory<CadsService> strategyFactory;
+    private readonly IRestStrategyFactory<CadsService> restStrategyFactory;
+    private readonly ICircuitBreakerStrategyFactory<CadsService> circuitBreakerStrategyFactory;
     private readonly IOptions<CadsApiOptions> options;
     private readonly IOptions<CadsDataPatchOptions> patchOptions;
     private readonly ICadsDataPatchStore dataPatchStore;
     private readonly ILogger<CadsService> logger;
 
     public CadsService(
-        IRestStrategyFactory<CadsService> strategyFactory,
+        IRestStrategyFactory<CadsService> restStrategyFactory,
+        ICircuitBreakerStrategyFactory<CadsService> circuitBreakerStrategyFactory,
         IOptions<CadsApiOptions> options,
         IOptions<CadsDataPatchOptions> patchOptions,
         ICadsDataPatchStore dataPatchStore,
         ILogger<CadsService> logger)
     {
-        this.strategyFactory = strategyFactory;
+        this.restStrategyFactory = restStrategyFactory;
+        this.circuitBreakerStrategyFactory = circuitBreakerStrategyFactory;
         this.options = options;
         this.patchOptions = patchOptions;
         this.dataPatchStore = dataPatchStore;
         this.logger = logger;
-
-        this.strategyFactory
-            .WithDefaultLogger(logger)
-            .WithDefaultApiDescription("CADS bovine animals API")
-            .WithDefaultBaseUrl(options.Value.BaseUrl)
-            .WithDefaultApiKey(
-                () => !string.IsNullOrWhiteSpace(options.Value.GatewayApiKey),
-                options.Value.GatewayApiKey!)
-            .WithDefaultBasicAuth(options.Value.ClientId, options.Value.ClientSecret)
-            .WithDefaultJsonSerializerOptions(UpstreamJson.Options);
     }
 
     public async Task<IEnumerable<CattleResponse>> GetCattleByCphAsync(
@@ -100,7 +92,7 @@ public sealed partial class CadsService : ICadsService
 
         try
         {
-            response = await strategyFactory
+            response = await restStrategyFactory
                 .BuildRestStrategy()
                 .WithCancellationToken(cancellationToken)
                 .WithTimeout(options.Value.GetAnimalDetailsTimeout)
@@ -109,7 +101,7 @@ public sealed partial class CadsService : ICadsService
                 .WithGet()
                 .Execute<CadsAnimalDetailResponse>();
         }
-        catch (RestResponseException ex) when (UpstreamErrors.IsNotFound(ex))
+        catch (RestResponseException ex) when (ex.IsNotFound())
         {
             // Temporary data patch for CADS, check in the patch cache incase.
             if (patchOptions.Value.IsEnabled)
@@ -266,7 +258,7 @@ public sealed partial class CadsService : ICadsService
     {
         try
         {
-            return await strategyFactory
+            return await restStrategyFactory
                 .BuildRestStrategy()
                 .WithCancellationToken(cancellationToken)
                 .WithTimeout(options.Value.GetAnimalsOnHoldingTimeout)
@@ -278,7 +270,7 @@ public sealed partial class CadsService : ICadsService
                 .WithQueryParameter("pageSize", pageSize.ToString(CultureInfo.InvariantCulture))
                 .Execute<CadsAnimalsOnHolding>();
         }
-        catch (RestResponseException ex) when (UpstreamErrors.IsNotFound(ex))
+        catch (RestResponseException ex) when (ex.IsNotFound())
         {
             LogHoldingNotKnownToCads(cph);
             throw new NotFoundException($"Holding '{cph}' was not found.");

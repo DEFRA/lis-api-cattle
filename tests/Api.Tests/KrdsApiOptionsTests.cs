@@ -25,6 +25,11 @@ public class KrdsApiOptionsTests
         Assert.Equal(60_000, options.SearchHoldingsTimeout);
         Assert.Equal(60_000, options.GetUserAccountTimeout);
         Assert.Equal(60_000, options.EnsureUserAccountTimeout);
+        Assert.Null(options.CircuitBreakerConsecutiveFailureThreshold);
+        Assert.Null(options.CircuitBreakerFailureRatio);
+        Assert.Equal(30_000, options.CircuitBreakerSamplingDuration);
+        Assert.Equal(30_000, options.CircuitBreakerDurationOfBreak);
+        Assert.Equal(2, options.CircuitBreakerMinimumThroughput);
     }
 
     [Fact]
@@ -40,6 +45,11 @@ public class KrdsApiOptionsTests
             SearchHoldingsTimeout = 40_000,
             GetUserAccountTimeout = 50_000,
             EnsureUserAccountTimeout = 20_000,
+            CircuitBreakerConsecutiveFailureThreshold = 5,
+            CircuitBreakerFailureRatio = 0.5,
+            CircuitBreakerSamplingDuration = 30_000,
+            CircuitBreakerDurationOfBreak = 30_000,
+            CircuitBreakerMinimumThroughput = 2,
         };
 
         Assert.Equal("https://fake-service.test/krds/", options.BaseUrl);
@@ -50,6 +60,11 @@ public class KrdsApiOptionsTests
         Assert.Equal(40_000, options.SearchHoldingsTimeout);
         Assert.Equal(50_000, options.GetUserAccountTimeout);
         Assert.Equal(20_000, options.EnsureUserAccountTimeout);
+        Assert.Equal(5, options.CircuitBreakerConsecutiveFailureThreshold);
+        Assert.Equal(0.5, options.CircuitBreakerFailureRatio);
+        Assert.Equal(30_000, options.CircuitBreakerSamplingDuration);
+        Assert.Equal(30_000, options.CircuitBreakerDurationOfBreak);
+        Assert.Equal(2, options.CircuitBreakerMinimumThroughput);
     }
 
     [Fact]
@@ -110,6 +125,11 @@ public class KrdsApiOptionsTests
         Assert.Equal(60_000, options.SearchHoldingsTimeout);
         Assert.Equal(60_000, options.GetUserAccountTimeout);
         Assert.Equal(60_000, options.EnsureUserAccountTimeout);
+        Assert.Equal(5, options.CircuitBreakerConsecutiveFailureThreshold);
+        Assert.Equal(0.5, options.CircuitBreakerFailureRatio);
+        Assert.Equal(30_000, options.CircuitBreakerSamplingDuration);
+        Assert.Equal(30_000, options.CircuitBreakerDurationOfBreak);
+        Assert.Equal(2, options.CircuitBreakerMinimumThroughput);
     }
 
     [Fact]
@@ -130,5 +150,10 @@ public class KrdsApiOptionsTests
         Assert.Equal(60_000, options.SearchHoldingsTimeout);
         Assert.Equal(60_000, options.GetUserAccountTimeout);
         Assert.Equal(60_000, options.EnsureUserAccountTimeout);
+        Assert.Equal(5, options.CircuitBreakerConsecutiveFailureThreshold);
+        Assert.Equal(0.5, options.CircuitBreakerFailureRatio);
+        Assert.Equal(30_000, options.CircuitBreakerSamplingDuration);
+        Assert.Equal(30_000, options.CircuitBreakerDurationOfBreak);
+        Assert.Equal(2, options.CircuitBreakerMinimumThroughput);
     }
 }
