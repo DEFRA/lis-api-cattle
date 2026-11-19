@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema targetNamespace="http://defra.bcms.ctws/register_births_request" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns="http://defra.bcms.ctws/register_births_request" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<!-- This schema defines the format of register births request messages -->
+	<!-- This schema has been defined in accordance to the "e-Government Schema Guidelines For XML" specification version 3.0c -->
+	<xs:include schemaLocation="ctws_types-V1-0.xsd">
+		<!-- reference the common ctws type definitions-->
+	</xs:include>
+	<xs:element name="RegBirths" type="RegisterBirths_Structure">
+		<xs:annotation>
+			<xs:documentation source="http://www.rpa.gov.uk/">The XML document format for registering births via ctws</xs:documentation>
+		</xs:annotation> 
+		<!-- the root element for the register births document-->
+	</xs:element>
+	<xs:complexType name="RegisterBirths_Structure">
+		<xs:sequence>
+			<xs:element name="Authentication" type="Authentication_Structure">
+				<!-- element to hold SIS or CTS Online authentication details-->
+			</xs:element>
+			<xs:element name="Births" type="Births_Structure">
+				<xs:key name="BirthsKey">
+					<xs:selector xpath=".//Birth"/>
+					<xs:field xpath="@RowNum"/>
+					<!-- constraint to ensure rowNum attributes are unique-->
+				</xs:key>
+				<!-- element to hold a list of births-->
+			</xs:element>
+		</xs:sequence>
+		<xs:attributeGroup ref="RequestHeaderAttributes_Type"/>
+		<!-- the definition of the register birth document element-->
+	</xs:complexType>
+	<xs:complexType name="Births_Structure">
+		<xs:sequence minOccurs="1" maxOccurs="unbounded">
+			<xs:element name="Birth" type="Birth_Structure"/>
+		</xs:sequence>
+		<xs:attribute name="TxnId" type="UnqTansId_Type" use="required"/>
+		<!--<xs:sequence maxOccurs="9999">    changed to unbounded due to Sun JAXB compiler (out of memory) bug -->
+	</xs:complexType>
+</xs:schema>

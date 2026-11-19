@@ -16,6 +16,7 @@
         "AWS__ServiceUrl": "http://localhost:4566",
         "AWS__SubmissionValidationQueueUrl": "http://localhost:4566/000000000000/submission_validation_queue",
         "AWS__SubmissionValidationTopicArn": "arn:aws:sns:eu-west-2:000000000000:submission_validation_topic",
+        "AWS__RegistrationBundleQueueUrl": "http://localhost:4566/000000000000/lis_cattle_registration_bundle",
         "CadsApi__BaseUrl": "http://localhost:3000/cads/",
         "CadsApi__ClientId": "local-dev-cads-client",
         "CadsApi__ClientSecret": "local-dev-cads-secret",

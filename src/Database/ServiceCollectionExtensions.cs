@@ -26,6 +26,7 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddSingleton<ISubmissionBatchClaimer, PostgresSubmissionBatchClaimer>();
+        services.AddSingleton<ISubmissionLocker, PostgresSubmissionLocker>();
 
         return services;
     }

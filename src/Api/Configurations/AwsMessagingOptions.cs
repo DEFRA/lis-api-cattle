@@ -25,4 +25,18 @@ public class AwsMessagingOptions
     public int MaxNumberOfMessages { get; set; } = 10;
 
     public int WaitTimeSeconds { get; set; } = 5;
+
+    // The queue the registration bundle worker reads (LREG-925). It must not be the validation queue: the two
+    // consumers expect different messages.
+    public string RegistrationBundleQueueUrl { get; set; } = string.Empty;
+
+    public bool EnableRegistrationBundleConsumer { get; set; } = true;
+
+    // How long a received bundle stays hidden from other instances. It must be longer than the worst-case
+    // processing time (Postgres plus every CTS attempt), or a second instance could pick the bundle up.
+    public int RegistrationBundleVisibilityTimeoutSeconds { get; set; } = 300;
+
+    // The queue's redrive maxReceiveCount. The worker logs an error with the correlation ID on the last attempt
+    // before SQS moves the message to the dead-letter queue.
+    public int RegistrationBundleMaxReceiveCount { get; set; } = 5;
 }

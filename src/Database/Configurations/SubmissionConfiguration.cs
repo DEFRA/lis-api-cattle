@@ -40,6 +40,26 @@ public class SubmissionConfiguration : IEntityTypeConfiguration<Submission>
             .HasDefaultValueSql("now()")
             .IsRequired();
 
+        builder.Property(e => e.UpdatedAt)
+            .HasColumnName(nameof(Submission.UpdatedAt).ToSnakeCase());
+
+        builder.Property(e => e.CorrelationId)
+            .HasColumnName(nameof(Submission.CorrelationId).ToSnakeCase());
+
+        builder.Property(e => e.CtsReceiptNumber)
+            .HasColumnName(nameof(Submission.CtsReceiptNumber).ToSnakeCase());
+
+        builder.Property(e => e.CtsSentAt)
+            .HasColumnName(nameof(Submission.CtsSentAt).ToSnakeCase());
+
+        builder.Property(e => e.ErrorCode)
+            .HasColumnName(nameof(Submission.ErrorCode).ToSnakeCase());
+
+        builder.Property(e => e.ErrorText)
+            .HasColumnName(nameof(Submission.ErrorText).ToSnakeCase());
+
+        builder.Ignore(e => e.HasCtsOutcome);
+
         // Postgres row version (the xmin system column), so a save that overwrites another writer's change fails.
         builder.Property<uint>(RowVersion)
             .HasColumnName("xmin")
@@ -56,5 +76,10 @@ public class SubmissionConfiguration : IEntityTypeConfiguration<Submission>
             .WithOne(a => a.Submission)
             .HasForeignKey(a => a.SubmissionId)
             .HasConstraintName("submission_animal_submission_id_fk");
+
+        builder.HasOne(e => e.CtsRequest)
+            .WithOne(r => r.Submission)
+            .HasForeignKey<CtsRequest>(r => r.SubmissionId)
+            .HasConstraintName("cts_request_submission_id_fk");
     }
 }

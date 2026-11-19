@@ -1,0 +1,591 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSPY v5 rel. 4 U (http://www.xmlspy.com) by Chris Pay (DEFRA) -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" version="1.0">
+	<!-- This schema defines the common data types for the ctws xml schemas -->
+	<!-- This schema has been defined in accordance to the "e-Government Schema Guidelines For XML" specification version 3.0c -->
+	<xs:simpleType name="ApplicationName_Type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="50"/>
+			<xs:minLength value="1"/>
+		</xs:restriction>
+		<!-- A type for holding an application name -->
+	</xs:simpleType>
+	<xs:simpleType name="ApplicationVersion_Type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="50"/>
+			<xs:minLength value="1"/>
+		</xs:restriction>
+		<!-- A type for holding an application version identifier -->
+	</xs:simpleType>
+	<xs:complexType name="CTSOL_Authentication_Structure">
+		<xs:attribute name="Usr" type="CTSOL_UserId_Type" use="required"/>
+		<xs:attribute name="Pwd" type="CTSOL_Password_Type" use="required"/>
+		<!-- An element for holding CTS Online user authentication information -->
+	</xs:complexType>
+	<xs:complexType name="SIS_Authentication_Structure">
+		<xs:attribute name="Id" type="SIS_UserId_Type" use="required"/>
+		<xs:attribute name="SourceEmail" type="SIS_SourceEmail_Type" use="required"/>
+		<!-- An element for holding SIS user authentication information -->
+	</xs:complexType>
+	<xs:complexType name="Authentication_Structure">
+		<xs:choice>
+			<xs:element name="SIS_User" type="SIS_Authentication_Structure"/>
+			<xs:element name="CTS_OL_User" type="CTSOL_Authentication_Structure"/>
+		</xs:choice>
+		<!-- An element for holding a choice of either SIS or CTS Online user authentication information -->
+	</xs:complexType>
+	<xs:simpleType name="SIS_UserId_Type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="7"/>
+			<xs:minLength value="7"/>
+			<xs:pattern value="[0-9]*"/>
+		</xs:restriction>
+		<!-- A type for holding a SIS user id -->
+	</xs:simpleType>
+	<xs:simpleType name="CTSOL_UserId_Type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="11"/>
+			<xs:minLength value="1"/>
+		</xs:restriction>
+		<!-- A type for holding a CTS Online user id -->
+	</xs:simpleType>
+	<xs:simpleType name="SIS_SourceEmail_Type">
+		<xs:restriction base="xs:string"/>
+		<!-- A type for holding a SIS user Source Email address-->
+	</xs:simpleType>
+	<xs:simpleType name="CTSOL_Password_Type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="15"/>
+			<xs:minLength value="1"/>
+		</xs:restriction>
+		<!-- A type for holding a CTS Online user password -->
+	</xs:simpleType>
+	<xs:simpleType name="UnqTansId_Type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="40"/>
+			<xs:minLength value="1"/>
+		</xs:restriction>
+		<!-- A type for holding a unique transaction identifier -->
+	</xs:simpleType>
+	<xs:simpleType name="RefNum_Type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="10"/>
+			<xs:minLength value="1"/>
+		</xs:restriction>
+		<!-- A type for holding a client supplied row identifier  (as per existing SIS)-->
+	</xs:simpleType>
+	<xs:simpleType name="Eartag_Type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="14"/>
+			<xs:minLength value="1"/>
+		</xs:restriction>
+		<!-- A type for holding an animal eartag-->
+	</xs:simpleType>
+	<xs:simpleType name="DateOfBirth_Type">
+		<xs:restriction base="xs:date"/>
+		<!-- A type for holding an animals date of birth-->
+	</xs:simpleType>
+	<xs:simpleType name="BreedCode_Type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="5"/>
+			<xs:minLength value="1"/>
+			<xs:pattern value="[A-Z]*"/>
+		</xs:restriction>
+		<!-- A type for holding an animals breed code-->
+	</xs:simpleType>
+	<xs:simpleType name="ElectronicId_Type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="20"/>
+			<xs:minLength value="1"/>
+		</xs:restriction>
+		<!-- A type for holding an animals electronic identifier-->
+	</xs:simpleType>
+	<xs:simpleType name="CPH_Type">
+		<xs:restriction base="xs:string">
+			<xs:length value="11"/>
+			<xs:pattern value="[0-9]{2}/[0-9]{3}/[0-9]{4}"/>
+		</xs:restriction>
+		<!-- A type for holding a location code CPH (County/Parish/Holding)-->
+	</xs:simpleType>
+	<xs:simpleType name="LocationId_Type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="11"/>
+			<xs:minLength value="1"/>
+		</xs:restriction>
+		<!-- A type for holding a location identifier either a CPH or MHS (Meat Hygiene Service) id (e.g. abattoirs)-->
+	</xs:simpleType>
+	<xs:simpleType name="ReceiptId_Type">
+		<xs:restriction base="xs:integer"/>
+		<!-- A type for holding the server generated asynchronous receipt number-->
+	</xs:simpleType>
+	<xs:complexType name="Receipt_Structure">
+		<xs:attribute name="Num" type="ReceiptId_Type" use="required"/>
+		<!-- A element for holding the server generated asynchronous receipt number-->
+	</xs:complexType>
+	<xs:simpleType name="YN_Type">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="y"/>
+			<xs:enumeration value="n"/>
+		</xs:restriction>
+		<!-- A type for holding a Y/N flag-->
+	</xs:simpleType>
+	<xs:simpleType name="Sex_Type">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="m"/>
+			<xs:enumeration value="f"/>
+		</xs:restriction>
+		<!-- A type for an animals sex-->
+	</xs:simpleType>
+	<xs:simpleType name="SubLocationId_Type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="2"/>
+			<xs:minLength value="2"/>
+			<xs:pattern value="[0-9]{2}"/>
+		</xs:restriction>
+		<!-- A type for holding a sub location identifier-->
+	</xs:simpleType>
+	<xs:simpleType name="RowNum_Type">
+		<xs:restriction base="xs:integer">
+			<xs:maxInclusive value="12000"/>
+			<xs:minInclusive value="1"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="ExNum_Type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="10"/>
+		</xs:restriction>
+		<!-- A type for holding an exception number (string code)-->
+	</xs:simpleType>
+	<xs:simpleType name="ExMsg_Type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="2000"/>
+		</xs:restriction>
+		<!-- A type for holding an exception message -->
+	</xs:simpleType>
+	<xs:simpleType name="MovementType_Type">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="on"/>
+			<xs:enumeration value="off"/>
+			<xs:enumeration value="death"/>
+		</xs:restriction>
+		<!-- A type for holding a movement type (classification)-->
+	</xs:simpleType>
+	<xs:simpleType name="MovementTypeDesc_Type">
+		<xs:restriction base="xs:string"/>
+		<!-- A type for holding a movement type description-->
+	</xs:simpleType>
+	<xs:simpleType name="MovementDate_Type">
+		<xs:restriction base="xs:date"/>
+		<!-- A type for holding a movement date-->
+	</xs:simpleType>
+	<xs:simpleType name="CauseCode_Type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="8"/>
+		</xs:restriction>
+		<!-- A type for holding a validation failure cause code-->
+	</xs:simpleType>
+	<xs:simpleType name="CauseDesc_Type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="200"/>
+		</xs:restriction>
+		<!-- A type for holding a validation failure cause description-->
+	</xs:simpleType>
+	<xs:simpleType name="CauseSeverity_Type">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="e"/>
+			<xs:enumeration value="w"/>
+		</xs:restriction>
+		<!-- A type for holding a validation failure severity Error/Warning-->
+	</xs:simpleType>
+	<xs:simpleType name="CauseField_Type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="20"/>
+		</xs:restriction>
+		<!-- A type for holding the field name that caused a validation failure-->
+	</xs:simpleType>
+	<xs:simpleType name="OnLocationDate_Type">
+		<xs:restriction base="xs:date"/>
+		<!-- A type for holding the date an animal moved onto a location-->
+	</xs:simpleType>
+	<xs:simpleType name="COHIdentity_Type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="30"/>
+		</xs:restriction>
+		<!-- A type for holding the identity value for the cattle on holding results-->
+	</xs:simpleType>
+	<xs:simpleType name="COHBreed_Type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="30"/>
+		</xs:restriction>
+		<!-- A type for holding the breed value for the cattle on holding results-->
+	</xs:simpleType>
+	<xs:simpleType name="COHSex_Type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="1"/>
+		</xs:restriction>
+		<!-- A type for holding the sex value for the cattle on holding results-->
+	</xs:simpleType>
+	<xs:simpleType name="COHDOB_Type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="11"/>
+		</xs:restriction>
+		<!-- A type for holding the date of birth value for the cattle on holding results-->
+	</xs:simpleType>
+	<xs:simpleType name="COHGeneticDamId_Type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="30"/>
+		</xs:restriction>
+		<!-- A type for holding the genetic dam identifier value for the cattle on holding results-->
+	</xs:simpleType>
+	<xs:simpleType name="COHSurrogateDamId_Type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="30"/>
+		</xs:restriction>
+		<!-- A type for holding the surrogate dam identifier value for the cattle on holding results-->
+	</xs:simpleType>
+	<xs:simpleType name="COHSireId_Type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="30"/>
+		</xs:restriction>
+		<!-- A type for holding the sire identifier value for the cattle on holding results-->
+	</xs:simpleType>
+	<xs:simpleType name="COHOnDate_Type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="11"/>
+		</xs:restriction>
+		<!-- A type for holding the on date value for the cattle on holding results-->
+	</xs:simpleType>
+	<xs:simpleType name="COHMovementDate_Type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="11"/>
+		</xs:restriction>
+		<!-- A type for holding the movement date value for the cattle on holding results-->
+	</xs:simpleType>
+	<xs:simpleType name="COHMovementType_Type">
+		<xs:restriction base="xs:integer">
+			<xs:minInclusive value="0"/>
+			<xs:maxInclusive value="99"/>
+		</xs:restriction>
+		<!-- A type for holding the movement date value for the cattle on holding results-->
+	</xs:simpleType>
+	<xs:simpleType name="COHReceivedDate_Type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="11"/>
+		</xs:restriction>
+		<!-- A type for holding the movemtn received date value for the cattle on holding results-->
+	</xs:simpleType>
+	<xs:simpleType name="HoldingSize_Type">
+		<xs:restriction base="xs:integer"/>
+		<!-- A type for holding the date an animal moved onto a location-->
+	</xs:simpleType>
+	<xs:simpleType name="BreedDesc_Type">
+		<xs:restriction base="xs:string"/>
+		<!-- A type for holding the breed long description-->
+	</xs:simpleType>
+	<xs:simpleType name="AnimalStatusDesc_Type">
+		<xs:restriction base="xs:string"/>
+		<!-- A type for holding the animal status description-->
+	</xs:simpleType>
+	<xs:simpleType name="AnimalStatus_Type">
+		<xs:restriction base="xs:integer"/>
+		<!-- A type for holding the animal status-->
+	</xs:simpleType>
+	<xs:simpleType name="PassportVersion_Type">
+		<xs:restriction base="xs:integer"/>
+		<!-- A type for holding the animal status-->
+	</xs:simpleType>
+	<xs:simpleType name="AnomolyCode_Type">
+		<xs:restriction base="xs:string"/>
+		<!-- A type for holding the anomoly code-->
+	</xs:simpleType>
+	<xs:simpleType name="AnomolyCodeDesc_Type">
+		<xs:restriction base="xs:string"/>
+		<!-- A type for holding the anomoly code description-->
+	</xs:simpleType>
+	<xs:simpleType name="AnimalNotOnLocation_Type">
+		<xs:restriction base="xs:string"/>
+		<!-- A type for holding a boolean true or false to check if animal is on a location-->
+	</xs:simpleType>
+	<xs:simpleType name="CurrentKeeper_Type">
+		<xs:restriction base="xs:string"/>
+		<!-- A type for holding yes or no for a current keeper-->
+	</xs:simpleType>
+	<xs:complexType name="Birth_Structure">
+		<xs:attribute name="RowNum" type="RowNum_Type" use="required">
+			<!-- a unique identifier (within the XML document) for the row.-->
+		</xs:attribute>
+		<xs:attribute name="Etg" type="Eartag_Type" use="required">
+			<!--the animals eartag-->
+		</xs:attribute>
+		<xs:attribute name="Dob" type="DateOfBirth_Type" use="required">
+			<!--the animals date of birth-->
+		</xs:attribute>
+		<xs:attribute name="Brd" type="BreedCode_Type" use="required">
+			<!--the breed code of the animal-->
+		</xs:attribute>
+		<xs:attribute name="Sex" type="Sex_Type" use="required">
+			<!--the sex of the animal-->
+		</xs:attribute>
+		<xs:attribute name="EId" type="ElectronicId_Type" use="optional">
+			<!--the animals electronic identifier-->
+		</xs:attribute>
+		<xs:attribute name="GdEtg" type="Eartag_Type" use="required">
+			<!--the genetic dam eartag-->
+		</xs:attribute>
+		<xs:attribute name="SuEtg" type="Eartag_Type" use="optional">
+			<!--the surrogate dam eartag-->
+		</xs:attribute>
+		<xs:attribute name="SiEtg" type="Eartag_Type" use="optional">
+			<!--the sire eartag-->
+		</xs:attribute>
+		<xs:attribute name="BLoc" type="CPH_Type" use="required">
+			<!--the birth location code (CPH)-->
+		</xs:attribute>
+		<xs:attribute name="BSLoc" type="SubLocationId_Type" use="optional">
+			<!--the birth sub location -->
+		</xs:attribute>
+		<xs:attribute name="PLoc" type="CPH_Type" use="required">
+			<!--the postal location code (CPH)-->
+		</xs:attribute>
+		<xs:attribute name="PSLoc" type="SubLocationId_Type" use="optional">
+			<!--the postal sub location  -->
+		</xs:attribute>
+		<xs:attribute name="IWarn" type="YN_Type" use="optional" default="n">
+			<!--flag when set to Y indicates that validation warnings can be ignored (i.e. warnings will not cause the record to be rejected) -->
+		</xs:attribute>
+		<!-- An element for a single birth-->
+	</xs:complexType>
+	<xs:complexType name="Mov_Structure">
+		<xs:attribute name="RowNum" type="RowNum_Type" use="required">
+			<!-- a unique identifier (within the XML document) for the movement row.-->
+		</xs:attribute>
+		<xs:attribute name="Etg" type="Eartag_Type" use="required">
+			<!--the animals eartag-->
+		</xs:attribute>
+		<xs:attribute name="EId" type="ElectronicId_Type" use="optional">
+			<!--the animals electronic identifier-->
+		</xs:attribute>
+		<xs:attribute name="Loc" type="LocationId_Type" use="required">
+			<!--the location code (CPH or MHS)-->
+		</xs:attribute>
+		<xs:attribute name="SLoc" type="SubLocationId_Type" use="optional">
+			<!--the sub location code-->
+		</xs:attribute>
+		<xs:attribute name="MType" type="MovementType_Type" use="required">
+			<!--the sub location code for the movement-->
+		</xs:attribute>
+		<xs:attribute name="MDate" type="MovementDate_Type" use="required">
+			<!--the date the movement was made-->
+		</xs:attribute>
+		<xs:attribute name="RefNum" type="RefNum_Type" use="optional">
+			<!--an optional client supplied reference number, usually supplied by a livestock market, abattoir etc (e.g. lot number), as per SIS-->
+		</xs:attribute>
+		<xs:attribute name="IWarn" type="YN_Type" use="optional" default="n">
+			<!--flag when set to Y indicates that validation warnings can be ignored (i.e. warnings will not cause the record to be rejected) -->
+		</xs:attribute>
+		<!-- An element for a single movement registration-->
+	</xs:complexType>
+	<xs:complexType name="Cause_Structure">
+		<xs:attribute name="Code" type="CauseCode_Type" use="required">
+			<!--an code uniquely identifying the validation failure-->
+		</xs:attribute>
+		<xs:attribute name="Desc" type="CauseDesc_Type" use="required">
+			<!--a description of the validation failure -->
+		</xs:attribute>
+		<xs:attribute name="Sev" type="CauseSeverity_Type" use="required">
+			<!--the severity of the validation failure (i.e. Warning or Failure)-->
+		</xs:attribute>
+		<xs:attribute name="Field" type="CauseField_Type" use="required">
+			<!--the field in the request that caused the failure-->
+		</xs:attribute>
+		<!-- An element for a single validation failure-->
+	</xs:complexType>
+	<xs:complexType name="Causes_Structure">
+		<xs:sequence>
+			<xs:element name="Cause" type="Cause_Structure" maxOccurs="unbounded">
+				<!--a list of validation failures-->
+			</xs:element>
+		</xs:sequence>
+		<!-- An element for holding a list of validation failures-->
+	</xs:complexType>
+	<xs:complexType name="Accepted_Structure">
+		<xs:sequence>
+			<xs:element name="Accept" type="AcceptedRowId_Structure" maxOccurs="12000"/>
+		</xs:sequence>
+		<!-- a type for holding a list of accepted movement request rowIds-->
+	</xs:complexType>
+	<xs:complexType name="Holding_Structure">
+		<xs:attribute name="Loc" type="LocationId_Type" use="required">
+			<!--the location to retrieve holding details for-->
+		</xs:attribute>
+		<xs:attribute name="SLoc" type="SubLocationId_Type" use="optional">
+			<!--the sublocation to retrieve holding details for-->
+		</xs:attribute>
+	</xs:complexType>
+	<xs:complexType name="Animal_Structure">
+		<xs:attribute name="Etg" type="Eartag_Type" use="required">
+			<!--the animals eartag-->
+		</xs:attribute>
+		<xs:attribute name="Dob" type="DateOfBirth_Type" use="optional">
+			<!--the animals date of birth-->
+		</xs:attribute>
+		<xs:attribute name="Brd" type="BreedCode_Type" use="optional">
+			<!--the breed code of the animal-->
+		</xs:attribute>
+		<xs:attribute name="Sex" type="Sex_Type" use="optional">
+			<!--the sex of the animal-->
+		</xs:attribute>
+		<xs:attribute name="GdEtg" type="Eartag_Type" use="optional">
+			<!--the genetic dam eartag-->
+		</xs:attribute>
+		<xs:attribute name="SuEtg" type="Eartag_Type" use="optional">
+			<!--the surrogate dam eartag-->
+		</xs:attribute>
+		<xs:attribute name="SiEtg" type="Eartag_Type" use="optional">
+			<!--the sire eartag-->
+		</xs:attribute>
+		<xs:attribute name="OnDate" type="OnLocationDate_Type" use="optional">
+			<!--the date an animal moved onto the location  -->
+		</xs:attribute>
+	</xs:complexType>
+	<xs:complexType name="QueriedAnimal_Structure">
+		<xs:attribute name="Etg" type="COHIdentity_Type" use="optional">
+			<!--the animals eartag-->
+		</xs:attribute>
+		<xs:attribute name="Dob" type="COHDOB_Type" use="optional">
+			<!--the animals date of birth-->
+		</xs:attribute>
+		<xs:attribute name="Brd" type="COHBreed_Type" use="optional">
+			<!--the breed code of the animal-->
+		</xs:attribute>
+		<xs:attribute name="Sex" type="COHSex_Type" use="optional">
+			<!--the sex of the animal-->
+		</xs:attribute>
+		<xs:attribute name="GdEtg" type="COHGeneticDamId_Type" use="optional">
+			<!--the genetic dam eartag-->
+		</xs:attribute>
+		<xs:attribute name="SuEtg" type="COHSurrogateDamId_Type" use="optional">
+			<!--the surrogate dam eartag-->
+		</xs:attribute>
+		<xs:attribute name="SiEtg" type="COHSireId_Type" use="optional">
+			<!--the sire eartag-->
+		</xs:attribute>
+		<xs:attribute name="OnDate" type="COHOnDate_Type" use="optional">
+			<!--the date an animal moved onto the location  -->
+		</xs:attribute>
+	</xs:complexType>
+	<xs:complexType name="QueriedMovement_Structure">
+		<xs:attribute name="Etg" type="COHIdentity_Type" use="optional">
+			<!--the animals eartag-->
+		</xs:attribute>
+		<xs:attribute name="MovDate" type="COHMovementDate_Type" use="optional">
+			<!--the date the movement was received by the BCMS  -->
+		</xs:attribute>
+		<xs:attribute name="MovType" type="COHMovementType_Type" use="optional">
+			<!--the date the movement was received by the BCMS  -->
+		</xs:attribute>
+		<xs:attribute name="ReceivedDate" type="COHReceivedDate_Type" use="optional">
+			<!--the date the movement was received by the BCMS  -->
+		</xs:attribute>
+	</xs:complexType>
+	<xs:complexType name="SystemException_Structure">
+		<xs:attribute name="ExNum" type="ExNum_Type" use="required">
+			<!--an code uniquely identifying the exception-->
+		</xs:attribute>
+		<xs:attribute name="ExMsg" type="ExMsg_Type" use="required">
+			<!--a description of the exception-->
+		</xs:attribute>
+		<!-- An element for holding details of a request/system failure-->
+	</xs:complexType>
+	<xs:complexType name="AcceptedRowId_Structure">
+		<xs:attribute name="RowNum" type="RowNum_Type" use="required"/>
+		<!-- A type for holding the row number of a item which has been accepted (i.e. no validation failures)-->
+	</xs:complexType>
+	<xs:complexType name="Eartags_Structure">
+		<xs:sequence>
+			<xs:element name="Eartag_Id" type="Eartag_Type" maxOccurs="50"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="AnimalDetails_Structure">
+		<xs:attribute name="Etg" type="Eartag_Type" use="required">
+			<!--the animals eartag-->
+		</xs:attribute>
+		<xs:attribute name="Dob" type="DateOfBirth_Type" use="optional">
+			<!--the animals date of birth-->
+		</xs:attribute>
+		<xs:attribute name="Brd" type="BreedCode_Type" use="optional">
+			<!--the breed code of the animal-->
+		</xs:attribute>
+		<xs:attribute name="BrdDesc" type="BreedDesc_Type" use="optional">
+			<!--the breed code desc of the animal-->
+		</xs:attribute>
+		<xs:attribute name="Sex" type="Sex_Type" use="optional">
+			<!--the sex of the animal-->
+		</xs:attribute>
+		<xs:attribute name="GdEtg" type="Eartag_Type" use="optional">
+			<!--the genetic dam eartag-->
+		</xs:attribute>
+		<xs:attribute name="SuEtg" type="Eartag_Type" use="optional">
+			<!--the surrogate dam eartag-->
+		</xs:attribute>
+		<xs:attribute name="SiEtg" type="Eartag_Type" use="optional">
+			<!--the sire eartag-->
+		</xs:attribute>
+		<xs:attribute name="AnmlStatus" type="AnimalStatus_Type" use="optional">
+			<!--the animal status-->
+		</xs:attribute>
+		<xs:attribute name="AnmlStatusDesc" type="AnimalStatusDesc_Type" use="optional">
+			<!--the animal status description-->
+		</xs:attribute>
+		<xs:attribute name="PassportVer" type="PassportVersion_Type" use="optional">
+			<!--the passport version-->
+		</xs:attribute>
+	</xs:complexType>
+	<xs:complexType name="Movmt_Structure">
+		<xs:attribute name="Loc" type="LocationId_Type" use="optional">
+			<!--the location code (CPH or MHS)-->
+		</xs:attribute>
+		<xs:attribute name="SLoc" type="SubLocationId_Type" use="optional">
+			<!--the sub location code-->
+		</xs:attribute>
+		<xs:attribute name="MType" type="MovementType_Type" use="optional">
+			<!--the movement type-->
+		</xs:attribute>
+		<xs:attribute name="MTypeDesc" type="MovementTypeDesc_Type" use="optional">
+			<!--the movement type description-->
+		</xs:attribute>
+		<xs:attribute name="MDate" type="MovementDate_Type" use="optional">
+			<!--the date the movement was made-->
+		</xs:attribute>
+		<xs:attribute name="AnomCode" type="AnomolyCode_Type" use="optional">
+			<!--the anomoly code-->
+		</xs:attribute>
+		<xs:attribute name="AnomCodeDesc" type="AnomolyCodeDesc_Type" use="optional">
+			<!--the anomoly code desc-->
+		</xs:attribute>
+		<!-- An element for a single movement registration-->
+	</xs:complexType>
+	<xs:complexType name="MovementDetails_Structure">
+		<xs:sequence>
+			<xs:element name="OnMovmt" type="Movmt_Structure" minOccurs="0"/>
+			<xs:element name="OffMovmt" type="Movmt_Structure" minOccurs="0"/>
+		</xs:sequence>
+		<xs:attribute name="RowNum" type="RowNum_Type" use="required"/>
+		<!-- A type for holding the row number of a item which has been accepted (i.e. no validation failures)-->
+	</xs:complexType>
+	<xs:attributeGroup name="RequestHeaderAttributes_Type">
+		<xs:attribute name="SchemaVersion" type="xs:decimal" use="required"/>
+		<xs:attribute name="ProgramName" type="ApplicationName_Type" use="required"/>
+		<xs:attribute name="ProgramVersion" type="ApplicationVersion_Type" use="required"/>
+		<xs:attribute name="RequestTimeStamp" type="xs:dateTime" use="required"/>
+		<xs:attribute name="TestScenarioId" type="xs:integer" use="optional"/>
+		<!-- A group of attributes to be supplied with each request-->
+	</xs:attributeGroup>
+	<xs:attributeGroup name="ResponseHeaderAttributes_Type">
+		<xs:attribute name="SchemaVersion" type="xs:decimal" use="required"/>
+		<xs:attribute name="ProgramName" type="ApplicationName_Type" use="required"/>
+		<xs:attribute name="ProgramVersion" type="ApplicationVersion_Type" use="required"/>
+		<xs:attribute name="ResponseTimeStamp" type="xs:dateTime" use="required"/>
+		<!-- A group of attributes to be supplied in each response-->
+	</xs:attributeGroup>
+</xs:schema>
