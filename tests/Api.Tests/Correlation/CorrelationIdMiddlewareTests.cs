@@ -15,7 +15,6 @@ using Defra.Lis.Api.Services;
 using Defra.Lis.Api.Tests.Upstream;
 using Defra.Lis.Api.Validation;
 using Defra.Lis.Core.Exceptions;
-using Defra.Livestock.Sdk.Api.Strategies;
 using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Operations.Http.Rest.Client;
 using Defra.Livestock.Sdk.Api.Strategies.Operations.Http.Rest.Client;
 using FluentValidation;
@@ -24,6 +23,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Moq;
 
 public class CorrelationIdMiddlewareTests
@@ -151,11 +151,10 @@ public class CorrelationIdMiddlewareTests
             services =>
             {
                 // Mirrors Program: the REST client is registered with header propagation before the strategy factory.
-                services.AddStrategyFramework();
                 services.AddHttpClient<IRestHttpClient, RestHttpClient>()
                     .AddHeaderPropagation()
                     .ConfigurePrimaryHttpMessageHandler(() => upstream);
-                services.AddRestStrategyFactory<KrdsService>();
+                services.AddStrategies();
                 services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new KrdsApiOptions
                 {
                     BaseUrl = "http://krds.test/",
@@ -183,6 +182,7 @@ public class CorrelationIdMiddlewareTests
         builder.WebHost.UseTestServer();
         builder.Services.AddRouting();
         builder.Services.AddLogging();
+        builder.Services.AddTransient<ILogger>(sp => sp.GetRequiredService<ILogger<CorrelationIdMiddlewareTests>>());
         builder.Services.AddHealthChecks();
         builder.Services.AddSingleton(Mock.Of<IHealthService>());
         builder.Services.AddCorrelationId();

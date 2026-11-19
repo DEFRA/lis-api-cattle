@@ -11,7 +11,6 @@ using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models.Krds;
 using Defra.Lis.Api.Models.Requests;
 using Defra.Lis.Api.Models.Responses;
-using Defra.Lis.Api.Services.Upstream;
 using Defra.Lis.Core.Exceptions;
 using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Exceptions;
 using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Operations;
@@ -30,7 +29,8 @@ public sealed partial class KrdsService : IKrdsService
     private const int MaxClaimLength = 256;
     private const int MaxEmailLength = 320;
 
-    private readonly IRestStrategyFactory<KrdsService> strategyFactory;
+    private readonly IRestStrategyFactory<KrdsService> restStrategyFactory;
+    private readonly ICircuitBreakerStrategyFactory<KrdsService> circuitBreakerStrategyFactory;
     private readonly IValidator<HoldingSearchRequest> holdingSearchRequestValidator;
     private readonly IOptions<KrdsApiOptions> options;
     private readonly ILogger<KrdsService> logger;
@@ -39,30 +39,23 @@ public sealed partial class KrdsService : IKrdsService
     /// Initializes a new instance of the <see cref="KrdsService"/> class.
     /// Reads holding details and user accounts from the keeper-data-api (KRDS) V2 endpoints through a REST strategy.
     /// </summary>
-    /// <param name="strategyFactory">The REST strategy factory used to create API requests.</param>
+    /// <param name="restStrategyFactory">The REST strategy factory used to create API requests.</param>
+    /// <param name="circuitBreakerStrategyFactory">The circuit breaker strategy factory.</param>
     /// <param name="holdingSearchRequestValidator">The validator for holding search requests.</param>
     /// <param name="options">The KRDS API configuration options.</param>
     /// <param name="logger">The logger instance.</param>
     public KrdsService(
-        IRestStrategyFactory<KrdsService> strategyFactory,
+        IRestStrategyFactory<KrdsService> restStrategyFactory,
+        ICircuitBreakerStrategyFactory<KrdsService> circuitBreakerStrategyFactory,
         IValidator<HoldingSearchRequest> holdingSearchRequestValidator,
         IOptions<KrdsApiOptions> options,
         ILogger<KrdsService> logger)
     {
-        this.strategyFactory = strategyFactory;
+        this.restStrategyFactory = restStrategyFactory;
+        this.circuitBreakerStrategyFactory = circuitBreakerStrategyFactory;
         this.holdingSearchRequestValidator = holdingSearchRequestValidator;
         this.options = options;
         this.logger = logger;
-
-        strategyFactory
-            .WithDefaultLogger(this.logger)
-            .WithDefaultApiDescription("KRDS API")
-            .WithDefaultBaseUrl(options.Value.BaseUrl)
-            .WithDefaultApiKey(
-                () => !string.IsNullOrWhiteSpace(options.Value.GatewayApiKey),
-                options.Value.GatewayApiKey!)
-            .WithDefaultBasicAuth(options.Value.ClientId, options.Value.ClientSecret)
-            .WithDefaultJsonSerializerOptions(UpstreamJson.Options);
     }
 
     public async Task<HoldingDetailedResponse> GetHoldingAsync(
@@ -79,7 +72,7 @@ public sealed partial class KrdsService : IKrdsService
 
         try
         {
-            var response = await strategyFactory
+            var response = await restStrategyFactory
                 .BuildRestStrategy()
                 .WithCancellationToken(cancellationToken)
                 .WithTimeout(options.Value.GetHoldingDetailsTimeout)
@@ -96,6 +89,7 @@ public sealed partial class KrdsService : IKrdsService
         catch (RestResponseException ex) when (ex.IsNotFound())
         {
             LogHoldingNotKnownToKrds(cph);
+
             throw new NotFoundException($"Holding '{cph}' was not found.");
         }
         catch (RestResponseException ex) when (ex.IsBadRequest())
@@ -112,7 +106,7 @@ public sealed partial class KrdsService : IKrdsService
 
         try
         {
-            var response = await strategyFactory
+            var response = await restStrategyFactory
                 .BuildRestStrategy()
                 .WithCancellationToken(cancellationToken)
                 .WithTimeout(options.Value.SearchHoldingsTimeout)
@@ -156,7 +150,7 @@ public sealed partial class KrdsService : IKrdsService
 
         try
         {
-            var response = await strategyFactory
+            var response = await restStrategyFactory
                 .BuildRestStrategy()
                 .WithCancellationToken(cancellationToken)
                 .WithTimeout(options.Value.GetUserAccountTimeout)
@@ -190,7 +184,7 @@ public sealed partial class KrdsService : IKrdsService
 
         try
         {
-            var response = await strategyFactory
+            var response = await restStrategyFactory
                 .BuildRestStrategy()
                 .WithCancellationToken(cancellationToken)
                 .WithTimeout(options.Value.EnsureUserAccountTimeout)

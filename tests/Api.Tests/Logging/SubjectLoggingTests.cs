@@ -18,7 +18,6 @@ using Defra.Lis.Api.Services;
 using Defra.Lis.Api.Tests.Authentication;
 using Defra.Lis.Api.Tests.Upstream;
 using Defra.Lis.Api.Validation;
-using Defra.Livestock.Sdk.Api.Strategies;
 using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Operations.Http.Rest.Client;
 using Defra.Livestock.Sdk.Api.Strategies.Operations.Http.Rest.Client;
 using FluentValidation;
@@ -191,9 +190,8 @@ public class SubjectLoggingTests
         builder.Services.AddCorrelationId();
 
         // The KRDS client is registered as in Program, so the SDK and HttpClient factory loggers run too.
-        builder.Services.AddStrategyFramework();
         builder.Services.AddHttpClient<IRestHttpClient, RestHttpClient>().ConfigurePrimaryHttpMessageHandler(() => krds);
-        builder.Services.AddRestStrategyFactory<KrdsService>();
+        builder.Services.AddStrategies();
         builder.Services.AddSingleton<IValidator<HoldingSearchRequest>, HoldingSearchRequestValidator>();
         builder.Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new KrdsApiOptions
         {

@@ -6,6 +6,7 @@ namespace Defra.Lis.Api.Configurations;
 
 using Defra.Lis.Api.Logging;
 using Defra.Livestock.Sdk.Api.Strategies.Operations.Http.Rest.Client;
+using Defra.Livestock.Sdk.Api.Strategies.Operations.Http.Soap.Client;
 using Serilog;
 using Serilog.Events;
 
@@ -25,6 +26,7 @@ public static class CdpLogging
         "Microsoft.AspNetCore.Hosting.Diagnostics",
         "System.Net.Http.HttpClient",
         typeof(RestHttpClient).FullName!,
+        typeof(SoapHttpClient).FullName!,
     ];
 
     /// <summary>
