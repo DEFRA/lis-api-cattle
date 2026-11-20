@@ -71,5 +71,5 @@ public sealed class KrdsApiOptions
     /// <summary>
     /// Gets the minimum throughput for circuit breaker.
     /// </summary>
-    public int CircuitBreakerMinimumThroughput { get; init; } = 2;
+    public int CircuitBreakerMinimumThroughput { get; init; } = 10;
 }
