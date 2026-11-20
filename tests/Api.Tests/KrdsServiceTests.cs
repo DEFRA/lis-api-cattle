@@ -40,6 +40,15 @@ public class KrdsServiceTests
                                                  "locality": "Shropshire",
                                                  "postcode": "SY4 1AB",
                                                  "country": "England"
+                                               },
+                                               "correspondenceAddress": {
+                                                 "udprn": "87654321",
+                                                 "addressLine1": "PO Box 12",
+                                                 "addressLine2": "High Street",
+                                                 "postTown": "Ludlow",
+                                                 "locality": "Shropshire",
+                                                 "postcode": "SY8 1AA",
+                                                 "country": "England"
                                                }
                                              },
                                              "associations": [
@@ -262,6 +271,9 @@ public class KrdsServiceTests
         Assert.Equal(
             ["Oakfield Farm", "Church Lane", "Shrewsbury", "Shropshire", "SY4 1AB", "England"],
             holding.Address);
+        Assert.Equal(
+            ["PO Box 12", "High Street", "Ludlow", "Shropshire", "SY8 1AA", "England"],
+            holding.CorrespondenceAddress);
         Assert.Equal("Oakfield Farmer", holding.KeeperName);
         Assert.Single(holding.HerdMarks);
         Assert.Equal("UK 324537", holding.HerdMarks[0].Mark);
@@ -376,6 +388,32 @@ public class KrdsServiceTests
     }
 
     [Fact]
+    public async Task GetHoldingAsync_ReturnsEmptyCorrespondenceAddressWhenAllFieldsNull()
+    {
+        handler.RespondWith(
+            HttpStatusCode.OK,
+            """{"identifier":"22/099/0099","holdingType":"AH","name":null,"location":{"address":null,"correspondenceAddress":{"udprn":null,"addressLine1":null,"addressLine2":null,"postTown":null,"locality":null,"postcode":null,"country":null}},"associations":[],"allowedSpecies":[],"marks":[]}""");
+        var service = CreateService();
+
+        var holding = await service.GetHoldingAsync("22", "099", "0099", TestContext.Current.CancellationToken);
+
+        Assert.Empty(holding.CorrespondenceAddress);
+    }
+
+    [Fact]
+    public async Task GetHoldingAsync_ReturnsEmptyCorrespondenceAddressWhenAbsent()
+    {
+        handler.RespondWith(
+            HttpStatusCode.OK,
+            """{"identifier":"22/099/0099","holdingType":"AH","name":null,"location":{"address":null},"associations":[],"allowedSpecies":[],"marks":[]}""");
+        var service = CreateService();
+
+        var holding = await service.GetHoldingAsync("22", "099", "0099", TestContext.Current.CancellationToken);
+
+        Assert.Empty(holding.CorrespondenceAddress);
+    }
+
+    [Fact]
     public async Task GetHoldingAsync_HandlesHoldingWithoutAddressOrAssociations()
     {
         handler.RespondWith(
@@ -388,6 +426,7 @@ public class KrdsServiceTests
         Assert.Equal("22/099/0099", holding.Cph);
         Assert.Null(holding.Name);
         Assert.Empty(holding.Address);
+        Assert.Empty(holding.CorrespondenceAddress);
         Assert.Null(holding.KeeperName);
         Assert.Null(holding.StartDate);
         Assert.Null(holding.EndDate);
