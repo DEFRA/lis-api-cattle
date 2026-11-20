@@ -43,7 +43,7 @@ values (1, 'CONVENTIONAL', 'Conventional'),
 --changeset cedric.brasey:eartag-003-manufacturer
 create table eartag.manufacturer
 (
-  id          uuid              not null default uuidv7(),
+  id          uuid              not null default gen_random_uuid(),
   external_id character varying not null,
   name        character varying not null,
   constraint manufacturer_pk primary key (id)
@@ -56,13 +56,13 @@ create index manufacturer_name_index on eartag.manufacturer (name);
 --changeset cedric.brasey:eartag-004-tag-specification
 create table eartag.tag_specification
 (
-  id                uuid              not null default uuidv7(),
+  id                uuid              not null default gen_random_uuid(),
   external_id       character varying not null,
   is_eid            boolean           not null,
   is_primary        boolean           not null,
   is_slaughter      boolean,
   legacy_code       character varying,
-  manufactruer_code character varying,
+  manufacturer_code character varying,
   tag_class         character varying not null,
   constraint tag_specification_pk primary key (id)
 );
@@ -77,7 +77,7 @@ create index tag_specification_tag_class_index on eartag.tag_specification (tag_
 --changeset cedric.brasey:eartag-005-eartag
 create table eartag.eartag
 (
-  id                   uuid                     not null default uuidv7(),
+  id                   uuid                     not null default gen_random_uuid(),
   tag                  character varying        not null,
   status               smallint                 not null,
   country              integer,
@@ -108,7 +108,7 @@ create index eartag_cph_status_tag_index on eartag.eartag (cph, status, tag);
 --comment: one row per status transition; written only by trigger
 create table eartag.eartag_history
 (
-  id              uuid                     not null default uuidv7(),
+  id              uuid                     not null default gen_random_uuid(),
   eartag_id       uuid                     not null,
   previous_status smallint,
   status          smallint                 not null,
