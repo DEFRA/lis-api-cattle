@@ -18,7 +18,6 @@ using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Exceptions;
 using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Operations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using Moq;
 using static System.Text.Encoding;
 using Convert = System.Convert;
 
@@ -119,11 +118,13 @@ public class KrdsServiceTests
 
     private static readonly KrdsApiOptions Options = new()
     {
-        BaseUrl = "http://fake-service.test/krds", ClientId = TestClient, ClientSecret = TestPassphrase,
+        BaseUrl = "http://fake-service.test/krds",
+        ClientId = TestClient,
+        ClientSecret = TestPassphrase,
+        CircuitBreakerConsecutiveFailureThreshold = 5,
     };
 
     private readonly StubHttpMessageHandler handler = new();
-    private readonly Mock<ICircuitBreakerStrategyFactory<KrdsService>> circuitBreakerStrategyFactory = new();
 
     [Fact]
     public async Task GetHoldingAsync_CallsHoldingsEndpointWithBasicAuth()
@@ -1004,12 +1005,39 @@ public class KrdsServiceTests
         GatewayApiKey = gatewayApiKey,
     };
 
-    private KrdsService CreateService(KrdsApiOptions? apiOptions = null) => new(
-        RestStrategyTestFactory.Create<KrdsService>(
+    private KrdsService CreateService(
+        KrdsApiOptions? apiOptions = null,
+        ICircuitBreakerStrategyFactory<KrdsService>? cbStrategyFactory = null)
+    {
+        var options = apiOptions ?? Options;
+        if (options.CircuitBreakerConsecutiveFailureThreshold is null && options.CircuitBreakerFailureRatio is null)
+        {
+            options = new KrdsApiOptions
+            {
+                BaseUrl = options.BaseUrl,
+                ClientId = options.ClientId,
+                ClientSecret = options.ClientSecret,
+                GatewayApiKey = options.GatewayApiKey,
+                GetHoldingDetailsTimeout = options.GetHoldingDetailsTimeout,
+                SearchHoldingsTimeout = options.SearchHoldingsTimeout,
+                GetUserAccountTimeout = options.GetUserAccountTimeout,
+                EnsureUserAccountTimeout = options.EnsureUserAccountTimeout,
+                CircuitBreakerConsecutiveFailureThreshold = 5,
+                CircuitBreakerSamplingDuration = options.CircuitBreakerSamplingDuration,
+                CircuitBreakerDurationOfBreak = options.CircuitBreakerDurationOfBreak,
+                CircuitBreakerMinimumThroughput = options.CircuitBreakerMinimumThroughput,
+            };
+        }
+
+        var provider = RestStrategyTestFactory.CreateServiceProvider(
             handler,
-            services => services.AddSingleton(Microsoft.Extensions.Options.Options.Create(apiOptions ?? Options))),
-        circuitBreakerStrategyFactory.Object,
-        new HoldingSearchRequestValidator(),
-        Microsoft.Extensions.Options.Options.Create(apiOptions ?? Options),
-        NullLogger<KrdsService>.Instance);
+            services => services.AddSingleton(Microsoft.Extensions.Options.Options.Create(options)));
+
+        return new KrdsService(
+            provider.GetRequiredService<IRestStrategyFactory<KrdsService>>(),
+            cbStrategyFactory ?? provider.GetRequiredService<ICircuitBreakerStrategyFactory<KrdsService>>(),
+            new HoldingSearchRequestValidator(),
+            Microsoft.Extensions.Options.Options.Create(options),
+            NullLogger<KrdsService>.Instance);
+    }
 }

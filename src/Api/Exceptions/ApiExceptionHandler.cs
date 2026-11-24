@@ -56,9 +56,17 @@ public sealed partial class ApiExceptionHandler(ILogger<ApiExceptionHandler> log
             ConflictRuleException => (StatusCodes.Status409Conflict, Http409ConflictDescription, Http409ConflictUrl),
             ServiceUnavailableException => (StatusCodes.Status503ServiceUnavailable,
                 Http503ServiceUnavailableDescription, Http503ServiceUnavailableUrl),
-            _ => (StatusCodes.Status500InternalServerError, Http500InternalServerErrorDescription,
-                Http500InternalServerErrorUrl),
+            _ =>
+                (StatusCodes.Status500InternalServerError, Http500InternalServerErrorDescription,
+                    Http500InternalServerErrorUrl),
         };
+
+        if (exception.IsCircuitBreakerOpen())
+        {
+            statusCode = StatusCodes.Status503ServiceUnavailable;
+            title = Http503ServiceUnavailableDescription;
+            type = Http503ServiceUnavailableUrl;
+        }
 
         // Put useful values into the Serilog LogContext (works with Enrich.FromLogContext()). The correlation
         // middleware's scope has already unwound here, so the ID is read from the header it enforced.

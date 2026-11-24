@@ -198,6 +198,7 @@ public class SubjectLoggingTests
             BaseUrl = "http://fake-service.test/krds",
             ClientId = nameof(SubjectLoggingTests),
             ClientSecret = Guid.NewGuid().ToString("N"),
+            CircuitBreakerConsecutiveFailureThreshold = 5,
         }));
         builder.Services.AddScoped<IKrdsService, KrdsService>();
 

@@ -160,6 +160,7 @@ public class CorrelationIdMiddlewareTests
                     BaseUrl = "http://krds.test/",
                     ClientId = TestClient,
                     ClientSecret = TestPassphrase,
+                    CircuitBreakerConsecutiveFailureThreshold = 5,
                 }));
                 services.AddSingleton<IValidator<HoldingSearchRequest>>(new HoldingSearchRequestValidator());
                 services.AddScoped<IKrdsService, KrdsService>();

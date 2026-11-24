@@ -98,6 +98,49 @@ BE4FE always send it; `/health`, the OpenAPI documents and Scalar do not need it
 The `.http` files send a fresh `{{$guid}}`; send your own when calling the API by hand, for example
 `-H 'x-cdp-request-id: local-test-1'`.
 
+### Upstream resilience and circuit breakers (CADS and KRDS)
+
+Calls to upstream REST services (KRDS and CADS) are managed through the Defra Livestock SDK strategy framework (`Defra.Livestock.Sdk.Api.Strategies`). Each service (`KrdsService` and `CadsService`) uses:
+
+- **REST strategy factory** (`IRestStrategyFactory<TService>`): handles base URLs, credentials (Basic Auth and optional `x-api-key` developer gateway key), JSON serialization, and HTTP operations.
+- **Circuit breaker strategy factory** (`ICircuitBreakerStrategyFactory<TService>`): wraps upstream operations with specific circuit keys:
+  - `KrdsService`:
+    - `GetHoldingAsync` &rarr; `"get-holding-from-krds"`
+    - `SearchHoldingsAsync` &rarr; `"search-holdings-from-krds"`
+    - `GetUserAccountAsync` &rarr; `"get-user-account-from-krds"`
+    - `EnsureUserAccountAsync` &rarr; `"ensure-user-account-in-krds"`
+  - `CadsService`:
+    - `GetAnimalDetailsAsync` &rarr; `"get-animal-details-from-cads"`
+    - `GetAnimalsPagedAsync` &rarr; `"get-animals-on-holding-paged-from-cads"`
+
+The circuit breaker strategy uses the HTTP policy created by `CircuitBreakerPolicyFactory.CreateHttpPolicy()` (`ICircuitBreakerPolicyFactory`) to determine which upstream HTTP errors and exceptions are captured by the circuit breakers, breaking the circuit to prevent cascading failures when upstream services are degraded or failing.
+
+Configurable circuit breaker settings and their defaults:
+
+| Setting | Description | Default |
+|---|---|---|
+| `CircuitBreakerConsecutiveFailureThreshold` | Number of consecutive captured failures before the circuit opens | `5` (`appsettings.json`) |
+| `CircuitBreakerFailureRatio` | Failure ratio (0.0 – 1.0) threshold during the sampling window | `0.5` (50%) |
+| `CircuitBreakerSamplingDuration` | Time window in milliseconds over which failure metrics are evaluated | `30000` (30s) |
+| `CircuitBreakerDurationOfBreak` | Duration in milliseconds that the circuit stays open before transitioning to half-open | `30000` (30s) |
+| `CircuitBreakerMinimumThroughput` | Minimum number of calls within the sampling window required before ratio thresholds apply | `10` |
+
+When a circuit breaker is open, calls fail fast by throwing a `CircuitBreakerOpenException` (matching `exception.IsCircuitBreakerOpen()`), which `ApiExceptionHandler` catches and converts into a `503 Service Unavailable` response.
+
+### Global exception handling
+
+Global exceptions are processed centrally by `ApiExceptionHandler`, an implementation of ASP.NET Core's `IExceptionHandler`:
+
+- **RFC 7807 Problem Details**: Unhandled exceptions are converted into standard `ProblemDetails` JSON responses with appropriate HTTP status codes:
+  - `400 Bad Request`: `BusinessRuleException`, `ReferenceRuleException`, `RequestValidationException`, `ArgumentException`.
+  - `403 Forbidden`: `UnauthorizedAccessException`.
+  - `404 Not Found`: `NotFoundException`, `EntityNotFoundException`, `ExistenceRuleException`.
+  - `409 Conflict`: `ConflictException`, `ConflictRuleException`.
+  - `503 Service Unavailable`: `ServiceUnavailableException`, and any exception where the circuit breaker is open (`exception.IsCircuitBreakerOpen()`, such as `CircuitBreakerOpenException`).
+  - `500 Internal Server Error`: All other unhandled exceptions.
+- **Correlation and Traceability**: Re-applies the `x-cdp-request-id` response header and includes `correlationId` and `traceId` extension properties in the problem response body.
+- **Structured Logging**: Enriches the Serilog `LogContext` with `CorrelationId`, `TraceId`, `Path` (using route templates rather than raw paths to avoid logging sensitive data), and `StatusCode`. Client errors (`< 500`) are logged as warnings, while server errors (`>= 500`, including `503` when the circuit breaker is open) are logged as errors with full exception details.
+
 ### Data
 
 The API uses Postgres. In CDP it connects to Aurora with IAM authentication, using separate
@@ -364,7 +407,7 @@ secret must be set as secrets in the CDP portal for every deployed environment.
 | `KrdsApi__CircuitBreakerFailureRatio` | Failure ratio threshold for KRDS circuit breaker | `0.5` |
 | `KrdsApi__CircuitBreakerSamplingDuration` | Sampling duration in ms for KRDS circuit breaker | `30000` |
 | `KrdsApi__CircuitBreakerDurationOfBreak` | Duration of break in ms for KRDS circuit breaker | `30000` |
-| `KrdsApi__CircuitBreakerMinimumThroughput` | Minimum throughput for KRDS circuit breaker | `2` |
+| `KrdsApi__CircuitBreakerMinimumThroughput` | Minimum throughput for KRDS circuit breaker | `10` |
 | `CadsApi__BaseUrl` | CADS base URL, with trailing slash | `http://lis-fake-service/cads/` |
 | `CadsApi__ClientId` | CADS Basic client ID | empty |
 | `CadsApi__ClientSecret` | Secret. CADS Basic client secret | empty |
@@ -376,7 +419,7 @@ secret must be set as secrets in the CDP portal for every deployed environment.
 | `CadsApi__CircuitBreakerFailureRatio` | Failure ratio threshold for CADS circuit breaker | `0.5` |
 | `CadsApi__CircuitBreakerSamplingDuration` | Sampling duration in ms for CADS circuit breaker | `30000` |
 | `CadsApi__CircuitBreakerDurationOfBreak` | Duration of break in ms for CADS circuit breaker | `30000` |
-| `CadsApi__CircuitBreakerMinimumThroughput` | Minimum throughput for CADS circuit breaker | `2` |
+| `CadsApi__CircuitBreakerMinimumThroughput` | Minimum throughput for CADS circuit breaker | `10` |
 | `CadsDataPatch__BucketName` | S3 bucket for the temporary CADS data patch | empty |
 | `ApiKeyAuthentication__Keys__0` | Secret. Accepted inbound API key | none |
 | `ApiKeyAuthentication__Keys__1` | Secret. Optional second key for rotation | none |

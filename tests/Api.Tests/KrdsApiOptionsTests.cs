@@ -29,7 +29,7 @@ public class KrdsApiOptionsTests
         Assert.Null(options.CircuitBreakerFailureRatio);
         Assert.Equal(30_000, options.CircuitBreakerSamplingDuration);
         Assert.Equal(30_000, options.CircuitBreakerDurationOfBreak);
-        Assert.Equal(2, options.CircuitBreakerMinimumThroughput);
+        Assert.Equal(10, options.CircuitBreakerMinimumThroughput);
     }
 
     [Fact]
@@ -129,7 +129,7 @@ public class KrdsApiOptionsTests
         Assert.Equal(0.5, options.CircuitBreakerFailureRatio);
         Assert.Equal(30_000, options.CircuitBreakerSamplingDuration);
         Assert.Equal(30_000, options.CircuitBreakerDurationOfBreak);
-        Assert.Equal(2, options.CircuitBreakerMinimumThroughput);
+        Assert.Equal(10, options.CircuitBreakerMinimumThroughput);
     }
 
     [Fact]
@@ -154,6 +154,6 @@ public class KrdsApiOptionsTests
         Assert.Equal(0.5, options.CircuitBreakerFailureRatio);
         Assert.Equal(30_000, options.CircuitBreakerSamplingDuration);
         Assert.Equal(30_000, options.CircuitBreakerDurationOfBreak);
-        Assert.Equal(2, options.CircuitBreakerMinimumThroughput);
+        Assert.Equal(10, options.CircuitBreakerMinimumThroughput);
     }
 }

@@ -72,19 +72,27 @@ public sealed partial class KrdsService : IKrdsService
 
         try
         {
-            var response = await restStrategyFactory
-                .BuildRestStrategy()
+            return await circuitBreakerStrategyFactory
+                .BuildCircuitBreakerStrategy()
+                .WithCircuitKey("get-holding-from-krds")
                 .WithCancellationToken(cancellationToken)
-                .WithTimeout(options.Value.GetHoldingDetailsTimeout)
-                .WithActionDescription("Get holding details")
-                .WithResourceUrl($"api/v2/holdings/{county}/{parish}/{holding}")
-                .WithGet()
-                .ExecuteAndTransform<KrdsHolding, HoldingDetailedResponse>(krdsHolding =>
-                    ToHoldingDetailedResponse(cph, krdsHolding));
+                .WithAction(async ct =>
+                {
+                    var response = await restStrategyFactory
+                        .BuildRestStrategy()
+                        .WithCancellationToken(ct)
+                        .WithTimeout(options.Value.GetHoldingDetailsTimeout)
+                        .WithActionDescription("Get holding details")
+                        .WithResourceUrl($"api/v2/holdings/{county}/{parish}/{holding}")
+                        .WithGet()
+                        .ExecuteAndTransform<KrdsHolding, HoldingDetailedResponse>(krdsHolding =>
+                            ToHoldingDetailedResponse(cph, krdsHolding));
 
-            LogRetrievedHoldingDetails(cph);
+                    LogRetrievedHoldingDetails(cph);
 
-            return response;
+                    return response;
+                })
+                .Execute<HoldingDetailedResponse>();
         }
         catch (RestResponseException ex) when (ex.IsNotFound())
         {
@@ -106,31 +114,40 @@ public sealed partial class KrdsService : IKrdsService
 
         try
         {
-            var response = await restStrategyFactory
-                .BuildRestStrategy()
+            return await circuitBreakerStrategyFactory
+                .BuildCircuitBreakerStrategy()
+                .WithCircuitKey("search-holdings-from-krds")
                 .WithCancellationToken(cancellationToken)
-                .WithTimeout(options.Value.SearchHoldingsTimeout)
-                .WithActionDescription("Search holdings")
-                .WithRequestValidation(() => holdingSearchRequestValidator.ValidateAsync(request, cancellationToken))
-                .WithResourceUrl("api/v2/holdings")
-                .WithGet()
-                .WithQueryParameter(() => !string.IsNullOrWhiteSpace(request.Search), "search", request.Search!)
-                .WithQueryParameter(
-                    () => request.Page.HasValue,
-                    "page",
-                    request.Page?.ToString(CultureInfo.InvariantCulture)!)
-                .WithQueryParameter(
-                    () => request.PageSize.HasValue,
-                    "pageSize",
-                    request.PageSize?.ToString(CultureInfo.InvariantCulture)!)
-                .WithQueryParameter(() => !string.IsNullOrWhiteSpace(request.Sort), "sort", request.Sort!)
-                .WithQueryParameter(() => !string.IsNullOrWhiteSpace(request.Order), "order", request.Order!)
-                .ExecuteAndTransform<KrdsPaginatedResult<KrdsHolding>, PaginatedResponse<HoldingResponse>>(
-                    ToPaginatedHoldingsResponse);
+                .WithAction(async ct =>
+                {
+                    var response = await restStrategyFactory
+                        .BuildRestStrategy()
+                        .WithCancellationToken(ct)
+                        .WithTimeout(options.Value.SearchHoldingsTimeout)
+                        .WithActionDescription("Search holdings")
+                        .WithRequestValidation(() =>
+                            holdingSearchRequestValidator.ValidateAsync(request, ct))
+                        .WithResourceUrl("api/v2/holdings")
+                        .WithGet()
+                        .WithQueryParameter(() => !string.IsNullOrWhiteSpace(request.Search), "search", request.Search!)
+                        .WithQueryParameter(
+                            () => request.Page.HasValue,
+                            "page",
+                            request.Page?.ToString(CultureInfo.InvariantCulture)!)
+                        .WithQueryParameter(
+                            () => request.PageSize.HasValue,
+                            "pageSize",
+                            request.PageSize?.ToString(CultureInfo.InvariantCulture)!)
+                        .WithQueryParameter(() => !string.IsNullOrWhiteSpace(request.Sort), "sort", request.Sort!)
+                        .WithQueryParameter(() => !string.IsNullOrWhiteSpace(request.Order), "order", request.Order!)
+                        .ExecuteAndTransform<KrdsPaginatedResult<KrdsHolding>, PaginatedResponse<HoldingResponse>>(
+                            ToPaginatedHoldingsResponse);
 
-            LogRetrievedHoldings(response.Items.Count, response.Page, response.TotalPages);
+                    LogRetrievedHoldings(response.Items.Count, response.Page, response.TotalPages);
 
-            return response;
+                    return response;
+                })
+                .Execute<PaginatedResponse<HoldingResponse>>();
         }
         catch (RestResponseException ex) when (ex.IsBadRequest())
         {
@@ -150,19 +167,27 @@ public sealed partial class KrdsService : IKrdsService
 
         try
         {
-            var response = await restStrategyFactory
-                .BuildRestStrategy()
+            return await circuitBreakerStrategyFactory
+                .BuildCircuitBreakerStrategy()
+                .WithCircuitKey("get-user-account-from-krds")
                 .WithCancellationToken(cancellationToken)
-                .WithTimeout(options.Value.GetUserAccountTimeout)
-                .WithActionDescription("Get user account")
-                .WithResourceUrl($"api/v2/user-accounts/{Uri.EscapeDataString(subject)}")
-                .WithGet()
-                .ExecuteAndTransform<KrdsUserAccount, UserDetailsResponse>(account =>
-                    ToUserDetailsResponse(subject, account));
+                .WithAction(async ct =>
+                {
+                    var response = await restStrategyFactory
+                        .BuildRestStrategy()
+                        .WithCancellationToken(ct)
+                        .WithTimeout(options.Value.GetUserAccountTimeout)
+                        .WithActionDescription("Get user account")
+                        .WithResourceUrl($"api/v2/user-accounts/{Uri.EscapeDataString(subject)}")
+                        .WithGet()
+                        .ExecuteAndTransform<KrdsUserAccount, UserDetailsResponse>(account =>
+                            ToUserDetailsResponse(subject, account));
 
-            LogRetrievedUserAccount(response.Cphs.Count);
+                    LogRetrievedUserAccount(response.Cphs.Count);
 
-            return response;
+                    return response;
+                })
+                .Execute<UserDetailsResponse>();
         }
         catch (RestResponseException ex) when (ex.IsNotFound())
         {
@@ -180,24 +205,32 @@ public sealed partial class KrdsService : IKrdsService
         CreateUserRequest request,
         CancellationToken cancellationToken = default)
     {
-        var payload = ToEnsureUserAccountRequest(request);
-
         try
         {
-            var response = await restStrategyFactory
-                .BuildRestStrategy()
+            return await circuitBreakerStrategyFactory
+                .BuildCircuitBreakerStrategy()
+                .WithCircuitKey("ensure-user-account-in-krds")
                 .WithCancellationToken(cancellationToken)
-                .WithTimeout(options.Value.EnsureUserAccountTimeout)
-                .WithActionDescription("Ensure user account")
-                .WithResourceUrl("api/v2/user-accounts")
-                .WithPost()
-                .WithPayload(payload)
-                .ExecuteAndTransform<KrdsUserAccount, UserDetailsResponse>(account =>
-                    ToUserDetailsResponse(payload.Sub, account));
+                .WithAction(async ct =>
+                {
+                    var payload = ToEnsureUserAccountRequest(request);
 
-            LogEnsuredUserAccount(response.Cphs.Count);
+                    var response = await restStrategyFactory
+                        .BuildRestStrategy()
+                        .WithCancellationToken(ct)
+                        .WithTimeout(options.Value.EnsureUserAccountTimeout)
+                        .WithActionDescription("Ensure user account")
+                        .WithResourceUrl("api/v2/user-accounts")
+                        .WithPost()
+                        .WithPayload(payload)
+                        .ExecuteAndTransform<KrdsUserAccount, UserDetailsResponse>(account =>
+                            ToUserDetailsResponse(payload.Sub, account));
 
-            return response;
+                    LogEnsuredUserAccount(response.Cphs.Count);
+
+                    return response;
+                })
+                .Execute<UserDetailsResponse>();
         }
         catch (RestResponseException ex) when (ex.IsBadRequest() ||
                                                ex.IsUnprocessableEntity())
