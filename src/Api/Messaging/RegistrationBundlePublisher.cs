@@ -36,7 +36,8 @@ public partial class RegistrationBundlePublisher(
         if (string.IsNullOrWhiteSpace(options.RegistrationBundleQueueUrl))
         {
             LogRegistrationBundleQueueIsNotConfigured(message.SubmissionId);
-            throw new ServiceUnavailableException("The registration bundle queue is not configured.",
+            throw new ServiceUnavailableException(
+                "The registration bundle queue is not configured.",
                 new InvalidOperationException("AWS:RegistrationBundleQueueUrl is not set."));
         }
 

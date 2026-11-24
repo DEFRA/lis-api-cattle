@@ -68,6 +68,10 @@ public class ApiExceptionHandlerTests
             "Service Unavailable", "https://httpstatuses.com/503"
         },
         {
+            typeof(CircuitBreakerOpenException), StatusCodes.Status503ServiceUnavailable,
+            "Service Unavailable", "https://httpstatuses.com/503"
+        },
+        {
             typeof(InvalidOperationException), StatusCodes.Status500InternalServerError,
             "Internal Server Error", "https://httpstatuses.com/500"
         },
@@ -172,6 +176,67 @@ public class ApiExceptionHandlerTests
 
         Assert.Equal("corr-598", problem.RootElement.GetProperty("correlationId").GetString());
         Assert.Equal("trace-1", problem.RootElement.GetProperty("traceId").GetString());
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_MapsCircuitBreakerOpenException_ToServiceUnavailableProblemDetails()
+    {
+        // Arrange
+        const string detail = "Circuit breaker is open.";
+        var exception = new CircuitBreakerOpenException(detail);
+        var context = new DefaultHttpContext
+        {
+            TraceIdentifier = "trace-cb",
+            Request = { Path = "/v1/test/cb", Headers = { [TraceHeaders.CdpRequestId] = "corr-cb" } },
+            Response = { Body = new MemoryStream() },
+        };
+
+        context.Features.Set<IExceptionHandlerFeature>(new ExceptionHandlerFeature
+        {
+            Error = exception,
+            Endpoint = new RouteEndpoint(
+                _ => Task.CompletedTask,
+                RoutePatternFactory.Parse("/v{version:apiVersion}/test/cb"),
+                0,
+                EndpointMetadataCollection.Empty,
+                "cb"),
+            Path = "/v1/test/cb",
+        });
+
+        var sink = new CapturingSink();
+        await using var serilog = new LoggerConfiguration().Enrich.FromLogContext().WriteTo.Sink(sink).CreateLogger();
+        using var factory = new SerilogLoggerFactory(serilog);
+
+        var handler = new ApiExceptionHandler(factory.CreateLogger<ApiExceptionHandler>());
+
+        // Act
+        var handled = await handler.TryHandleAsync(context, exception, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(handled);
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, context.Response.StatusCode);
+        Assert.Equal("corr-cb", context.Response.Headers[TraceHeaders.CdpRequestId].ToString());
+
+        context.Response.Body.Position = 0;
+
+        using var problem = await JsonDocument.ParseAsync(
+            context.Response.Body,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, problem.RootElement.GetProperty("status").GetInt32());
+        Assert.Equal("Service Unavailable", problem.RootElement.GetProperty("title").GetString());
+        Assert.Equal("https://httpstatuses.com/503", problem.RootElement.GetProperty("type").GetString());
+        Assert.Equal(detail, problem.RootElement.GetProperty("detail").GetString());
+        Assert.Equal("/v1/test/cb", problem.RootElement.GetProperty("instance").GetString());
+        Assert.Equal("corr-cb", problem.RootElement.GetProperty("correlationId").GetString());
+        Assert.Equal("trace-cb", problem.RootElement.GetProperty("traceId").GetString());
+
+        var logEvent = Assert.Single(sink.Events);
+        Assert.Equal(LogEventLevel.Error, logEvent.Level);
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, ((ScalarValue)logEvent.Properties["StatusCode"]).Value);
+        Assert.Equal("corr-cb", ((ScalarValue)logEvent.Properties["CorrelationId"]).Value);
+        Assert.Equal("trace-cb", ((ScalarValue)logEvent.Properties["TraceId"]).Value);
+        Assert.Equal("/v{version:apiVersion}/test/cb", ((ScalarValue)logEvent.Properties["Path"]).Value);
     }
 
     [Theory]

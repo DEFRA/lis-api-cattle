@@ -16,7 +16,7 @@
     <PackageVersion Include="Defra.Lis.Database" Version="0.0.3" />
     <PackageVersion Include="Defra.Lis.Entities" Version="0.0.3" />
     <PackageVersion Include="Defra.Lis.Postgres" Version="0.0.3" />
-    <PackageVersion Include="Defra.Livestock.Sdk.Api.Strategies" Version="0.0.14-lreg-980-alpha.2.101" />
+    <PackageVersion Include="Defra.Livestock.Sdk.Api.Strategies" Version="0.0.14" />
     <PackageVersion Include="Elastic.CommonSchema.Serilog" Version="9.0.0" />
     <PackageVersion Include="FluentValidation" Version="12.2.0" />
     <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.2.0" />

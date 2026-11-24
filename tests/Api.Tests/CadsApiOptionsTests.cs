@@ -28,7 +28,7 @@ public class CadsApiOptionsTests
         Assert.Null(options.CircuitBreakerFailureRatio);
         Assert.Equal(30_000, options.CircuitBreakerSamplingDuration);
         Assert.Equal(30_000, options.CircuitBreakerDurationOfBreak);
-        Assert.Equal(2, options.CircuitBreakerMinimumThroughput);
+        Assert.Equal(10, options.CircuitBreakerMinimumThroughput);
     }
 
     [Fact]
@@ -69,10 +69,7 @@ public class CadsApiOptionsTests
     {
         var options = new CadsApiOptions
         {
-            BaseUrl = "http://localhost:3000/cads/",
-            ClientId = "client",
-            ClientSecret = "secret",
-            PageSize = 500,
+            BaseUrl = "http://localhost:3000/cads/", ClientId = "client", ClientSecret = "secret", PageSize = 500,
         };
 
         var context = new ValidationContext(options);
@@ -90,12 +87,7 @@ public class CadsApiOptionsTests
     [InlineData("http://localhost:3000/cads/", "client", "")]
     public void Validation_Fails_WhenRequiredFieldsAreEmpty(string baseUrl, string clientId, string clientSecret)
     {
-        var options = new CadsApiOptions
-        {
-            BaseUrl = baseUrl,
-            ClientId = clientId,
-            ClientSecret = clientSecret,
-        };
+        var options = new CadsApiOptions { BaseUrl = baseUrl, ClientId = clientId, ClientSecret = clientSecret, };
 
         var context = new ValidationContext(options);
         var validationResults = new List<ValidationResult>();
@@ -114,10 +106,7 @@ public class CadsApiOptionsTests
     {
         var options = new CadsApiOptions
         {
-            BaseUrl = "http://localhost:3000/cads/",
-            ClientId = "client",
-            ClientSecret = "secret",
-            PageSize = pageSize,
+            BaseUrl = "http://localhost:3000/cads/", ClientId = "client", ClientSecret = "secret", PageSize = pageSize,
         };
 
         var context = new ValidationContext(options);
@@ -149,7 +138,7 @@ public class CadsApiOptionsTests
         Assert.Equal(0.5, options.CircuitBreakerFailureRatio);
         Assert.Equal(30_000, options.CircuitBreakerSamplingDuration);
         Assert.Equal(30_000, options.CircuitBreakerDurationOfBreak);
-        Assert.Equal(2, options.CircuitBreakerMinimumThroughput);
+        Assert.Equal(10, options.CircuitBreakerMinimumThroughput);
     }
 
     [Fact]
@@ -173,6 +162,6 @@ public class CadsApiOptionsTests
         Assert.Equal(0.5, options.CircuitBreakerFailureRatio);
         Assert.Equal(30_000, options.CircuitBreakerSamplingDuration);
         Assert.Equal(30_000, options.CircuitBreakerDurationOfBreak);
-        Assert.Equal(2, options.CircuitBreakerMinimumThroughput);
+        Assert.Equal(10, options.CircuitBreakerMinimumThroughput);
     }
 }

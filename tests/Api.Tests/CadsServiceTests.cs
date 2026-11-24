@@ -28,14 +28,17 @@ public class CadsServiceTests
 
     private static readonly CadsApiOptions Options = new()
     {
-        BaseUrl = "http://fake-service.test/cads/", ClientId = TestClient, ClientSecret = TestPassphrase, PageSize = 2,
+        BaseUrl = "http://fake-service.test/cads/",
+        ClientId = TestClient,
+        ClientSecret = TestPassphrase,
+        PageSize = 2,
+        CircuitBreakerConsecutiveFailureThreshold = 5,
     };
 
     private static readonly CadsDataPatchOptions DataPatchOptions = new() { BucketName = "cads-data-patches", };
 
     private readonly StubHttpMessageHandler handler = new();
     private readonly Mock<ICadsDataPatchStore> dataPatchStore = new();
-    private readonly Mock<ICircuitBreakerStrategyFactory<CadsService>> circuitBreakerStrategyFactory = new();
 
     public CadsServiceTests()
     {
@@ -998,13 +1001,38 @@ public class CadsServiceTests
 
     private CadsService CreateService(
         CadsDataPatchOptions? dataPatchOptions = null,
-        CadsApiOptions? apiOptions = null) => new(
-        RestStrategyTestFactory.Create<CadsService>(
+        CadsApiOptions? apiOptions = null,
+        ICircuitBreakerStrategyFactory<CadsService>? cbStrategyFactory = null)
+    {
+        var options = apiOptions ?? Options;
+        if (options.CircuitBreakerConsecutiveFailureThreshold is null && options.CircuitBreakerFailureRatio is null)
+        {
+            options = new CadsApiOptions
+            {
+                BaseUrl = options.BaseUrl,
+                ClientId = options.ClientId,
+                ClientSecret = options.ClientSecret,
+                PageSize = options.PageSize,
+                GatewayApiKey = options.GatewayApiKey,
+                GetAnimalsOnHoldingTimeout = options.GetAnimalsOnHoldingTimeout,
+                GetAnimalDetailsTimeout = options.GetAnimalDetailsTimeout,
+                CircuitBreakerConsecutiveFailureThreshold = 5,
+                CircuitBreakerSamplingDuration = options.CircuitBreakerSamplingDuration,
+                CircuitBreakerDurationOfBreak = options.CircuitBreakerDurationOfBreak,
+                CircuitBreakerMinimumThroughput = options.CircuitBreakerMinimumThroughput,
+            };
+        }
+
+        var provider = RestStrategyTestFactory.CreateServiceProvider(
             handler,
-            services => services.AddSingleton(Microsoft.Extensions.Options.Options.Create(apiOptions ?? Options))),
-        circuitBreakerStrategyFactory.Object,
-        Microsoft.Extensions.Options.Options.Create(apiOptions ?? Options),
-        Microsoft.Extensions.Options.Options.Create(dataPatchOptions ?? DataPatchOptions),
-        dataPatchStore.Object,
-        NullLogger<CadsService>.Instance);
+            services => services.AddSingleton(Microsoft.Extensions.Options.Options.Create(options)));
+
+        return new CadsService(
+            provider.GetRequiredService<IRestStrategyFactory<CadsService>>(),
+            cbStrategyFactory ?? provider.GetRequiredService<ICircuitBreakerStrategyFactory<CadsService>>(),
+            Microsoft.Extensions.Options.Options.Create(options),
+            Microsoft.Extensions.Options.Options.Create(dataPatchOptions ?? DataPatchOptions),
+            dataPatchStore.Object,
+            NullLogger<CadsService>.Instance);
+    }
 }
