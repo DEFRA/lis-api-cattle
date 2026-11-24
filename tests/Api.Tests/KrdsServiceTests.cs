@@ -16,8 +16,10 @@ using Defra.Lis.Api.Validation;
 using Defra.Lis.Core.Exceptions;
 using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Exceptions;
 using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Operations;
+using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Operations.Resilience.CircuitBreaker;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using static System.Text.Encoding;
 using Convert = System.Convert;
 
@@ -1166,6 +1168,196 @@ public class KrdsServiceTests
 
         // Assert
         Assert.NotNull(user);
+    }
+
+    [Fact]
+    public async Task GetHoldingAsync_ThrowsCircuitBreakerOpenException_WhenCircuitBreakerIsOpen()
+    {
+        // Arrange
+        var cbFactoryMock = new Mock<ICircuitBreakerStrategyFactory<KrdsService>>();
+        var cbStrategyMock = new Mock<ICircuitBreakerStrategy<KrdsService>>();
+
+        cbFactoryMock.Setup(f => f.BuildCircuitBreakerStrategy()).Returns(cbStrategyMock.Object);
+        cbStrategyMock.Setup(s => s.WithCircuitKey("get-holding-from-krds")).Returns(cbStrategyMock.Object);
+        cbStrategyMock.Setup(s => s.WithCancellationToken(It.IsAny<CancellationToken>()))
+            .Returns(cbStrategyMock.Object);
+        cbStrategyMock.Setup(s => s.WithAction(It.IsAny<Func<CancellationToken, Task<HoldingDetailedResponse>>>()))
+            .Returns(cbStrategyMock.Object);
+        cbStrategyMock.Setup(s => s.Execute<HoldingDetailedResponse>())
+            .ThrowsAsync(new CircuitBreakerOpenException("Circuit is open"));
+
+        var service = CreateService(cbStrategyFactory: cbFactoryMock.Object);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<CircuitBreakerOpenException>(() =>
+            service.GetHoldingAsync("22", "001", "0001", TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task SearchHoldingsAsync_ThrowsCircuitBreakerOpenException_WhenCircuitBreakerIsOpen()
+    {
+        // Arrange
+        var cbFactoryMock = new Mock<ICircuitBreakerStrategyFactory<KrdsService>>();
+        var cbStrategyMock = new Mock<ICircuitBreakerStrategy<KrdsService>>();
+
+        cbFactoryMock.Setup(f => f.BuildCircuitBreakerStrategy()).Returns(cbStrategyMock.Object);
+        cbStrategyMock.Setup(s => s.WithCircuitKey("search-holdings-from-krds")).Returns(cbStrategyMock.Object);
+        cbStrategyMock.Setup(s => s.WithCancellationToken(It.IsAny<CancellationToken>()))
+            .Returns(cbStrategyMock.Object);
+        cbStrategyMock
+            .Setup(s => s.WithAction(It.IsAny<Func<CancellationToken, Task<PaginatedResponse<HoldingResponse>>>>()))
+            .Returns(cbStrategyMock.Object);
+        cbStrategyMock.Setup(s => s.Execute<PaginatedResponse<HoldingResponse>>())
+            .ThrowsAsync(new CircuitBreakerOpenException("Circuit is open"));
+
+        var service = CreateService(cbStrategyFactory: cbFactoryMock.Object);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<CircuitBreakerOpenException>(() =>
+            service.SearchHoldingsAsync(new HoldingSearchRequest(), TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task GetUserAccountAsync_ThrowsCircuitBreakerOpenException_WhenCircuitBreakerIsOpen()
+    {
+        // Arrange
+        var cbFactoryMock = new Mock<ICircuitBreakerStrategyFactory<KrdsService>>();
+        var cbStrategyMock = new Mock<ICircuitBreakerStrategy<KrdsService>>();
+
+        cbFactoryMock.Setup(f => f.BuildCircuitBreakerStrategy()).Returns(cbStrategyMock.Object);
+        cbStrategyMock.Setup(s => s.WithCircuitKey("get-user-account-from-krds")).Returns(cbStrategyMock.Object);
+        cbStrategyMock.Setup(s => s.WithCancellationToken(It.IsAny<CancellationToken>()))
+            .Returns(cbStrategyMock.Object);
+        cbStrategyMock.Setup(s => s.WithAction(It.IsAny<Func<CancellationToken, Task<UserDetailsResponse>>>()))
+            .Returns(cbStrategyMock.Object);
+        cbStrategyMock.Setup(s => s.Execute<UserDetailsResponse>())
+            .ThrowsAsync(new CircuitBreakerOpenException("Circuit is open"));
+
+        var service = CreateService(cbStrategyFactory: cbFactoryMock.Object);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<CircuitBreakerOpenException>(() =>
+            service.GetUserAccountAsync(OakfieldSubject, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task EnsureUserAccountAsync_ThrowsCircuitBreakerOpenException_WhenCircuitBreakerIsOpen()
+    {
+        // Arrange
+        var cbFactoryMock = new Mock<ICircuitBreakerStrategyFactory<KrdsService>>();
+        var cbStrategyMock = new Mock<ICircuitBreakerStrategy<KrdsService>>();
+
+        cbFactoryMock.Setup(f => f.BuildCircuitBreakerStrategy()).Returns(cbStrategyMock.Object);
+        cbStrategyMock.Setup(s => s.WithCircuitKey("ensure-user-account-in-krds")).Returns(cbStrategyMock.Object);
+        cbStrategyMock.Setup(s => s.WithCancellationToken(It.IsAny<CancellationToken>()))
+            .Returns(cbStrategyMock.Object);
+        cbStrategyMock.Setup(s => s.WithAction(It.IsAny<Func<CancellationToken, Task<UserDetailsResponse>>>()))
+            .Returns(cbStrategyMock.Object);
+        cbStrategyMock.Setup(s => s.Execute<UserDetailsResponse>())
+            .ThrowsAsync(new CircuitBreakerOpenException("Circuit is open"));
+
+        var service = CreateService(cbStrategyFactory: cbFactoryMock.Object);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<CircuitBreakerOpenException>(() =>
+            service.EnsureUserAccountAsync(OakfieldClaims(), TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task
+        EnsureUserAccountAsync_ThrowsCircuitBreakerOpenException_WhenConsecutiveFailuresTripCircuitBreaker()
+    {
+        // Arrange
+        handler
+            .RespondWith(HttpStatusCode.InternalServerError, "KRDS error")
+            .RespondWith(HttpStatusCode.InternalServerError, "KRDS error");
+
+        var options = new KrdsApiOptions
+        {
+            BaseUrl = Options.BaseUrl,
+            ClientId = Options.ClientId,
+            ClientSecret = Options.ClientSecret,
+            CircuitBreakerConsecutiveFailureThreshold = 2,
+            CircuitBreakerMinimumThroughput = 2,
+            CircuitBreakerSamplingDuration = 30_000,
+            CircuitBreakerDurationOfBreak = 30_000,
+        };
+
+        var service = CreateService(options);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<RestResponseException>(() =>
+            service.EnsureUserAccountAsync(OakfieldClaims(), TestContext.Current.CancellationToken));
+
+        await Assert.ThrowsAsync<RestResponseException>(() =>
+            service.EnsureUserAccountAsync(OakfieldClaims(), TestContext.Current.CancellationToken));
+
+        await Assert.ThrowsAsync<CircuitBreakerOpenException>(() =>
+            service.EnsureUserAccountAsync(OakfieldClaims(), TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task GetHoldingAsync_ThrowsCircuitBreakerOpenException_WhenConsecutiveFailuresTripCircuitBreaker()
+    {
+        // Arrange
+        handler
+            .RespondWith(HttpStatusCode.InternalServerError, "KRDS error")
+            .RespondWith(HttpStatusCode.InternalServerError, "KRDS error");
+
+        var options = new KrdsApiOptions
+        {
+            BaseUrl = Options.BaseUrl,
+            ClientId = Options.ClientId,
+            ClientSecret = Options.ClientSecret,
+            CircuitBreakerConsecutiveFailureThreshold = 2,
+            CircuitBreakerMinimumThroughput = 2,
+            CircuitBreakerSamplingDuration = 30_000,
+            CircuitBreakerDurationOfBreak = 30_000,
+        };
+
+        var service = CreateService(options);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<RestResponseException>(() =>
+            service.GetHoldingAsync("22", "001", "0001", TestContext.Current.CancellationToken));
+
+        await Assert.ThrowsAsync<RestResponseException>(() =>
+            service.GetHoldingAsync("22", "001", "0001", TestContext.Current.CancellationToken));
+
+        await Assert.ThrowsAsync<CircuitBreakerOpenException>(() =>
+            service.GetHoldingAsync("22", "001", "0001", TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task GetUserAccountAsync_ThrowsCircuitBreakerOpenException_WhenConsecutiveFailuresTripCircuitBreaker()
+    {
+        // Arrange
+        handler
+            .RespondWith(HttpStatusCode.InternalServerError, "KRDS error")
+            .RespondWith(HttpStatusCode.InternalServerError, "KRDS error");
+
+        var options = new KrdsApiOptions
+        {
+            BaseUrl = Options.BaseUrl,
+            ClientId = Options.ClientId,
+            ClientSecret = Options.ClientSecret,
+            CircuitBreakerConsecutiveFailureThreshold = 2,
+            CircuitBreakerMinimumThroughput = 2,
+            CircuitBreakerSamplingDuration = 30_000,
+            CircuitBreakerDurationOfBreak = 30_000,
+        };
+
+        var service = CreateService(options);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<RestResponseException>(() =>
+            service.GetUserAccountAsync(OakfieldSubject, TestContext.Current.CancellationToken));
+
+        await Assert.ThrowsAsync<RestResponseException>(() =>
+            service.GetUserAccountAsync(OakfieldSubject, TestContext.Current.CancellationToken));
+
+        await Assert.ThrowsAsync<CircuitBreakerOpenException>(() =>
+            service.GetUserAccountAsync(OakfieldSubject, TestContext.Current.CancellationToken));
     }
 
     private static CreateUserRequest OakfieldClaims() => new()

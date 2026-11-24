@@ -14,6 +14,7 @@ using Defra.Lis.Api.Tests.Upstream;
 using Defra.Lis.Core.Exceptions;
 using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Exceptions;
 using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Operations;
+using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Operations.Resilience.CircuitBreaker;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -1039,6 +1040,122 @@ public class CadsServiceTests
 
         // Assert
         Assert.Equal(EarTag, details.EarTag);
+    }
+
+    [Fact]
+    public async Task GetAnimalDetailsAsync_ThrowsCircuitBreakerOpenException_WhenCircuitBreakerIsOpen()
+    {
+        // Arrange
+        var cbFactoryMock = new Mock<ICircuitBreakerStrategyFactory<CadsService>>();
+        var cbStrategyMock = new Mock<ICircuitBreakerStrategy<CadsService>>();
+
+        cbFactoryMock.Setup(f => f.BuildCircuitBreakerStrategy()).Returns(cbStrategyMock.Object);
+        cbStrategyMock.Setup(s => s.WithCircuitKey("get-animal-details-from-cads")).Returns(cbStrategyMock.Object);
+        cbStrategyMock.Setup(s => s.WithCancellationToken(It.IsAny<CancellationToken>()))
+            .Returns(cbStrategyMock.Object);
+        cbStrategyMock.Setup(s => s.WithAction(It.IsAny<Func<CancellationToken, Task<CadsAnimalDetailResponse>>>()))
+            .Returns(cbStrategyMock.Object);
+        cbStrategyMock.Setup(s => s.Execute<CadsAnimalDetailResponse>())
+            .ThrowsAsync(new CircuitBreakerOpenException("Circuit is open"));
+
+        var service = CreateService(cbStrategyFactory: cbFactoryMock.Object);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<CircuitBreakerOpenException>(() =>
+            service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken));
+
+        dataPatchStore.Verify(
+            s => s.GetAnimalDetailsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task GetCattleByCphAsync_ThrowsCircuitBreakerOpenException_WhenCircuitBreakerIsOpen()
+    {
+        // Arrange
+        var cbFactoryMock = new Mock<ICircuitBreakerStrategyFactory<CadsService>>();
+        var cbStrategyMock = new Mock<ICircuitBreakerStrategy<CadsService>>();
+
+        cbFactoryMock.Setup(f => f.BuildCircuitBreakerStrategy()).Returns(cbStrategyMock.Object);
+        cbStrategyMock.Setup(s => s.WithCircuitKey("get-animals-on-holding-paged-from-cads"))
+            .Returns(cbStrategyMock.Object);
+        cbStrategyMock.Setup(s => s.WithCancellationToken(It.IsAny<CancellationToken>()))
+            .Returns(cbStrategyMock.Object);
+        cbStrategyMock.Setup(s => s.WithAction(It.IsAny<Func<CancellationToken, Task<CadsAnimalsOnHolding>>>()))
+            .Returns(cbStrategyMock.Object);
+        cbStrategyMock.Setup(s => s.Execute<CadsAnimalsOnHolding>())
+            .ThrowsAsync(new CircuitBreakerOpenException("Circuit is open"));
+
+        var service = CreateService(cbStrategyFactory: cbFactoryMock.Object);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<CircuitBreakerOpenException>(() =>
+            service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task
+        GetAnimalDetailsAsync_ThrowsCircuitBreakerOpenException_WhenConsecutiveFailuresTripCircuitBreaker()
+    {
+        // Arrange
+        handler
+            .RespondWith(HttpStatusCode.InternalServerError, "CADS error")
+            .RespondWith(HttpStatusCode.InternalServerError, "CADS error");
+
+        var options = new CadsApiOptions
+        {
+            BaseUrl = Options.BaseUrl,
+            ClientId = Options.ClientId,
+            ClientSecret = Options.ClientSecret,
+            CircuitBreakerConsecutiveFailureThreshold = 2,
+            CircuitBreakerMinimumThroughput = 2,
+            CircuitBreakerSamplingDuration = 30_000,
+            CircuitBreakerDurationOfBreak = 30_000,
+        };
+
+        var service = CreateService(apiOptions: options);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<RestResponseException>(() =>
+            service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken));
+
+        await Assert.ThrowsAsync<RestResponseException>(() =>
+            service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken));
+
+        await Assert.ThrowsAsync<CircuitBreakerOpenException>(() =>
+            service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task GetCattleByCphAsync_ThrowsCircuitBreakerOpenException_WhenConsecutiveFailuresTripCircuitBreaker()
+    {
+        // Arrange
+        handler
+            .RespondWith(HttpStatusCode.InternalServerError, "CADS error")
+            .RespondWith(HttpStatusCode.InternalServerError, "CADS error");
+
+        var options = new CadsApiOptions
+        {
+            BaseUrl = Options.BaseUrl,
+            ClientId = Options.ClientId,
+            ClientSecret = Options.ClientSecret,
+            CircuitBreakerConsecutiveFailureThreshold = 2,
+            CircuitBreakerMinimumThroughput = 2,
+            CircuitBreakerSamplingDuration = 30_000,
+            CircuitBreakerDurationOfBreak = 30_000,
+        };
+
+        var service = CreateService(apiOptions: options);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<RestResponseException>(() =>
+            service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken));
+
+        await Assert.ThrowsAsync<RestResponseException>(() =>
+            service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken));
+
+        await Assert.ThrowsAsync<CircuitBreakerOpenException>(() =>
+            service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken));
     }
 
     private static string Parent(string relationship, string earTag) => $$"""
