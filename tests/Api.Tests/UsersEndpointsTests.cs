@@ -33,6 +33,7 @@ public class UsersEndpointsTests
     [Fact]
     public async Task GetUserDetails_MatchesRouteAndReturnsUserDetails()
     {
+        // Arrange
         krdsService.Setup(s => s.GetUserAccountAsync(Subject, It.IsAny<CancellationToken>()))
                    .ReturnsAsync(new UserDetailsResponse
                    {
@@ -43,8 +44,10 @@ public class UsersEndpointsTests
                    });
         await using var app = await StartAppAsync();
 
+        // Act
         var response = await app.GetAuthenticatedTestClient().GetAsync($"/v1/users/{Subject}", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var result = await response.Content.ReadFromJsonAsync<UserDetailsResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(result);
@@ -59,12 +62,15 @@ public class UsersEndpointsTests
     [Fact]
     public async Task GetUserDetails_DecodesTheSubjectBeforeCallingTheService()
     {
+        // Arrange
         krdsService.Setup(s => s.GetUserAccountAsync("idp|user 1", It.IsAny<CancellationToken>()))
                    .ReturnsAsync(new UserDetailsResponse { Subject = "idp|user 1" });
         await using var app = await StartAppAsync();
 
+        // Act
         var response = await app.GetAuthenticatedTestClient().GetAsync("/v1/users/idp%7Cuser%201", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         krdsService.Verify(s => s.GetUserAccountAsync("idp|user 1", It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -72,12 +78,15 @@ public class UsersEndpointsTests
     [Fact]
     public async Task GetUserDetails_ReturnsProblemDetails404_WhenTheSubjectIsUnknown()
     {
+        // Arrange
         krdsService.Setup(s => s.GetUserAccountAsync(Subject, It.IsAny<CancellationToken>()))
                    .ThrowsAsync(new NotFoundException("The user was not found."));
         await using var app = await StartAppAsync();
 
+        // Act
         var response = await app.GetAuthenticatedTestClient().GetAsync($"/v1/users/{Subject}", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var detail = problem.RootElement.GetProperty("detail").GetString();
@@ -88,24 +97,30 @@ public class UsersEndpointsTests
     [Fact]
     public async Task GetUserDetails_ReturnsProblemDetails400_WhenTheSubjectIsRejected()
     {
+        // Arrange
         krdsService.Setup(s => s.GetUserAccountAsync("not-a-subject", It.IsAny<CancellationToken>()))
                    .ThrowsAsync(new ArgumentException("The subject is not valid."));
         await using var app = await StartAppAsync();
 
+        // Act
         var response = await app.GetAuthenticatedTestClient().GetAsync("/v1/users/not-a-subject", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
     public async Task MapUserEndpoints_DescribesTheRouteForOpenApi()
     {
+        // Arrange
         await using var app = await StartAppAsync();
 
+        // Act
         var endpoint = app.Services.GetRequiredService<EndpointDataSource>().Endpoints
             .OfType<RouteEndpoint>()
             .Single(e => e.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName == OpenApiMetadata.GetUserDetailsRoute.Name);
 
+        // Assert
         Assert.Equal("/v{version:apiVersion}/users/{subject}", endpoint.RoutePattern.RawText);
         Assert.Equal(OpenApiMetadata.GetUserDetailsRoute.Summary, endpoint.Metadata.GetMetadata<IEndpointSummaryMetadata>()?.Summary);
         Assert.Equal(OpenApiMetadata.GetUserDetailsRoute.Description, endpoint.Metadata.GetMetadata<IEndpointDescriptionMetadata>()?.Description);
@@ -117,6 +132,7 @@ public class UsersEndpointsTests
     [Fact]
     public async Task CreateUser_PassesTheClaimsToTheServiceAndReturnsUserDetails()
     {
+        // Arrange
         CreateUserRequest? received = null;
         krdsService.Setup(s => s.EnsureUserAccountAsync(It.IsAny<CreateUserRequest>(), It.IsAny<CancellationToken>()))
                    .Callback<CreateUserRequest, CancellationToken>((request, _) => received = request)
@@ -130,8 +146,10 @@ public class UsersEndpointsTests
                    });
         await using var app = await StartAppAsync();
 
+        // Act
         var response = await app.GetAuthenticatedTestClient().PostAsync("/v1/users", OakfieldClaimsBody(), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var result = await response.Content.ReadFromJsonAsync<UserDetailsResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(result);
@@ -147,25 +165,31 @@ public class UsersEndpointsTests
     [Fact]
     public async Task CreateUser_ReturnsProblemDetails400_WhenTheClaimsAreRejected()
     {
+        // Arrange
         krdsService.Setup(s => s.EnsureUserAccountAsync(It.IsAny<CreateUserRequest>(), It.IsAny<CancellationToken>()))
                    .ThrowsAsync(new ArgumentException("Claim 'email' is required."));
         await using var app = await StartAppAsync();
 
+        // Act
         var response = await app.GetAuthenticatedTestClient().PostAsync("/v1/users", OakfieldClaimsBody(), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
     public async Task CreateUser_ReturnsProblemDetails400_WhenTheBodyIsJsonNull()
     {
+        // Arrange
         await using var app = await StartAppAsync();
 
+        // Act
         var response = await app.GetAuthenticatedTestClient().PostAsync(
             "/v1/users",
             new StringContent("null", System.Text.Encoding.UTF8, "application/json"),
             TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         krdsService.Verify(s => s.EnsureUserAccountAsync(It.IsAny<CreateUserRequest>(), It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -173,24 +197,30 @@ public class UsersEndpointsTests
     [Fact]
     public async Task CreateUser_ReturnsProblemDetails409_WhenTheEmailBelongsToAnotherAccount()
     {
+        // Arrange
         krdsService.Setup(s => s.EnsureUserAccountAsync(It.IsAny<CreateUserRequest>(), It.IsAny<CancellationToken>()))
                    .ThrowsAsync(new ConflictException("The email address is already associated with a different user account."));
         await using var app = await StartAppAsync();
 
+        // Act
         var response = await app.GetAuthenticatedTestClient().PostAsync("/v1/users", OakfieldClaimsBody(), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
 
     [Fact]
     public async Task CreateUser_ReturnsProblemDetails503_WhenKrdsIsTemporarilyUnavailable()
     {
+        // Arrange
         krdsService.Setup(s => s.EnsureUserAccountAsync(It.IsAny<CreateUserRequest>(), It.IsAny<CancellationToken>()))
                    .ThrowsAsync(new ServiceUnavailableException("KRDS is temporarily unavailable, try again later.", new HttpRequestException()));
         await using var app = await StartAppAsync();
 
+        // Act
         var response = await app.GetAuthenticatedTestClient().PostAsync("/v1/users", OakfieldClaimsBody(), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         Assert.Contains("Service Unavailable", body);
@@ -199,12 +229,15 @@ public class UsersEndpointsTests
     [Fact]
     public async Task MapUserEndpoints_DescribesTheCreateRouteForOpenApi()
     {
+        // Arrange
         await using var app = await StartAppAsync();
 
+        // Act
         var endpoint = app.Services.GetRequiredService<EndpointDataSource>().Endpoints
             .OfType<RouteEndpoint>()
             .Single(e => e.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName == OpenApiMetadata.CreateUserRoute.Name);
 
+        // Assert
         Assert.Equal("/v{version:apiVersion}/users/", endpoint.RoutePattern.RawText);
         Assert.Equal(["POST"], endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()!.HttpMethods);
         Assert.Equal(OpenApiMetadata.CreateUserRoute.Summary, endpoint.Metadata.GetMetadata<IEndpointSummaryMetadata>()?.Summary);

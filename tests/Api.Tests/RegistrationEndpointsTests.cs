@@ -29,6 +29,7 @@ public class RegistrationEndpointsTests
     [Fact]
     public void MapRegistrationEndpoints_MapsGroupAndRouteSuccessfully()
     {
+        // Arrange
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
         builder.Services.AddRouting();
@@ -37,14 +38,17 @@ public class RegistrationEndpointsTests
         var app = builder.Build();
         app.UseTestServiceToServiceAuthentication();
 
+        // Act
         var returned = app.MapRegistrationEndpoints();
 
+        // Assert
         Assert.NotNull(returned);
     }
 
     [Fact]
     public async Task CreateRegistrationBundle_QueuesTheBundleAndReturnsItsIdWithoutStoringIt()
     {
+        // Arrange
         var publisher = new Mock<IRegistrationBundlePublisher>();
         RegistrationBundleMessage? published = null;
         publisher
@@ -53,8 +57,10 @@ public class RegistrationEndpointsTests
             .Returns(Task.CompletedTask);
         await using var app = await StartAppAsync(publisher.Object);
 
+        // Act
         var response = await PostWithCorrelationIdAsync(app, ValidRequest(), "corr-925");
 
+        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var result = await response.Content.ReadFromJsonAsync<RegistrationAcceptedResponse>(TestContext.Current.CancellationToken);
         Assert.NotNull(result);
@@ -72,28 +78,34 @@ public class RegistrationEndpointsTests
     [Fact]
     public async Task CreateRegistrationBundle_GivesEveryBundleItsOwnId()
     {
+        // Arrange
         var publisher = new Mock<IRegistrationBundlePublisher>();
         await using var app = await StartAppAsync(publisher.Object);
 
+        // Act
         var first = await (await PostWithCorrelationIdAsync(app, ValidRequest(), "corr-1")).Content
             .ReadFromJsonAsync<RegistrationAcceptedResponse>(TestContext.Current.CancellationToken);
         var second = await (await PostWithCorrelationIdAsync(app, ValidRequest(), "corr-2")).Content
             .ReadFromJsonAsync<RegistrationAcceptedResponse>(TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.NotEqual(first!.Id, second!.Id);
     }
 
     [Fact]
     public async Task CreateRegistrationBundle_WhenSqsIsUnavailable_Returns503NotA500()
     {
+        // Arrange
         var publisher = new Mock<IRegistrationBundlePublisher>();
         publisher
             .Setup(p => p.PublishAsync(It.IsAny<RegistrationBundleMessage>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new ServiceUnavailableException("The registration bundle could not be queued.", new HttpRequestException("connection refused")));
         await using var app = await StartAppAsync(publisher.Object);
 
+        // Act
         var response = await PostWithCorrelationIdAsync(app, ValidRequest(), "corr-503");
 
+        // Assert
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         var problem = await response.Content.ReadFromJsonAsync<Microsoft.AspNetCore.Mvc.ProblemDetails>(TestContext.Current.CancellationToken);
         Assert.NotNull(problem);
@@ -115,6 +127,7 @@ public class RegistrationEndpointsTests
     [InlineData("type", "")]
     public async Task CreateRegistrationBundle_WhenShapeIsInvalid_Returns400ProblemDetailsAndQueuesNothing(string field, string value)
     {
+        // Arrange
         var request = ValidRequest();
         var animal = request.Animals[0];
         switch (field)
@@ -132,8 +145,10 @@ public class RegistrationEndpointsTests
         var publisher = new Mock<IRegistrationBundlePublisher>();
         await using var app = await StartAppAsync(publisher.Object);
 
+        // Act
         var response = await PostWithCorrelationIdAsync(app, request, "corr-400");
 
+        // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var problem = await response.Content.ReadFromJsonAsync<Microsoft.AspNetCore.Http.HttpValidationProblemDetails>(TestContext.Current.CancellationToken);
         Assert.NotNull(problem);
@@ -144,13 +159,16 @@ public class RegistrationEndpointsTests
     [Fact]
     public async Task CreateRegistrationBundle_WhenThereAreNoAnimals_Returns400AndQueuesNothing()
     {
+        // Arrange
         var request = ValidRequest();
         request.Animals.Clear();
         var publisher = new Mock<IRegistrationBundlePublisher>();
         await using var app = await StartAppAsync(publisher.Object);
 
+        // Act
         var response = await PostWithCorrelationIdAsync(app, request, "corr-400");
 
+        // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         publisher.Verify(p => p.PublishAsync(It.IsAny<RegistrationBundleMessage>(), It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -162,6 +180,7 @@ public class RegistrationEndpointsTests
     [InlineData("Female")]
     public async Task CreateRegistrationBundle_AcceptsTheSexValuesTheJourneyUses(string sex)
     {
+        // Arrange
         var request = ValidRequest();
         request.Animals[0].Sex = sex;
         request.Animals[0].Dam.SurrogateDamEarTag = string.Empty;
@@ -169,14 +188,17 @@ public class RegistrationEndpointsTests
         var publisher = new Mock<IRegistrationBundlePublisher>();
         await using var app = await StartAppAsync(publisher.Object);
 
+        // Act
         var response = await PostWithCorrelationIdAsync(app, request, "corr-sex");
 
+        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
     public async Task ValidateRegistrationBundle_CallsValidationServiceAndReturnsResult()
     {
+        // Arrange
         var mockValidationService = new Mock<Validation.ISubmissionValidationService>();
         var submissionId = Guid.NewGuid();
         var expectedResult = new Validation.SubmissionValidationResult
@@ -200,11 +222,13 @@ public class RegistrationEndpointsTests
         app.MapRegistrationEndpoints();
         await app.StartAsync(TestContext.Current.CancellationToken);
 
+        // Act
         var response = await app.GetAuthenticatedTestClient().PostAsync(
             $"/v1/registrations/{submissionId}/validate",
             null,
             TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var result = await response.Content.ReadFromJsonAsync<Validation.SubmissionValidationResult>(TestContext.Current.CancellationToken);
         Assert.NotNull(result);
@@ -230,6 +254,7 @@ public class RegistrationEndpointsTests
         string section,
         string property)
     {
+        // Arrange
         var payload = System.Text.Json.Nodes.JsonNode.Parse(
             """
             {
@@ -264,11 +289,13 @@ public class RegistrationEndpointsTests
         var publisher = new Mock<IRegistrationBundlePublisher>();
         await using var app = await StartAppAsync(publisher.Object);
 
+        // Act
         var response = await app.GetAuthenticatedTestClient().PostAsJsonAsync(
             "/v1/registrations/",
             payload,
             TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         publisher.Verify(
             p => p.PublishAsync(It.IsAny<RegistrationBundleMessage>(), It.IsAny<CancellationToken>()),
@@ -278,6 +305,7 @@ public class RegistrationEndpointsTests
     [Fact]
     public async Task ValidateRegistrationBundle_WhenSubmissionIsUnknown_ReturnsProblemDetails404()
     {
+        // Arrange
         var submissionId = Guid.NewGuid();
         var mockValidationService = new Mock<Validation.ISubmissionValidationService>();
         mockValidationService
@@ -295,11 +323,13 @@ public class RegistrationEndpointsTests
         app.MapRegistrationEndpoints();
         await app.StartAsync(TestContext.Current.CancellationToken);
 
+        // Act
         var response = await app.GetAuthenticatedTestClient().PostAsync(
             $"/v1/registrations/{submissionId}/validate",
             null,
             TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         var problem = await response.Content.ReadFromJsonAsync<Microsoft.AspNetCore.Mvc.ProblemDetails>(TestContext.Current.CancellationToken);
         Assert.NotNull(problem);

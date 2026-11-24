@@ -29,16 +29,20 @@ public class StrategyConfigurationTests
     [Fact]
     public void AddStrategies_ReturnsSameServiceCollectionInstance()
     {
+        // Arrange
         var services = new ServiceCollection();
 
+        // Act
         var returned = services.AddStrategies();
 
+        // Assert
         Assert.Same(services, returned);
     }
 
     [Fact]
     public void AddStrategies_RegistersRestAndCircuitBreakerStrategyFactories()
     {
+        // Arrange
         var services = CreateServices(
             new CadsApiOptions
             {
@@ -50,10 +54,12 @@ public class StrategyConfigurationTests
             },
             new StubHttpMessageHandler());
 
+        // Act
         services.AddStrategies();
 
         using var provider = services.BuildServiceProvider();
 
+        // Assert
         Assert.NotNull(provider.GetService<IRestStrategyFactory<CadsService>>());
         Assert.NotNull(provider.GetService<IRestStrategyFactory<KrdsService>>());
         Assert.NotNull(provider.GetService<ICircuitBreakerStrategyFactory<CadsService>>());
@@ -63,6 +69,7 @@ public class StrategyConfigurationTests
     [Fact]
     public async Task AddStrategies_ConfiguresCadsRestStrategyFactory_WithExpectedOptionsAndAuth()
     {
+        // Arrange
         var handler = new StubHttpMessageHandler().RespondWith(HttpStatusCode.OK, """{"status":"ok"}""");
 
         var cadsOptions = new CadsApiOptions
@@ -82,6 +89,7 @@ public class StrategyConfigurationTests
 
         var strategy = factory.BuildRestStrategy();
 
+        // Act
         var result = await strategy
             .WithActionDescription("Test CADS")
             .WithResourceUrl("api/v1/test")
@@ -89,6 +97,7 @@ public class StrategyConfigurationTests
             .WithGet()
             .Execute<object>();
 
+        // Assert
         Assert.NotNull(result);
 
         var request = Assert.Single(handler.Requests);
@@ -105,6 +114,7 @@ public class StrategyConfigurationTests
     [Fact]
     public async Task AddStrategies_ConfiguresCadsRestStrategyFactory_WithoutApiKey_WhenGatewayKeyIsEmpty()
     {
+        // Arrange
         var handler = new StubHttpMessageHandler().RespondWith(HttpStatusCode.OK, """{"status":"ok"}""");
 
         var cadsOptions = new CadsApiOptions
@@ -125,6 +135,7 @@ public class StrategyConfigurationTests
 
         var strategy = factory.BuildRestStrategy();
 
+        // Act
         await strategy
             .WithActionDescription("Test CADS without API key")
             .WithResourceUrl("api/v1/test")
@@ -132,6 +143,7 @@ public class StrategyConfigurationTests
             .WithGet()
             .Execute<object>();
 
+        // Assert
         var request = Assert.Single(handler.Requests);
 
         Assert.False(request.Headers.Contains("x-api-key"));
@@ -140,6 +152,7 @@ public class StrategyConfigurationTests
     [Fact]
     public async Task AddStrategies_ConfiguresKrdsRestStrategyFactory_WithExpectedOptionsAndAuth()
     {
+        // Arrange
         var handler = new StubHttpMessageHandler().RespondWith(HttpStatusCode.OK, """{"status":"ok"}""");
 
         var krdsOptions = new KrdsApiOptions
@@ -160,6 +173,7 @@ public class StrategyConfigurationTests
 
         var strategy = factory.BuildRestStrategy();
 
+        // Act
         var result = await strategy
             .WithActionDescription("Test KRDS")
             .WithResourceUrl("api/v2/test")
@@ -167,6 +181,7 @@ public class StrategyConfigurationTests
             .WithGet()
             .Execute<object>();
 
+        // Assert
         Assert.NotNull(result);
 
         var request = Assert.Single(handler.Requests);
@@ -183,6 +198,7 @@ public class StrategyConfigurationTests
     [Fact]
     public async Task AddStrategies_ConfiguresKrdsRestStrategyFactory_WithoutApiKey_WhenGatewayKeyIsEmpty()
     {
+        // Arrange
         var handler = new StubHttpMessageHandler().RespondWith(HttpStatusCode.OK, """{"status":"ok"}""");
 
         var krdsOptions = new KrdsApiOptions
@@ -202,6 +218,7 @@ public class StrategyConfigurationTests
 
         var strategy = factory.BuildRestStrategy();
 
+        // Act
         await strategy
             .WithActionDescription("Test KRDS without API key")
             .WithResourceUrl("api/v2/test")
@@ -209,6 +226,7 @@ public class StrategyConfigurationTests
             .WithGet()
             .Execute<object>();
 
+        // Assert
         var request = Assert.Single(handler.Requests);
 
         Assert.False(request.Headers.Contains("x-api-key"));
@@ -217,6 +235,7 @@ public class StrategyConfigurationTests
     [Fact]
     public void AddStrategies_ConfiguresCircuitBreakerFactory_ForCadsAndKrds_WithThresholds()
     {
+        // Arrange
         var cadsOptions = new CadsApiOptions
         {
             BaseUrl = "http://cads.test/",
@@ -250,9 +269,11 @@ public class StrategyConfigurationTests
         var cadsCbFactory = provider.GetRequiredService<ICircuitBreakerStrategyFactory<CadsService>>();
         var krdsCbFactory = provider.GetRequiredService<ICircuitBreakerStrategyFactory<KrdsService>>();
 
+        // Act
         var cadsCbStrategy = cadsCbFactory.BuildCircuitBreakerStrategy();
         var krdsCbStrategy = krdsCbFactory.BuildCircuitBreakerStrategy();
 
+        // Assert
         Assert.NotNull(cadsCbStrategy);
         Assert.NotNull(krdsCbStrategy);
     }
@@ -260,6 +281,7 @@ public class StrategyConfigurationTests
     [Fact]
     public void AddStrategies_ConfiguresCircuitBreakerFactory_WhenThresholdsAreZeroOrNull()
     {
+        // Arrange
         var cadsOptions = new CadsApiOptions
         {
             BaseUrl = "http://cads.test/",
@@ -287,9 +309,11 @@ public class StrategyConfigurationTests
         var cadsCbFactory = provider.GetRequiredService<ICircuitBreakerStrategyFactory<CadsService>>();
         var krdsCbFactory = provider.GetRequiredService<ICircuitBreakerStrategyFactory<KrdsService>>();
 
+        // Act
         var cadsCbStrategy = cadsCbFactory.BuildCircuitBreakerStrategy();
         var krdsCbStrategy = krdsCbFactory.BuildCircuitBreakerStrategy();
 
+        // Assert
         Assert.NotNull(cadsCbStrategy);
         Assert.NotNull(krdsCbStrategy);
     }

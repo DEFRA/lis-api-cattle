@@ -138,12 +138,15 @@ public class KrdsServiceTests
     [Fact]
     public async Task GetHoldingAsync_CallsHoldingsEndpointWithBasicAuth()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, OakfieldHolding);
 
         var service = CreateService();
 
+        // Act
         await service.GetHoldingAsync("22", "001", "0001", TestContext.Current.CancellationToken);
 
+        // Assert
         var request = Assert.Single(handler.Requests);
 
         Assert.Equal(HttpMethod.Get, request.Method);
@@ -157,12 +160,15 @@ public class KrdsServiceTests
     [Fact]
     public async Task GetHoldingAsync_SendsGatewayApiKeyAlongsideBasicAuthWhenConfigured()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, OakfieldHolding);
 
         var service = CreateService(WithGatewayKey());
 
+        // Act
         await service.GetHoldingAsync("22", "001", "0001", TestContext.Current.CancellationToken);
 
+        // Assert
         var request = Assert.Single(handler.Requests);
         Assert.Equal(TestGatewayKey, Assert.Single(request.Headers.GetValues("x-api-key")));
         Assert.Equal("Basic", request.Headers.Authorization!.Scheme);
@@ -171,12 +177,15 @@ public class KrdsServiceTests
     [Fact]
     public async Task GetHoldingAsync_SendsNoGatewayApiKeyWhenNotConfigured()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, OakfieldHolding);
 
         var service = CreateService();
 
+        // Act
         await service.GetHoldingAsync("22", "001", "0001", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.False(Assert.Single(handler.Requests).Headers.Contains("x-api-key"));
     }
 
@@ -185,24 +194,30 @@ public class KrdsServiceTests
     [InlineData("   ")]
     public async Task GetHoldingAsync_SendsNoGatewayApiKeyWhenGatewayApiKeyIsBlank(string gatewayApiKey)
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, OakfieldHolding);
 
         var service = CreateService(WithGatewayKey(gatewayApiKey));
 
+        // Act
         await service.GetHoldingAsync("22", "001", "0001", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.False(Assert.Single(handler.Requests).Headers.Contains("x-api-key"));
     }
 
     [Fact]
     public async Task SearchHoldingsAsync_SendsGatewayApiKeyWhenConfigured()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, PaginatedHoldingsResponse);
 
         var service = CreateService(WithGatewayKey());
 
+        // Act
         await service.SearchHoldingsAsync(new HoldingSearchRequest(), TestContext.Current.CancellationToken);
 
+        // Assert
         var request = Assert.Single(handler.Requests);
 
         Assert.Equal(TestGatewayKey, Assert.Single(request.Headers.GetValues("x-api-key")));
@@ -212,72 +227,90 @@ public class KrdsServiceTests
     [Fact]
     public async Task SearchHoldingsAsync_SendsNoGatewayApiKeyWhenNotConfigured()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, PaginatedHoldingsResponse);
 
         var service = CreateService();
 
+        // Act
         await service.SearchHoldingsAsync(new HoldingSearchRequest(), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.False(Assert.Single(handler.Requests).Headers.Contains("x-api-key"));
     }
 
     [Fact]
     public async Task GetUserAccountAsync_SendsGatewayApiKeyWhenConfigured()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, OakfieldUserAccount);
 
         var service = CreateService(WithGatewayKey());
 
+        // Act
         await service.GetUserAccountAsync(OakfieldSubject, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(TestGatewayKey, Assert.Single(Assert.Single(handler.Requests).Headers.GetValues("x-api-key")));
     }
 
     [Fact]
     public async Task GetUserAccountAsync_SendsNoGatewayApiKeyWhenNotConfigured()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, OakfieldUserAccount);
 
         var service = CreateService();
 
+        // Act
         await service.GetUserAccountAsync(OakfieldSubject, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.False(Assert.Single(handler.Requests).Headers.Contains("x-api-key"));
     }
 
     [Fact]
     public async Task EnsureUserAccountAsync_SendsGatewayApiKeyWhenConfigured()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, OakfieldUserAccount);
 
         var service = CreateService(WithGatewayKey());
 
+        // Act
         await service.EnsureUserAccountAsync(OakfieldClaims(), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(TestGatewayKey, Assert.Single(Assert.Single(handler.Requests).Headers.GetValues("x-api-key")));
     }
 
     [Fact]
     public async Task EnsureUserAccountAsync_SendsNoGatewayApiKeyWhenNotConfigured()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, OakfieldUserAccount);
 
         var service = CreateService();
 
+        // Act
         await service.EnsureUserAccountAsync(OakfieldClaims(), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.False(Assert.Single(handler.Requests).Headers.Contains("x-api-key"));
     }
 
     [Fact]
     public async Task GetHoldingAsync_MapsHoldingDetailsWithoutKeeperContactDetails()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, OakfieldHolding);
 
         var service = CreateService();
 
+        // Act
         var holding = await service.GetHoldingAsync("22", "001", "0001", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal("22/001/0001", holding.Cph);
         Assert.Equal("Oakfield Farm", holding.Name);
         Assert.Equal("AH", holding.HoldingType);
@@ -321,6 +354,7 @@ public class KrdsServiceTests
     [Fact]
     public async Task SearchHoldingsAsync_CallsHoldingsEndpointWithBasicAuthAndQueryParameters()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, PaginatedHoldingsResponse);
         var service = CreateService();
 
@@ -331,8 +365,10 @@ public class KrdsServiceTests
             Sort: "asc",
             Order: "name");
 
+        // Act
         await service.SearchHoldingsAsync(request, TestContext.Current.CancellationToken);
 
+        // Assert
         var sentRequest = Assert.Single(handler.Requests);
 
         Assert.Equal(HttpMethod.Get, sentRequest.Method);
@@ -354,13 +390,17 @@ public class KrdsServiceTests
     [Fact]
     public async Task SearchHoldingsAsync_MapsPaginatedHoldingsWithoutAssociations()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, PaginatedHoldingsResponse);
 
         var service = CreateService();
 
         var request = new HoldingSearchRequest(Search: "Oakfield");
+
+        // Act
         var result = await service.SearchHoldingsAsync(request, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(1, result.Count);
         Assert.Equal(10, result.TotalCount);
         Assert.Equal(2, result.Page);
@@ -389,15 +429,18 @@ public class KrdsServiceTests
     [Fact]
     public async Task SearchHoldingsAsync_HandlesEmptyHoldingsResult()
     {
+        // Arrange
         handler.RespondWith(
             HttpStatusCode.OK,
             """{"count":0,"totalCount":0,"values":[],"page":1,"pageSize":10,"totalPages":0,"hasNextPage":false,"hasPreviousPage":false,"nextCursor":null}""");
 
         var service = CreateService();
 
+        // Act
         var result =
             await service.SearchHoldingsAsync(new HoldingSearchRequest(), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(0, result.Count);
         Assert.Equal(0, result.TotalCount);
         Assert.Empty(result.Items);
@@ -406,10 +449,12 @@ public class KrdsServiceTests
     [Fact]
     public async Task SearchHoldingsAsync_ThrowsArgumentException_WhenKrdsReturns400()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.BadRequest, """{"title":"Bad Request","status":400}""");
 
         var service = CreateService();
 
+        // Act & Assert
         await Assert.ThrowsAsync<ArgumentException>(() =>
             service.SearchHoldingsAsync(new HoldingSearchRequest(), TestContext.Current.CancellationToken));
     }
@@ -417,40 +462,49 @@ public class KrdsServiceTests
     [Fact]
     public async Task GetHoldingAsync_ReturnsEmptyCorrespondenceAddressWhenAllFieldsNull()
     {
+        // Arrange
         handler.RespondWith(
             HttpStatusCode.OK,
             """{"identifier":"22/099/0099","holdingType":"AH","name":null,"location":{"address":null,"correspondenceAddress":{"udprn":null,"addressLine1":null,"addressLine2":null,"postTown":null,"locality":null,"postcode":null,"country":null}},"associations":[],"allowedSpecies":[],"marks":[]}""");
         var service = CreateService();
 
+        // Act
         var holding = await service.GetHoldingAsync("22", "099", "0099", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Empty(holding.CorrespondenceAddress);
     }
 
     [Fact]
     public async Task GetHoldingAsync_ReturnsEmptyCorrespondenceAddressWhenAbsent()
     {
+        // Arrange
         handler.RespondWith(
             HttpStatusCode.OK,
             """{"identifier":"22/099/0099","holdingType":"AH","name":null,"location":{"address":null},"associations":[],"allowedSpecies":[],"marks":[]}""");
         var service = CreateService();
 
+        // Act
         var holding = await service.GetHoldingAsync("22", "099", "0099", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Empty(holding.CorrespondenceAddress);
     }
 
     [Fact]
     public async Task GetHoldingAsync_HandlesHoldingWithoutAddressOrAssociations()
     {
+        // Arrange
         handler.RespondWith(
             HttpStatusCode.OK,
             """{"identifier":"22/099/0099","holdingType":"AH","name":null,"location":null,"associations":[],"allowedSpecies":[],"marks":[]}""");
 
         var service = CreateService();
 
+        // Act
         var holding = await service.GetHoldingAsync("22", "099", "0099", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal("22/099/0099", holding.Cph);
         Assert.Null(holding.Name);
         Assert.Empty(holding.Address);
@@ -466,14 +520,17 @@ public class KrdsServiceTests
     [Fact]
     public async Task GetHoldingAsync_SetsActiveFalse_WhenStartDateIsInTheFuture()
     {
+        // Arrange
         handler.RespondWith(
             HttpStatusCode.OK,
             """{"identifier":"22/099/0099","holdingType":"AH","name":"Future Start Farm","startDate":"2099-01-01T00:00:00Z","endDate":null,"location":null,"associations":[],"allowedSpecies":[],"marks":[]}""");
 
         var service = CreateService();
 
+        // Act
         var holding = await service.GetHoldingAsync("22", "099", "0099", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal("22/099/0099", holding.Cph);
         Assert.Equal(DateTimeOffset.Parse("2099-01-01T00:00:00Z", CultureInfo.InvariantCulture), holding.StartDate);
         Assert.Null(holding.EndDate);
@@ -483,14 +540,17 @@ public class KrdsServiceTests
     [Fact]
     public async Task GetHoldingAsync_SetsActiveFalse_WhenEndDateIsInThePast()
     {
+        // Arrange
         handler.RespondWith(
             HttpStatusCode.OK,
             """{"identifier":"22/099/0099","holdingType":"AH","name":"Old Farm","startDate":"2010-01-01T00:00:00Z","endDate":"2020-01-01T00:00:00Z","location":null,"associations":[],"allowedSpecies":[],"marks":[]}""");
 
         var service = CreateService();
 
+        // Act
         var holding = await service.GetHoldingAsync("22", "099", "0099", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal("22/099/0099", holding.Cph);
         Assert.Equal(DateTimeOffset.Parse("2010-01-01T00:00:00Z", CultureInfo.InvariantCulture), holding.StartDate);
         Assert.Equal(DateTimeOffset.Parse("2020-01-01T00:00:00Z", CultureInfo.InvariantCulture), holding.EndDate);
@@ -500,14 +560,17 @@ public class KrdsServiceTests
     [Fact]
     public async Task GetHoldingAsync_SetsActiveTrue_WhenEndDateIsInTheFuture()
     {
+        // Arrange
         handler.RespondWith(
             HttpStatusCode.OK,
             """{"identifier":"22/099/0099","holdingType":"AH","name":"Future Farm","startDate":"2010-01-01T00:00:00Z","endDate":"2099-12-31T23:59:59Z","location":null,"associations":[],"allowedSpecies":[],"marks":[]}""");
 
         var service = CreateService();
 
+        // Act
         var holding = await service.GetHoldingAsync("22", "099", "0099", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal("22/099/0099", holding.Cph);
         Assert.Equal(DateTimeOffset.Parse("2010-01-01T00:00:00Z", CultureInfo.InvariantCulture), holding.StartDate);
         Assert.Equal(DateTimeOffset.Parse("2099-12-31T23:59:59Z", CultureInfo.InvariantCulture), holding.EndDate);
@@ -517,6 +580,7 @@ public class KrdsServiceTests
     [Fact]
     public async Task SearchHoldingsAsync_MapsActiveFlagCorrectly()
     {
+        // Arrange
         handler.RespondWith(
             HttpStatusCode.OK,
 #pragma warning disable SA1118
@@ -558,9 +622,11 @@ public class KrdsServiceTests
 
         var service = CreateService();
 
+        // Act
         var result =
             await service.SearchHoldingsAsync(new HoldingSearchRequest(), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(3, result.Count);
         Assert.False(result.Items[0].Active);
         Assert.False(result.Items[1].Active);
@@ -570,12 +636,14 @@ public class KrdsServiceTests
     [Fact]
     public async Task GetHoldingAsync_ThrowsNotFound_WhenKrdsReturns404()
     {
+        // Arrange
         handler.RespondWith(
             HttpStatusCode.NotFound,
             """{"title":"Not Found","status":404,"detail":"CPH not in the snapshot."}""");
 
         var service = CreateService();
 
+        // Act & Assert
         await Assert.ThrowsAsync<NotFoundException>(() =>
             service.GetHoldingAsync("22", "050", "0050", TestContext.Current.CancellationToken));
     }
@@ -583,10 +651,12 @@ public class KrdsServiceTests
     [Fact]
     public async Task GetHoldingAsync_ThrowsArgumentException_WhenKrdsReturns400()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.BadRequest, """{"title":"Bad Request","status":400}""");
 
         var service = CreateService();
 
+        // Act & Assert
         await Assert.ThrowsAsync<ArgumentException>(() =>
             service.GetHoldingAsync("22", "001", "0001", TestContext.Current.CancellationToken));
     }
@@ -602,23 +672,29 @@ public class KrdsServiceTests
         string parish,
         string holding)
     {
+        // Arrange
         var service = CreateService();
 
+        // Act & Assert
         await Assert.ThrowsAsync<ArgumentException>(() =>
             service.GetHoldingAsync(county, parish, holding, TestContext.Current.CancellationToken));
 
+        // Assert
         Assert.Empty(handler.Requests);
     }
 
     [Fact]
     public async Task GetUserAccountAsync_CallsUserAccountsEndpointWithBasicAuth()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, OakfieldUserAccount);
 
         var service = CreateService();
 
+        // Act
         await service.GetUserAccountAsync(OakfieldSubject, TestContext.Current.CancellationToken);
 
+        // Assert
         var request = Assert.Single(handler.Requests);
 
         Assert.Equal(HttpMethod.Get, request.Method);
@@ -634,12 +710,15 @@ public class KrdsServiceTests
     [Fact]
     public async Task GetUserAccountAsync_PercentEncodesTheSubject()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, OakfieldUserAccount);
 
         var service = CreateService();
 
+        // Act
         await service.GetUserAccountAsync("idp|user/1 2", TestContext.Current.CancellationToken);
 
+        // Assert
         var request = Assert.Single(handler.Requests);
         Assert.Equal("/krds/api/v2/user-accounts/idp%7Cuser%2F1%202", request.RequestUri!.AbsolutePath);
     }
@@ -647,12 +726,15 @@ public class KrdsServiceTests
     [Fact]
     public async Task GetUserAccountAsync_MapsUserDetailsAndCphs()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, OakfieldUserAccount);
 
         var service = CreateService();
 
+        // Act
         var user = await service.GetUserAccountAsync(OakfieldSubject, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(OakfieldSubject, user.Subject);
         Assert.Equal("oakfield.farmer@oakhill-farms.co.uk", user.Email);
         Assert.Equal("Oakfield", user.FirstName);
@@ -679,14 +761,17 @@ public class KrdsServiceTests
     [Fact]
     public async Task GetUserAccountAsync_HandlesAccountWithNullableFieldsUnset()
     {
+        // Arrange
         handler.RespondWith(
             HttpStatusCode.OK,
             $$"""{"id":"a1","subject":"{{OakfieldSubject}}","email":"new.keeper@example.com","firstName":null,"lastName":null,"displayName":null,"cphAssociations":[],"associationsRefreshedDate":null,"lastUpdatedDate":"2026-09-29T10:00:00Z"}""");
 
         var service = CreateService();
 
+        // Act
         var user = await service.GetUserAccountAsync(OakfieldSubject, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal("new.keeper@example.com", user.Email);
         Assert.Null(user.FirstName);
         Assert.Null(user.LastName);
@@ -697,15 +782,18 @@ public class KrdsServiceTests
     [Fact]
     public async Task GetUserAccountAsync_ThrowsNotFound_WhenKrdsReturns404()
     {
+        // Arrange
         handler.RespondWith(
             HttpStatusCode.NotFound,
             """{"title":"Not Found","status":404,"detail":"The subject is not recognised."}""");
 
         var service = CreateService();
 
+        // Act & Assert
         var exception = await Assert.ThrowsAsync<NotFoundException>(() =>
             service.GetUserAccountAsync(OakfieldSubject, TestContext.Current.CancellationToken));
 
+        // Assert
         // The message is logged and returned as the problem detail, so it must not carry the subject.
         Assert.DoesNotContain(OakfieldSubject, exception.ToString(), StringComparison.Ordinal);
     }
@@ -713,15 +801,18 @@ public class KrdsServiceTests
     [Fact]
     public async Task GetUserAccountAsync_ThrowsArgumentException_WhenKrdsReturns422()
     {
+        // Arrange
         handler.RespondWith(
             HttpStatusCode.UnprocessableEntity,
             """{"title":"Unprocessable Entity","status":422,"errors":{"subject":["subject must be a valid identity provider subject claim."]}}""");
 
         var service = CreateService();
 
+        // Act & Assert
         var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
             service.GetUserAccountAsync("not-a-uuid", TestContext.Current.CancellationToken));
 
+        // Assert
         Assert.DoesNotContain("not-a-uuid", exception.ToString(), StringComparison.Ordinal);
     }
 
@@ -732,13 +823,16 @@ public class KrdsServiceTests
     public async Task GetUserAccountAsync_DoesNotTranslateUpstreamAuthOrServerFailuresIntoClientErrors(
         HttpStatusCode statusCode)
     {
+        // Arrange
         handler.RespondWith(statusCode, """{"status":0}""");
 
         var service = CreateService();
 
+        // Act & Assert
         var exception = await Assert.ThrowsAnyAsync<Exception>(() =>
             service.GetUserAccountAsync(OakfieldSubject, TestContext.Current.CancellationToken));
 
+        // Assert
         // Anything else falls through the exception handler as a 500, not a client error or the caller's own 401/403.
         Assert.False(exception is ArgumentException or NotFoundException or UnauthorizedAccessException);
     }
@@ -748,23 +842,29 @@ public class KrdsServiceTests
     [InlineData("   ")]
     public async Task GetUserAccountAsync_RejectsBlankSubjectWithoutCallingUpstream(string subject)
     {
+        // Arrange
         var service = CreateService();
 
+        // Act & Assert
         await Assert.ThrowsAsync<ArgumentException>(() =>
             service.GetUserAccountAsync(subject, TestContext.Current.CancellationToken));
 
+        // Assert
         Assert.Empty(handler.Requests);
     }
 
     [Fact]
     public async Task EnsureUserAccountAsync_PostsTheClaimsToUserAccountsWithBasicAuth()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.Created, OakfieldUserAccount);
 
         var service = CreateService();
 
+        // Act
         await service.EnsureUserAccountAsync(OakfieldClaims(), TestContext.Current.CancellationToken);
 
+        // Assert
         var request = Assert.Single(handler.Requests);
 
         Assert.Equal(HttpMethod.Post, request.Method);
@@ -786,12 +886,15 @@ public class KrdsServiceTests
     [InlineData(HttpStatusCode.Created)]
     public async Task EnsureUserAccountAsync_MapsTheReturnedAccount(HttpStatusCode statusCode)
     {
+        // Arrange
         handler.RespondWith(statusCode, OakfieldUserAccount);
 
         var service = CreateService();
 
+        // Act
         var user = await service.EnsureUserAccountAsync(OakfieldClaims(), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(OakfieldSubject, user.Subject);
         Assert.Equal("oakfield.farmer@oakhill-farms.co.uk", user.Email);
         Assert.Equal("Oakfield Farmer", user.DisplayName);
@@ -801,6 +904,7 @@ public class KrdsServiceTests
     [Fact]
     public async Task EnsureUserAccountAsync_TrimsTheEmail()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, OakfieldUserAccount);
 
         var service = CreateService();
@@ -808,8 +912,10 @@ public class KrdsServiceTests
 
         claims.Email = "  oakfield.farmer@oakhill-farms.co.uk ";
 
+        // Act
         await service.EnsureUserAccountAsync(claims, TestContext.Current.CancellationToken);
 
+        // Assert
         using var body = JsonDocument.Parse(Assert.Single(handler.RequestBodies)!);
 
         Assert.Equal("oakfield.farmer@oakhill-farms.co.uk", body.RootElement.GetProperty("email").GetString());
@@ -830,18 +936,23 @@ public class KrdsServiceTests
         string? givenName,
         string? familyName)
     {
+        // Arrange
         var service = CreateService();
 
         var claims = new CreateUserRequest { Sub = sub, Email = email, GivenName = givenName, FamilyName = familyName };
 
+        // Act & Assert
         await Assert.ThrowsAsync<ArgumentException>(() =>
             service.EnsureUserAccountAsync(claims, TestContext.Current.CancellationToken));
+
+        // Assert
         Assert.Empty(handler.Requests);
     }
 
     [Fact]
     public async Task EnsureUserAccountAsync_RejectsOverlongClaimsWithoutCallingUpstream()
     {
+        // Arrange
         var service = CreateService();
         var tooLongName = OakfieldClaims();
         var tooLongEmail = OakfieldClaims();
@@ -849,12 +960,14 @@ public class KrdsServiceTests
         tooLongName.GivenName = new string('a', 257);
         tooLongEmail.Email = new string('a', 301) + "@oakhill-farms.co.uk"; // 321 characters
 
+        // Act & Assert
         await Assert.ThrowsAsync<ArgumentException>(() =>
             service.EnsureUserAccountAsync(tooLongName, TestContext.Current.CancellationToken));
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
             service.EnsureUserAccountAsync(tooLongEmail, TestContext.Current.CancellationToken));
 
+        // Assert
         Assert.Empty(handler.Requests);
     }
 
@@ -863,27 +976,32 @@ public class KrdsServiceTests
     [InlineData(HttpStatusCode.UnprocessableEntity)]
     public async Task EnsureUserAccountAsync_ThrowsArgumentException_WhenKrdsRejectsTheClaims(HttpStatusCode statusCode)
     {
+        // Arrange
         handler.RespondWith(
             statusCode,
             """{"title":"Unprocessable Entity","status":422,"errors":{"email":["email must not be null or blank."]}}""");
 
         var service = CreateService();
 
+        // Act & Assert
         var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
             service.EnsureUserAccountAsync(OakfieldClaims(), TestContext.Current.CancellationToken));
 
+        // Assert
         Assert.DoesNotContain(OakfieldSubject, exception.ToString(), StringComparison.Ordinal);
     }
 
     [Fact]
     public async Task EnsureUserAccountAsync_ThrowsConflict_WhenKrdsReturns409()
     {
+        // Arrange
         handler.RespondWith(
             HttpStatusCode.Conflict,
             """{"title":"Conflict","status":409,"detail":"The supplied email is already associated with a different account."}""");
 
         var service = CreateService();
 
+        // Act & Assert
         await Assert.ThrowsAsync<ConflictException>(() =>
             service.EnsureUserAccountAsync(OakfieldClaims(), TestContext.Current.CancellationToken));
     }
@@ -891,12 +1009,14 @@ public class KrdsServiceTests
     [Fact]
     public async Task EnsureUserAccountAsync_ThrowsServiceUnavailable_WhenKrdsReturns503()
     {
+        // Arrange
         handler.RespondWith(
             HttpStatusCode.ServiceUnavailable,
             """{"message":"CPH associations are not yet available. The SQLite read model cache is still loading."}""");
 
         var service = CreateService();
 
+        // Act & Assert
         await Assert.ThrowsAsync<ServiceUnavailableException>(() =>
             service.EnsureUserAccountAsync(OakfieldClaims(), TestContext.Current.CancellationToken));
     }
@@ -908,13 +1028,16 @@ public class KrdsServiceTests
     public async Task EnsureUserAccountAsync_DoesNotTranslateUpstreamAuthOrServerFailuresIntoClientErrors(
         HttpStatusCode statusCode)
     {
+        // Arrange
         handler.RespondWith(statusCode, """{"status":0}""");
 
         var service = CreateService();
 
+        // Act & Assert
         var exception = await Assert.ThrowsAnyAsync<Exception>(() =>
             service.EnsureUserAccountAsync(OakfieldClaims(), TestContext.Current.CancellationToken));
 
+        // Assert
         Assert.False(exception is ArgumentException or ConflictException or ServiceUnavailableException
             or UnauthorizedAccessException);
     }
@@ -927,20 +1050,25 @@ public class KrdsServiceTests
         int page,
         int pageSize)
     {
+        // Arrange
         var service = CreateService();
         var request = new HoldingSearchRequest(Page: page, PageSize: pageSize);
 
+        // Act & Assert
         await Assert.ThrowsAnyAsync<Exception>(() =>
             service.SearchHoldingsAsync(request, TestContext.Current.CancellationToken));
 
+        // Assert
         Assert.Empty(handler.Requests);
     }
 
     [Fact]
     public void KrdsApiOptions_DefaultsToSixtySecondTimeouts()
     {
+        // Act
         var options = new KrdsApiOptions();
 
+        // Assert
         Assert.Equal(60_000, options.GetHoldingDetailsTimeout);
         Assert.Equal(60_000, options.SearchHoldingsTimeout);
         Assert.Equal(60_000, options.GetUserAccountTimeout);
@@ -950,6 +1078,7 @@ public class KrdsServiceTests
     [Fact]
     public async Task GetHoldingAsync_UsesConfiguredTimeout()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, OakfieldHolding);
 
         var options = new KrdsApiOptions
@@ -962,14 +1091,17 @@ public class KrdsServiceTests
 
         var service = CreateService(options);
 
+        // Act
         var holding = await service.GetHoldingAsync("22", "001", "0001", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.NotNull(holding);
     }
 
     [Fact]
     public async Task SearchHoldingsAsync_UsesConfiguredTimeout()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, PaginatedHoldingsResponse);
 
         var options = new KrdsApiOptions
@@ -982,15 +1114,18 @@ public class KrdsServiceTests
 
         var service = CreateService(options);
 
+        // Act
         var response =
             await service.SearchHoldingsAsync(new HoldingSearchRequest(), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.NotNull(response);
     }
 
     [Fact]
     public async Task GetUserAccountAsync_UsesConfiguredTimeout()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, OakfieldUserAccount);
 
         var options = new KrdsApiOptions
@@ -1003,14 +1138,17 @@ public class KrdsServiceTests
 
         var service = CreateService(options);
 
+        // Act
         var user = await service.GetUserAccountAsync(OakfieldSubject, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.NotNull(user);
     }
 
     [Fact]
     public async Task EnsureUserAccountAsync_UsesConfiguredTimeout()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, OakfieldUserAccount);
 
         var options = new KrdsApiOptions
@@ -1023,8 +1161,10 @@ public class KrdsServiceTests
 
         var service = CreateService(options);
 
+        // Act
         var user = await service.EnsureUserAccountAsync(OakfieldClaims(), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.NotNull(user);
     }
 

@@ -18,15 +18,20 @@ public class CdpLoggingTests
     [Fact]
     public void RawUrlLoggers_ContainsSoapHttpClient()
     {
-        Assert.Contains(typeof(SoapHttpClient).FullName!, CdpLogging.RawUrlLoggers);
-        Assert.Contains(typeof(RestHttpClient).FullName!, CdpLogging.RawUrlLoggers);
-        Assert.Contains("Microsoft.AspNetCore.Hosting.Diagnostics", CdpLogging.RawUrlLoggers);
-        Assert.Contains("System.Net.Http.HttpClient", CdpLogging.RawUrlLoggers);
+        // Act
+        var rawUrlLoggers = CdpLogging.RawUrlLoggers;
+
+        // Assert
+        Assert.Contains(typeof(SoapHttpClient).FullName!, rawUrlLoggers);
+        Assert.Contains(typeof(RestHttpClient).FullName!, rawUrlLoggers);
+        Assert.Contains("Microsoft.AspNetCore.Hosting.Diagnostics", rawUrlLoggers);
+        Assert.Contains("System.Net.Http.HttpClient", rawUrlLoggers);
     }
 
     [Fact]
     public void Configuration_KeepsRawUrlLoggersAtWarning_EvenWhenSettingsLowerThem()
     {
+        // Arrange
         var settings = new Dictionary<string, string?> { ["Serilog:MinimumLevel:Default"] = "Verbose" };
 
         foreach (var source in CdpLogging.RawUrlLoggers)
@@ -42,10 +47,12 @@ public class CdpLoggingTests
         using var services = new ServiceCollection().AddHttpContextAccessor().BuildServiceProvider();
         var configuration = new LoggerConfiguration();
 
+        // Act
         CdpLogging.Configuration(context, services, configuration);
 
         using var logger = configuration.CreateLogger();
 
+        // Assert
         Assert.True(logger
             .ForContext(Serilog.Core.Constants.SourceContextPropertyName, "Defra.Lis.Api.Services.KrdsService")
             .IsEnabled(LogEventLevel.Verbose));
@@ -61,6 +68,7 @@ public class CdpLoggingTests
     [Fact]
     public void Configuration_OverridesSoapHttpClientLoggingToWarning()
     {
+        // Arrange
         var settings = new Dictionary<string, string?>
         {
             ["Serilog:MinimumLevel:Default"] = "Verbose",
@@ -76,6 +84,7 @@ public class CdpLoggingTests
 
         var configuration = new LoggerConfiguration();
 
+        // Act
         CdpLogging.Configuration(context, services, configuration);
 
         using var logger = configuration.CreateLogger();
@@ -84,6 +93,7 @@ public class CdpLoggingTests
             Serilog.Core.Constants.SourceContextPropertyName,
             typeof(SoapHttpClient).FullName!);
 
+        // Assert
         Assert.False(soapLogger.IsEnabled(LogEventLevel.Information));
         Assert.True(soapLogger.IsEnabled(LogEventLevel.Warning));
     }

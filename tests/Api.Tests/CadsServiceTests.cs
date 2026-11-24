@@ -50,14 +50,17 @@ public class CadsServiceTests
     [Fact]
     public async Task GetCattleByCphAsync_CallsAnimalsEndpointWithCphPagingAndBasicAuth()
     {
+        // Arrange
         handler.RespondWith(
             HttpStatusCode.OK,
             Page([Animal("UK200000000001", "Passport Produced")], page: 1, totalRecords: 1));
 
         var service = CreateService();
 
+        // Act
         var result = (await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken)).ToList();
 
+        // Assert
         var item = Assert.Single(handler.Requests);
 
         Assert.Equal(HttpMethod.Get, item.Method);
@@ -78,14 +81,17 @@ public class CadsServiceTests
     [Fact]
     public async Task GetCattleByCphAsync_MapsCadsAnimalToCattleResponse()
     {
+        // Arrange
         handler.RespondWith(
             HttpStatusCode.OK,
             Page([Animal("UK200000000001", "Passport Produced")], page: 1, totalRecords: 1));
 
         var service = CreateService();
 
+        // Act
         var animal = (await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken)).Single();
 
+        // Assert
         Assert.Equal("UK200000000001", animal.EarTag);
         Assert.Equal(new DateOnly(2023, 2, 1), animal.DateBirth);
         Assert.Equal(new DateOnly(2023, 2, 15), animal.DateOnCph);
@@ -100,6 +106,7 @@ public class CadsServiceTests
     [Fact]
     public async Task GetCattleByCphAsync_ReadsEveryPageUntilTotalRecordsAreReached()
     {
+        // Arrange
         handler
             .RespondWith(
                 HttpStatusCode.OK,
@@ -113,9 +120,11 @@ public class CadsServiceTests
 
         var service = CreateService();
 
+        // Act
         var result = (await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken))
             .Select(c => c.EarTag).ToList();
 
+        // Assert
         Assert.Equal(2, handler.Requests.Count);
         Assert.Contains("page=1&pageSize=2", handler.Requests[0].RequestUri!.Query);
         Assert.Contains("page=2&pageSize=2", handler.Requests[1].RequestUri!.Query);
@@ -125,6 +134,7 @@ public class CadsServiceTests
     [Fact]
     public async Task GetCattleByCphAsync_StopsWhenPageTimesPageSizeReachesTotalRecords()
     {
+        // Arrange
         handler
             .RespondWith(
                 HttpStatusCode.OK,
@@ -141,8 +151,10 @@ public class CadsServiceTests
 
         var service = CreateService();
 
+        // Act
         var result = await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(2, handler.Requests.Count);
         Assert.Equal(4, result.Count());
     }
@@ -150,6 +162,7 @@ public class CadsServiceTests
     [Fact]
     public async Task GetCattleByCphAsync_StopsOnAnEmptyPage()
     {
+        // Arrange
         handler
             .RespondWith(
                 HttpStatusCode.OK,
@@ -161,8 +174,10 @@ public class CadsServiceTests
 
         var service = CreateService();
 
+        // Act
         var result = await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(2, handler.Requests.Count);
         Assert.Equal(2, result.Count());
     }
@@ -170,6 +185,7 @@ public class CadsServiceTests
     [Fact]
     public async Task GetCattleByCphAsync_StopsAtMaxPages()
     {
+        // Arrange
         for (var i = 0; i < 101; i++)
         {
             handler.RespondWith(
@@ -179,14 +195,17 @@ public class CadsServiceTests
 
         var service = CreateService();
 
+        // Act
         await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(100, handler.Requests.Count);
     }
 
     [Fact]
     public async Task GetCattleByCphAsync_ReturnsEveryAnimalWithoutFilteringOnStatus()
     {
+        // Arrange
         handler.RespondWith(
             HttpStatusCode.OK,
             Page(
@@ -196,20 +215,25 @@ public class CadsServiceTests
 
         var service = CreateService();
 
+        // Act
         var result = (await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken)).ToList();
 
+        // Assert
         Assert.Equal(["Passport Produced", "Registered"], result.Select(c => c.Status));
     }
 
     [Fact]
     public async Task GetCattleByCphAsync_ReturnsEmpty_WhenHoldingHasNoAnimals()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, Page([], page: 1, totalRecords: 0));
 
         var service = CreateService();
 
+        // Act
         var result = await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Single(handler.Requests);
         Assert.Empty(result);
     }
@@ -217,10 +241,12 @@ public class CadsServiceTests
     [Fact]
     public async Task GetCattleByCphAsync_ThrowsNotFound_WhenCadsReturns404()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.NotFound, """{"title":"Not Found","status":404}""");
 
         var service = CreateService();
 
+        // Act & Assert
         await Assert.ThrowsAsync<NotFoundException>(() =>
             service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken));
     }
@@ -228,10 +254,12 @@ public class CadsServiceTests
     [Fact]
     public async Task GetCattleByCphAsync_PropagatesOtherUpstreamFailures()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.Unauthorized, """{"title":"Unauthorized","status":401}""");
 
         var service = CreateService();
 
+        // Act & Assert
         await Assert.ThrowsAsync<RestResponseException>(() =>
             service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken));
     }
@@ -239,8 +267,10 @@ public class CadsServiceTests
     [Fact]
     public async Task GetCattleByCphAsync_RejectsBlankCph()
     {
+        // Arrange
         var service = CreateService();
 
+        // Act & Assert
         await Assert.ThrowsAsync<ArgumentException>(() =>
             service.GetCattleByCphAsync(" ", TestContext.Current.CancellationToken));
         Assert.Empty(handler.Requests);
@@ -249,6 +279,7 @@ public class CadsServiceTests
     [Fact]
     public async Task GetCattleByCphAsync_AddsLiveAnimalsFromTheDataPatchThatCadsDidNotReturn()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000001", "Alive")], page: 1, totalRecords: 1));
 
         dataPatchStore.Setup(s => s.GetCphEarTagsAsync(Cph, It.IsAny<CancellationToken>()))
@@ -260,8 +291,10 @@ public class CadsServiceTests
 
         var service = CreateService();
 
+        // Act
         var result = (await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken)).ToList();
 
+        // Assert
         Assert.Equal(["UK200000000001", "UK200000000005"], result.Select(c => c.EarTag));
         Assert.Equal("Aberdeen Angus", result[1].BreedName);
     }
@@ -269,6 +302,7 @@ public class CadsServiceTests
     [Fact]
     public async Task GetCattleByCphAsync_OverwritesSourceDataWithValuesFromPatchData()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000001", "Alive")], page: 1, totalRecords: 1));
 
         dataPatchStore.Setup(s => s.GetCphEarTagsAsync(Cph, It.IsAny<CancellationToken>()))
@@ -287,8 +321,10 @@ public class CadsServiceTests
 
         var service = CreateService();
 
+        // Act
         var result = (await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken)).ToList();
 
+        // Assert
         var animal = Assert.Single(result);
 
         Assert.Equal("UK200000000001", animal.EarTag);
@@ -304,6 +340,7 @@ public class CadsServiceTests
     [Fact]
     public async Task GetCattleByCphAsync_DoesNotPatchInAnAnimalCadsReturnsOnALaterPage()
     {
+        // Arrange
         handler
             .RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000001", "Alive")], page: 1, totalRecords: 3))
             .RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000003", "Alive")], page: 2, totalRecords: 3));
@@ -315,15 +352,18 @@ public class CadsServiceTests
 
         var service = CreateService();
 
+        // Act
         var result = (await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken))
             .Select(c => c.EarTag).ToList();
 
+        // Assert
         Assert.Equal(["UK200000000001", "uk200000000003"], result);
     }
 
     [Fact]
     public async Task GetCattleByCphAsync_SkipsPatchedAnimalsThatAreNotAliveOrUnreadable()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, Page([], page: 1, totalRecords: 0));
 
         dataPatchStore.Setup(s => s.GetCphEarTagsAsync(Cph, It.IsAny<CancellationToken>()))
@@ -337,14 +377,17 @@ public class CadsServiceTests
 
         var service = CreateService();
 
+        // Act
         var result = await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Empty(result);
     }
 
     [Fact]
     public async Task GetCattleByCphAsync_TakesTheEarTagFromTheFileName_WhenThePatchedAnimalHasNone()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, Page([], page: 1, totalRecords: 0));
 
         dataPatchStore.Setup(s => s.GetCphEarTagsAsync(Cph, It.IsAny<CancellationToken>()))
@@ -355,14 +398,17 @@ public class CadsServiceTests
 
         var service = CreateService();
 
+        // Act
         var animal = (await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken)).Single();
 
+        // Assert
         Assert.Equal("UK200000000008", animal.EarTag);
     }
 
     [Fact]
     public async Task GetCattleByCphAsync_ReturnsCadsAnimalsOnly_WhenTheDataPatchCannotBeRead()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000001", "Alive")], page: 1, totalRecords: 1));
 
         dataPatchStore.Setup(s => s.GetCphEarTagsAsync(Cph, It.IsAny<CancellationToken>()))
@@ -370,21 +416,26 @@ public class CadsServiceTests
 
         var service = CreateService();
 
+        // Act
         var result = (await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken))
             .Select(c => c.EarTag).ToList();
 
+        // Assert
         Assert.Equal(["UK200000000001"], result);
     }
 
     [Fact]
     public async Task GetAnimalDetailsAsync_CallsAnimalDetailEndpointWithBasicAuth()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, Detail("UK200000000001", Parent("GeneticDam", "UK200000000098")));
 
         var service = CreateService();
 
+        // Act
         await service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken);
 
+        // Assert
         var item = Assert.Single(handler.Requests);
 
         Assert.Equal(HttpMethod.Get, item.Method);
@@ -403,14 +454,17 @@ public class CadsServiceTests
     [Fact]
     public async Task GetCattleByCphAsync_SendsGatewayApiKeyAlongsideBasicAuthWhenConfigured()
     {
+        // Arrange
         handler.RespondWith(
             HttpStatusCode.OK,
             Page([Animal("UK200000000001", "Passport Produced")], page: 1, totalRecords: 1));
 
         var service = CreateService(apiOptions: WithGatewayKey());
 
+        // Act
         await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken);
 
+        // Assert
         var request = Assert.Single(handler.Requests);
 
         Assert.Equal(TestGatewayKey, Assert.Single(request.Headers.GetValues("x-api-key")));
@@ -420,14 +474,17 @@ public class CadsServiceTests
     [Fact]
     public async Task GetCattleByCphAsync_SendsNoGatewayApiKeyWhenNotConfigured()
     {
+        // Arrange
         handler.RespondWith(
             HttpStatusCode.OK,
             Page([Animal("UK200000000001", "Passport Produced")], page: 1, totalRecords: 1));
 
         var service = CreateService();
 
+        // Act
         await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.False(Assert.Single(handler.Requests).Headers.Contains("x-api-key"));
     }
 
@@ -436,26 +493,32 @@ public class CadsServiceTests
     [InlineData("   ")]
     public async Task GetCattleByCphAsync_SendsNoGatewayApiKeyWhenGatewayApiKeyIsBlank(string gatewayApiKey)
     {
+        // Arrange
         handler.RespondWith(
             HttpStatusCode.OK,
             Page([Animal("UK200000000001", "Passport Produced")], page: 1, totalRecords: 1));
 
         var service = CreateService(apiOptions: WithGatewayKey(gatewayApiKey));
 
+        // Act
         await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.False(Assert.Single(handler.Requests).Headers.Contains("x-api-key"));
     }
 
     [Fact]
     public async Task GetAnimalDetailsAsync_SendsGatewayApiKeyAlongsideBasicAuthWhenConfigured()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, Detail("UK200000000001"));
 
         var service = CreateService(apiOptions: WithGatewayKey());
 
+        // Act
         await service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken);
 
+        // Assert
         var request = Assert.Single(handler.Requests);
 
         Assert.Equal(TestGatewayKey, Assert.Single(request.Headers.GetValues("x-api-key")));
@@ -465,12 +528,15 @@ public class CadsServiceTests
     [Fact]
     public async Task GetAnimalDetailsAsync_SendsNoGatewayApiKeyWhenNotConfigured()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, Detail("UK200000000001"));
 
         var service = CreateService();
 
+        // Act
         await service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.False(Assert.Single(handler.Requests).Headers.Contains("x-api-key"));
     }
 
@@ -479,24 +545,30 @@ public class CadsServiceTests
     [InlineData("   ")]
     public async Task GetAnimalDetailsAsync_SendsNoGatewayApiKeyWhenGatewayApiKeyIsBlank(string gatewayApiKey)
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, Detail("UK200000000001"));
 
         var service = CreateService(apiOptions: WithGatewayKey(gatewayApiKey));
 
+        // Act
         await service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.False(Assert.Single(handler.Requests).Headers.Contains("x-api-key"));
     }
 
     [Fact]
     public async Task GetAnimalDetailsAsync_UnwrapsEnvelopeAndMapsAnimalDetail()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, Detail(EarTag, Parent("GeneticDam", "UK200000000098")));
 
         var service = CreateService();
 
+        // Act
         var details = await service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(EarTag, details.EarTag);
         Assert.Equal("Cattle", details.Species);
         Assert.Equal("Male", details.Sex);
@@ -516,6 +588,7 @@ public class CadsServiceTests
     [Fact]
     public async Task GetAnimalDetailsAsync_MapsLocationsToCattleDetailsResponse()
     {
+        // Arrange
         const string json = """
                             {
                               "resourceType": "AnimalDetail",
@@ -563,8 +636,10 @@ public class CadsServiceTests
 
         var service = CreateService();
 
+        // Act
         var details = await service.GetAnimalDetailsAsync("UK200000000001", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.NotNull(details.CurrentLocation);
         Assert.Equal("22/001/0001", details.CurrentLocation.Identifier);
         Assert.Null(details.CurrentLocation.SubIdentifier);
@@ -589,14 +664,17 @@ public class CadsServiceTests
     [Fact]
     public async Task GetAnimalDetailsAsync_ReportsAGeneticDamWhenThatIsTheOnlyDam()
     {
+        // Arrange
         handler.RespondWith(
             HttpStatusCode.OK,
             Detail(EarTag, Parent("GeneticDam", "UK200000000098"), Parent("Sire", "UK200000000099")));
 
         var service = CreateService();
 
+        // Act
         var details = await service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal("genetic", details.DamType);
         Assert.Equal("UK200000000098", details.GeneticDamEarTag);
         Assert.Null(details.SurrogateDamEarTag);
@@ -607,14 +685,17 @@ public class CadsServiceTests
     [Fact]
     public async Task GetAnimalDetailsAsync_ReportsASurrogateDamEvenWhenAGeneticDamIsAlsoRecorded()
     {
+        // Arrange
         handler.RespondWith(
             HttpStatusCode.OK,
             Detail(EarTag, Parent("GeneticDam", "UK200000000090"), Parent("SurrogateDam", "UK200000000091")));
 
         var service = CreateService();
 
+        // Act
         var details = await service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal("surrogate", details.DamType);
         Assert.Equal("UK200000000090", details.GeneticDamEarTag);
         Assert.Equal("UK200000000091", details.SurrogateDamEarTag);
@@ -623,12 +704,15 @@ public class CadsServiceTests
     [Fact]
     public async Task GetAnimalDetailsAsync_LeavesDamAndSireUnsetWhenNoParentageIsRecorded()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, Detail(EarTag));
 
         var service = CreateService();
 
+        // Act
         var details = await service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Null(details.DamType);
         Assert.Null(details.GeneticDamEarTag);
         Assert.Null(details.SurrogateDamEarTag);
@@ -638,12 +722,15 @@ public class CadsServiceTests
     [Fact]
     public async Task GetAnimalDetailsAsync_EscapesTheEarTagInTheResourceUrl()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, Detail("UK2 0000 00001"));
 
         var service = CreateService();
 
+        // Act
         await service.GetAnimalDetailsAsync("UK2 0000 00001", TestContext.Current.CancellationToken);
 
+        // Assert
         // AbsoluteUri, not ToString(), which renders %20 back as a space.
         Assert.Equal(
             "http://fake-service.test/cads/api/v1/bovine/animals/UK2%200000%2000001",
@@ -653,10 +740,12 @@ public class CadsServiceTests
     [Fact]
     public async Task GetAnimalDetailsAsync_ThrowsNotFound_WhenCadsReturns404()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.NotFound, """{"title":"Not Found","status":404}""");
 
         var service = CreateService();
 
+        // Act & Assert
         await Assert.ThrowsAsync<NotFoundException>(() =>
             service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken));
     }
@@ -664,6 +753,7 @@ public class CadsServiceTests
     [Fact]
     public async Task GetAnimalDetailsAsync_ReadsTheAnimalFromTheDataPatch_WhenCadsReturns404()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.NotFound, """{"title":"Not Found","status":404}""");
 
         dataPatchStore.Setup(s => s.GetAnimalDetailsAsync(EarTag, It.IsAny<CancellationToken>())).ReturnsAsync(
@@ -682,8 +772,10 @@ public class CadsServiceTests
 
         var service = CreateService();
 
+        // Act
         var details = await service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(EarTag, details.EarTag);
         Assert.Equal("Female", details.Sex);
         Assert.Equal(new DateOnly(2022, 1, 1), details.DateBirth);
@@ -695,10 +787,12 @@ public class CadsServiceTests
     [Fact]
     public async Task GetAnimalDetailsAsync_ThrowsNotFoundWithoutReadingTheDataPatch_WhenThePatchIsSwitchedOff()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.NotFound, """{"title":"Not Found","status":404}""");
 
         var service = CreateService(new CadsDataPatchOptions { BucketName = " " });
 
+        // Act & Assert
         await Assert.ThrowsAsync<NotFoundException>(() =>
             service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken));
         dataPatchStore.VerifyNoOtherCalls();
@@ -707,13 +801,16 @@ public class CadsServiceTests
     [Fact]
     public async Task GetCattleByCphAsync_DoesNotReadTheDataPatch_WhenThePatchIsSwitchedOff()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, Page([Animal("UK200000000001", "Alive")], page: 1, totalRecords: 1));
 
         var service = CreateService(new CadsDataPatchOptions { BucketName = null });
 
+        // Act
         var result = (await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken))
             .Select(c => c.EarTag).ToList();
 
+        // Assert
         Assert.Equal(["UK200000000001"], result);
         dataPatchStore.Verify(
             s => s.GetCphEarTagsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()),
@@ -723,12 +820,14 @@ public class CadsServiceTests
     [Fact]
     public async Task GetAnimalDetailsAsync_ThrowsNotFound_WhenTheEnvelopeCarriesNoAnimal()
     {
+        // Arrange
         handler.RespondWith(
             HttpStatusCode.OK,
             """{"resourceType":"AnimalDetail","identifier":"UK200000000001","animalDetail":null}""");
 
         var service = CreateService();
 
+        // Act & Assert
         await Assert.ThrowsAsync<NotFoundException>(() =>
             service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken));
     }
@@ -736,10 +835,12 @@ public class CadsServiceTests
     [Fact]
     public async Task GetAnimalDetailsAsync_PropagatesOtherUpstreamFailures()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.Unauthorized, """{"title":"Unauthorized","status":401}""");
 
         var service = CreateService();
 
+        // Act & Assert
         await Assert.ThrowsAsync<RestResponseException>(() =>
             service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken));
     }
@@ -747,6 +848,7 @@ public class CadsServiceTests
     [Fact]
     public void Deserializes_ExpandedCadsAnimalDetailResponse_WithLocations()
     {
+        // Arrange
         const string json = """
                             {
                                 "resourceType": "AnimalDetail",
@@ -816,10 +918,12 @@ public class CadsServiceTests
                             }
                             """;
 
+        // Act
         var response = System.Text.Json.JsonSerializer.Deserialize<CadsAnimalDetailResponse>(
             json,
             Services.Upstream.UpstreamJson.Options);
 
+        // Assert
         Assert.NotNull(response);
         Assert.Equal("AnimalDetail", response.ResourceType);
         Assert.Equal("UK123456700001", response.Identifier);
@@ -866,19 +970,24 @@ public class CadsServiceTests
     [Fact]
     public async Task GetAnimalDetailsAsync_RejectsBlankEarTag()
     {
+        // Arrange
         var service = CreateService();
 
+        // Act & Assert
         await Assert.ThrowsAsync<ArgumentException>(() =>
             service.GetAnimalDetailsAsync(" ", TestContext.Current.CancellationToken));
 
+        // Assert
         Assert.Empty(handler.Requests);
     }
 
     [Fact]
     public void CadsApiOptions_DefaultsToSixtySecondTimeouts()
     {
+        // Act
         var options = new CadsApiOptions();
 
+        // Assert
         Assert.Equal(60_000, options.GetAnimalsOnHoldingTimeout);
         Assert.Equal(60_000, options.GetAnimalDetailsTimeout);
     }
@@ -886,6 +995,7 @@ public class CadsServiceTests
     [Fact]
     public async Task GetCattleByCphAsync_UsesConfiguredTimeout()
     {
+        // Arrange
         handler.RespondWith(
             HttpStatusCode.OK,
             Page([Animal("UK200000000001", "Passport Produced")], page: 1, totalRecords: 1));
@@ -901,14 +1011,17 @@ public class CadsServiceTests
 
         var service = CreateService(apiOptions: options);
 
+        // Act
         var result = await service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Single(result);
     }
 
     [Fact]
     public async Task GetAnimalDetailsAsync_UsesConfiguredTimeout()
     {
+        // Arrange
         handler.RespondWith(HttpStatusCode.OK, Detail("UK200000000001"));
 
         var options = new CadsApiOptions
@@ -921,8 +1034,10 @@ public class CadsServiceTests
 
         var service = CreateService(apiOptions: options);
 
+        // Act
         var details = await service.GetAnimalDetailsAsync(EarTag, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(EarTag, details.EarTag);
     }
 

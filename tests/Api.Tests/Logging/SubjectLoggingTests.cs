@@ -67,11 +67,14 @@ public class SubjectLoggingTests
     [MemberData(nameof(GetUserDetailsOutcomes))]
     public async Task GetUserDetails_LogsNoSubject(HttpStatusCode krdsStatus, HttpStatusCode expectedStatus)
     {
+        // Arrange
         krds.RespondWith(krdsStatus, krdsStatus == HttpStatusCode.OK ? UserAccount : """{"status":400}""");
         await using var app = await StartAppAsync();
 
+        // Act
         var response = await AuthenticatedClient(app).GetAsync($"/v1/users/{Subject}", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(expectedStatus, response.StatusCode);
         AssertRequestLoggedWithRouteTemplate("GET", "/v{version:apiVersion}/users/{subject}");
         AssertNoEventContainsTheSubject();
@@ -81,11 +84,14 @@ public class SubjectLoggingTests
     [MemberData(nameof(CreateUserOutcomes))]
     public async Task CreateUser_LogsNoSubject(HttpStatusCode krdsStatus, HttpStatusCode expectedStatus)
     {
+        // Arrange
         krds.RespondWith(krdsStatus, krdsStatus == HttpStatusCode.OK ? UserAccount : """{"status":400}""");
         await using var app = await StartAppAsync();
 
+        // Act
         var response = await AuthenticatedClient(app).PostAsync("/v1/users", ClaimsBody(), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(expectedStatus, response.StatusCode);
         AssertNoEventContainsTheSubject();
     }
@@ -93,11 +99,14 @@ public class SubjectLoggingTests
     [Fact]
     public async Task GetUserDetails_LogsNoSubject_WhenTheCorrelationIdIsMissing()
     {
+        // Arrange
         await using var app = await StartAppAsync();
         var client = app.GetAuthenticatedTestClient();
 
+        // Act
         var response = await client.GetAsync($"/v1/users/{Subject}", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Empty(krds.Requests);
         Assert.Contains(sink.Events, e => e.MessageTemplate.Text.Contains(TraceHeaders.CdpRequestId, StringComparison.Ordinal));
@@ -107,12 +116,15 @@ public class SubjectLoggingTests
     [Fact]
     public async Task GetUserDetails_LogsNoSubject_WhenTheApiKeyIsMissing()
     {
+        // Arrange
         await using var app = await StartAppAsync();
         var client = app.GetTestClient();
         client.DefaultRequestHeaders.Add(TraceHeaders.CdpRequestId, "corr-751");
 
+        // Act
         var response = await client.GetAsync($"/v1/users/{Subject}", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         Assert.Contains(sink.Events, e => e.MessageTemplate.Text.Contains("API key", StringComparison.Ordinal));
         AssertNoEventContainsTheSubject();
@@ -121,10 +133,13 @@ public class SubjectLoggingTests
     [Fact]
     public async Task UnmatchedRoute_LogsNoRawPath()
     {
+        // Arrange
         await using var app = await StartAppAsync();
 
+        // Act
         var response = await AuthenticatedClient(app).GetAsync($"/v1/user/{Subject}", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         AssertRequestLoggedWithRouteTemplate("GET", Api.Logging.LoggableRequestPath.UnmatchedRoute);
         AssertNoEventContainsTheSubject();
