@@ -11,7 +11,7 @@
     <PackageVersion Include="AWSSDK.S3" Version="4.1.0.1" />
     <PackageVersion Include="AWSSDK.SQS" Version="4.1.0.1" />
     <PackageVersion Include="AWSSDK.SecretsManager" Version="4.0.1.9" />
-    <PackageVersion Include="AWSSDK.SimpleNotificationService" Version="4.1.0.1" />
+    <PackageVersion Include="AWSSDK.SimpleNotificationService" Version="4.1.0.2" />
     <PackageVersion Include="Defra.Lis.Database" Version="0.0.3" />
     <PackageVersion Include="Defra.Lis.Entities" Version="0.0.3" />
     <PackageVersion Include="Defra.Lis.Postgres" Version="0.0.3" />
