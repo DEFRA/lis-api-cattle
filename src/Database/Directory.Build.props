@@ -1,9 +1,9 @@
 <Project>
   <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
   <ItemGroup>
-    <PackageReference Include="Defra.Lis.Core" />
     <PackageReference Include="Defra.Lis.Database" />
     <PackageReference Include="Defra.Lis.Postgres" />
+    <PackageReference Include="Defra.Livestock.Sdk.Core" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Microsoft.EntityFrameworkCore" />

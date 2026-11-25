@@ -4,15 +4,34 @@
 
 namespace Defra.Lis.Api.Exceptions;
 
+using System.Diagnostics.CodeAnalysis;
 using Defra.Lis.Api.Configurations;
 using Defra.Lis.Api.Logging;
-using Defra.Lis.Core.Exceptions;
+using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Exceptions;
+using Defra.Livestock.Sdk.Core.Exceptions;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Serilog.Context;
 
+[SuppressMessage(
+    "Minor Code Smell",
+    "S1075:URIs should not be hardcoded",
+    Justification = "Necessary to reference httpstatuses.com")]
 public sealed partial class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : IExceptionHandler
 {
+    private const string Http400BadRequestUrl = "https://httpstatuses.com/400";
+    private const string Http400BadRequestDescription = "Bad Request";
+    private const string Http403UnauthorizedAccessUrl = "https://httpstatuses.com/403";
+    private const string Http403UnauthorizedAccessDescription = "Forbidden";
+    private const string Http404NotFoundUrl = "https://httpstatuses.com/404";
+    private const string Http404NotFoundDescription = "Not Found";
+    private const string Http409ConflictUrl = "https://httpstatuses.com/409";
+    private const string Http409ConflictDescription = "Conflict";
+    private const string Http500InternalServerErrorUrl = "https://httpstatuses.com/500";
+    private const string Http500InternalServerErrorDescription = "Internal Server Error";
+    private const string Http503ServiceUnavailableUrl = "https://httpstatuses.com/503";
+    private const string Http503ServiceUnavailableDescription = "Service Unavailable";
+
     public async ValueTask<bool> TryHandleAsync(
         HttpContext httpContext,
         Exception exception,
@@ -20,14 +39,34 @@ public sealed partial class ApiExceptionHandler(ILogger<ApiExceptionHandler> log
     {
         var (statusCode, title, type) = exception switch
         {
-            NotFoundException => (StatusCodes.Status404NotFound, "Not Found", "https://httpstatuses.com/404"),
-            ConflictException => (StatusCodes.Status409Conflict, "Conflict", "https://httpstatuses.com/409"),
-            BusinessRuleException => (StatusCodes.Status400BadRequest, "Bad Request", "https://httpstatuses.com/400"),
-            ArgumentException => (StatusCodes.Status400BadRequest, "Bad Request", "https://httpstatuses.com/400"),
-            UnauthorizedAccessException => (StatusCodes.Status403Forbidden, "Forbidden", "https://httpstatuses.com/403"),
-            ServiceUnavailableException => (StatusCodes.Status503ServiceUnavailable, "Service Unavailable", "https://httpstatuses.com/503"),
-            _ => (StatusCodes.Status500InternalServerError, "Internal Server Error", "https://httpstatuses.com/500"),
+            BusinessRuleException => (StatusCodes.Status400BadRequest, Http400BadRequestDescription,
+                Http400BadRequestUrl),
+            ReferenceRuleException => (StatusCodes.Status400BadRequest, Http400BadRequestDescription,
+                Http400BadRequestUrl),
+            RequestValidationException => (StatusCodes.Status400BadRequest, Http400BadRequestDescription,
+                Http400BadRequestUrl),
+            ArgumentException => (StatusCodes.Status400BadRequest, Http400BadRequestDescription,
+                Http400BadRequestUrl),
+            UnauthorizedAccessException => (StatusCodes.Status403Forbidden, Http403UnauthorizedAccessDescription,
+                Http403UnauthorizedAccessUrl),
+            NotFoundException => (StatusCodes.Status404NotFound, Http404NotFoundDescription, Http404NotFoundUrl),
+            EntityNotFoundException => (StatusCodes.Status404NotFound, Http404NotFoundDescription, Http404NotFoundUrl),
+            ExistenceRuleException => (StatusCodes.Status404NotFound, Http404NotFoundDescription, Http404NotFoundUrl),
+            ConflictException => (StatusCodes.Status409Conflict, Http409ConflictDescription, Http409ConflictUrl),
+            ConflictRuleException => (StatusCodes.Status409Conflict, Http409ConflictDescription, Http409ConflictUrl),
+            ServiceUnavailableException => (StatusCodes.Status503ServiceUnavailable,
+                Http503ServiceUnavailableDescription, Http503ServiceUnavailableUrl),
+            _ =>
+                (StatusCodes.Status500InternalServerError, Http500InternalServerErrorDescription,
+                    Http500InternalServerErrorUrl),
         };
+
+        if (exception.IsCircuitBreakerOpen())
+        {
+            statusCode = StatusCodes.Status503ServiceUnavailable;
+            title = Http503ServiceUnavailableDescription;
+            type = Http503ServiceUnavailableUrl;
+        }
 
         // Put useful values into the Serilog LogContext (works with Enrich.FromLogContext()). The correlation
         // middleware's scope has already unwound here, so the ID is read from the header it enforced.
@@ -35,6 +74,7 @@ public sealed partial class ApiExceptionHandler(ILogger<ApiExceptionHandler> log
 
         // Log the route template, not the raw path, which can carry personal data such as the Defra ID subject.
         var path = LoggableRequestPath.For(httpContext);
+
         using (LogContext.PushProperty("CorrelationId", correlationId))
         using (LogContext.PushProperty("TraceId", httpContext.TraceIdentifier))
         using (LogContext.PushProperty("Path", path))
@@ -46,7 +86,12 @@ public sealed partial class ApiExceptionHandler(ILogger<ApiExceptionHandler> log
             }
             else
             {
-                LogRequestFailedWithStatusCodeTitleForMethodPath(statusCode, title, httpContext.Request.Method, path, exception);
+                LogRequestFailedWithStatusCodeTitleForMethodPath(
+                    statusCode,
+                    title,
+                    httpContext.Request.Method,
+                    path,
+                    exception);
             }
         }
 
@@ -57,11 +102,7 @@ public sealed partial class ApiExceptionHandler(ILogger<ApiExceptionHandler> log
             Type = type,
             Detail = exception.Message,
             Instance = httpContext.Request.Path,
-            Extensions =
-            {
-                ["traceId"] = httpContext.TraceIdentifier,
-                ["correlationId"] = correlationId,
-            },
+            Extensions = { ["traceId"] = httpContext.TraceIdentifier, ["correlationId"] = correlationId, },
         };
 
         httpContext.Response.StatusCode = statusCode;

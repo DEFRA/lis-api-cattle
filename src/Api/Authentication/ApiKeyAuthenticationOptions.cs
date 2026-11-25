@@ -4,7 +4,7 @@
 
 namespace Defra.Lis.Api.Authentication;
 
-using Defra.Lis.Core.Middleware.Headers;
+using Defra.Livestock.Sdk.Core.Middleware.Headers;
 using Microsoft.AspNetCore.Authentication;
 
 /// <summary>

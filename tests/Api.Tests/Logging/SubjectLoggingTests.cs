@@ -18,7 +18,6 @@ using Defra.Lis.Api.Services;
 using Defra.Lis.Api.Tests.Authentication;
 using Defra.Lis.Api.Tests.Upstream;
 using Defra.Lis.Api.Validation;
-using Defra.Livestock.Sdk.Api.Strategies;
 using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Operations.Http.Rest.Client;
 using Defra.Livestock.Sdk.Api.Strategies.Operations.Http.Rest.Client;
 using FluentValidation;
@@ -68,11 +67,14 @@ public class SubjectLoggingTests
     [MemberData(nameof(GetUserDetailsOutcomes))]
     public async Task GetUserDetails_LogsNoSubject(HttpStatusCode krdsStatus, HttpStatusCode expectedStatus)
     {
+        // Arrange
         krds.RespondWith(krdsStatus, krdsStatus == HttpStatusCode.OK ? UserAccount : """{"status":400}""");
         await using var app = await StartAppAsync();
 
+        // Act
         var response = await AuthenticatedClient(app).GetAsync($"/v1/users/{Subject}", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(expectedStatus, response.StatusCode);
         AssertRequestLoggedWithRouteTemplate("GET", "/v{version:apiVersion}/users/{subject}");
         AssertNoEventContainsTheSubject();
@@ -82,11 +84,14 @@ public class SubjectLoggingTests
     [MemberData(nameof(CreateUserOutcomes))]
     public async Task CreateUser_LogsNoSubject(HttpStatusCode krdsStatus, HttpStatusCode expectedStatus)
     {
+        // Arrange
         krds.RespondWith(krdsStatus, krdsStatus == HttpStatusCode.OK ? UserAccount : """{"status":400}""");
         await using var app = await StartAppAsync();
 
+        // Act
         var response = await AuthenticatedClient(app).PostAsync("/v1/users", ClaimsBody(), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(expectedStatus, response.StatusCode);
         AssertNoEventContainsTheSubject();
     }
@@ -94,11 +99,14 @@ public class SubjectLoggingTests
     [Fact]
     public async Task GetUserDetails_LogsNoSubject_WhenTheCorrelationIdIsMissing()
     {
+        // Arrange
         await using var app = await StartAppAsync();
         var client = app.GetAuthenticatedTestClient();
 
+        // Act
         var response = await client.GetAsync($"/v1/users/{Subject}", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Empty(krds.Requests);
         Assert.Contains(sink.Events, e => e.MessageTemplate.Text.Contains(TraceHeaders.CdpRequestId, StringComparison.Ordinal));
@@ -108,12 +116,15 @@ public class SubjectLoggingTests
     [Fact]
     public async Task GetUserDetails_LogsNoSubject_WhenTheApiKeyIsMissing()
     {
+        // Arrange
         await using var app = await StartAppAsync();
         var client = app.GetTestClient();
         client.DefaultRequestHeaders.Add(TraceHeaders.CdpRequestId, "corr-751");
 
+        // Act
         var response = await client.GetAsync($"/v1/users/{Subject}", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         Assert.Contains(sink.Events, e => e.MessageTemplate.Text.Contains("API key", StringComparison.Ordinal));
         AssertNoEventContainsTheSubject();
@@ -122,10 +133,13 @@ public class SubjectLoggingTests
     [Fact]
     public async Task UnmatchedRoute_LogsNoRawPath()
     {
+        // Arrange
         await using var app = await StartAppAsync();
 
+        // Act
         var response = await AuthenticatedClient(app).GetAsync($"/v1/user/{Subject}", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         AssertRequestLoggedWithRouteTemplate("GET", Api.Logging.LoggableRequestPath.UnmatchedRoute);
         AssertNoEventContainsTheSubject();
@@ -191,15 +205,15 @@ public class SubjectLoggingTests
         builder.Services.AddCorrelationId();
 
         // The KRDS client is registered as in Program, so the SDK and HttpClient factory loggers run too.
-        builder.Services.AddStrategyFramework();
         builder.Services.AddHttpClient<IRestHttpClient, RestHttpClient>().ConfigurePrimaryHttpMessageHandler(() => krds);
-        builder.Services.AddRestStrategyFactory<KrdsService>();
+        builder.Services.AddStrategies();
         builder.Services.AddSingleton<IValidator<HoldingSearchRequest>, HoldingSearchRequestValidator>();
         builder.Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new KrdsApiOptions
         {
             BaseUrl = "http://fake-service.test/krds",
             ClientId = nameof(SubjectLoggingTests),
             ClientSecret = Guid.NewGuid().ToString("N"),
+            CircuitBreakerConsecutiveFailureThreshold = 5,
         }));
         builder.Services.AddScoped<IKrdsService, KrdsService>();
 

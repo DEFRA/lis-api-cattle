@@ -16,6 +16,7 @@ using Defra.Lis.Api.Models.Responses;
 using Defra.Lis.Api.Tests.Authentication;
 using Defra.Lis.Api.Validation;
 using Defra.Lis.Entities;
+using Defra.Livestock.Sdk.Core.Exceptions;
 using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
@@ -244,7 +245,7 @@ public class HoldingEndpointsTests
                     Name = "Oakfield Farm",
                     HoldingType = "AH",
                     KeeperName = "Oakfield Farmer",
-                }
+                },
             ],
         };
 
@@ -310,7 +311,7 @@ public class HoldingEndpointsTests
     {
         var mockKrds = new Mock<IKrdsService>();
         mockKrds.Setup(s => s.GetHoldingAsync("22", "050", "0050", It.IsAny<CancellationToken>()))
-                .ThrowsAsync(new Defra.Lis.Core.Exceptions.NotFoundException("Holding '22/050/0050' was not found."));
+                .ThrowsAsync(new NotFoundException("Holding '22/050/0050' was not found."));
 
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
@@ -443,7 +444,7 @@ public class HoldingEndpointsTests
     {
         var mockService = new Mock<ICattleService>();
         mockService.Setup(s => s.GetCattleDetailsAsync("UK999999999999", It.IsAny<CancellationToken>()))
-                   .ThrowsAsync(new Defra.Lis.Core.Exceptions.NotFoundException("Animal 'UK999999999999' was not found."));
+                   .ThrowsAsync(new NotFoundException("Animal 'UK999999999999' was not found."));
 
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseTestServer();
@@ -591,20 +592,20 @@ public class HoldingEndpointsTests
                 CreatedAt = DateTimeOffset.UtcNow,
                 Animals =
                 [
-                    new()
+                    new BundleAnimalResponse
                     {
                         Id = Guid.NewGuid(),
                         EarTag = "UK123456700001",
                         Status = Statuses.Pending,
                         Errors =
                         [
-                            new()
+                            new BundleAnimalErrorResponse
                             {
                                 ErrorCode = "ERR01",
                                 ErrorText = "Test Error",
-                            }
+                            },
                         ],
-                    }
+                    },
                 ],
             },
         };

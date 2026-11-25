@@ -11,10 +11,9 @@ using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models;
 using Defra.Lis.Api.Models.Cads;
 using Defra.Lis.Api.Models.Responses;
-using Defra.Lis.Api.Services.Upstream;
-using Defra.Lis.Core.Exceptions;
 using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Exceptions;
 using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Operations;
+using Defra.Livestock.Sdk.Core.Exceptions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -29,34 +28,77 @@ public sealed partial class CadsService : ICadsService
     private const string SurrogateDamType = "surrogate";
     private const int MaxPages = 100;
 
-    private readonly IRestStrategyFactory<CadsService> strategyFactory;
+    private readonly IRestStrategyFactory<CadsService> restStrategyFactory;
+    private readonly ICircuitBreakerStrategyFactory<CadsService> circuitBreakerStrategyFactory;
     private readonly IOptions<CadsApiOptions> options;
     private readonly IOptions<CadsDataPatchOptions> patchOptions;
     private readonly ICadsDataPatchStore dataPatchStore;
     private readonly ILogger<CadsService> logger;
 
     public CadsService(
-        IRestStrategyFactory<CadsService> strategyFactory,
+        IRestStrategyFactory<CadsService> restStrategyFactory,
+        ICircuitBreakerStrategyFactory<CadsService> circuitBreakerStrategyFactory,
         IOptions<CadsApiOptions> options,
         IOptions<CadsDataPatchOptions> patchOptions,
         ICadsDataPatchStore dataPatchStore,
         ILogger<CadsService> logger)
     {
-        this.strategyFactory = strategyFactory;
+        this.restStrategyFactory = restStrategyFactory;
+        this.circuitBreakerStrategyFactory = circuitBreakerStrategyFactory;
         this.options = options;
         this.patchOptions = patchOptions;
         this.dataPatchStore = dataPatchStore;
         this.logger = logger;
+    }
 
-        this.strategyFactory
-            .WithDefaultLogger(logger)
-            .WithDefaultApiDescription("CADS bovine animals API")
-            .WithDefaultBaseUrl(options.Value.BaseUrl)
-            .WithDefaultApiKey(
-                () => !string.IsNullOrWhiteSpace(options.Value.GatewayApiKey),
-                options.Value.GatewayApiKey!)
-            .WithDefaultBasicAuth(options.Value.ClientId, options.Value.ClientSecret)
-            .WithDefaultJsonSerializerOptions(UpstreamJson.Options);
+    public async Task<CattleDetailsResponse> GetAnimalDetailsAsync(
+        string earTag,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(earTag);
+
+        CadsAnimalDetailResponse? response = null;
+
+        try
+        {
+            response = await circuitBreakerStrategyFactory
+                .BuildCircuitBreakerStrategy()
+                .WithCircuitKey("get-animal-details-from-cads")
+                .WithCancellationToken(cancellationToken)
+                .WithAction(async ct => await restStrategyFactory
+                    .BuildRestStrategy()
+                    .WithCancellationToken(ct)
+                    .WithTimeout(options.Value.GetAnimalDetailsTimeout)
+                    .WithActionDescription("Get animal details")
+                    .WithResourceUrl($"{AnimalsResource}/{Uri.EscapeDataString(earTag)}")
+                    .WithGet()
+                    .Execute<CadsAnimalDetailResponse>())
+                .Execute<CadsAnimalDetailResponse>();
+        }
+        catch (RestResponseException ex) when (ex.IsNotFound())
+        {
+            // Temporary data patch for CADS, check in the patch cache incase.
+            if (patchOptions.Value.IsEnabled)
+            {
+                response = new CadsAnimalDetailResponse(
+                    null,
+                    null,
+                    null,
+                    null,
+                    await dataPatchStore.GetAnimalDetailsAsync(earTag, cancellationToken));
+            }
+        }
+
+        if (response?.AnimalDetail == null)
+        {
+            LogAnimalNotKnownToCads(earTag);
+
+            throw new NotFoundException($"Animal '{earTag}' was not found.");
+        }
+
+        LogRetrievedAnimalDetails(earTag);
+
+        return ToCattleDetailsResponse(earTag, response.AnimalDetail);
     }
 
     public async Task<IEnumerable<CattleResponse>> GetCattleByCphAsync(
@@ -90,58 +132,42 @@ public sealed partial class CadsService : ICadsService
         return results;
     }
 
-    public async Task<CattleDetailsResponse> GetAnimalDetailsAsync(
-        string earTag,
-        CancellationToken cancellationToken = default)
+    private async Task<CadsAnimalsOnHolding> GetAnimalsPagedAsync(
+        string cph,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(earTag);
-
-        CadsAnimalDetailResponse? response;
-
         try
         {
-            response = await strategyFactory
-                .BuildRestStrategy()
+            return await circuitBreakerStrategyFactory
+                .BuildCircuitBreakerStrategy()
+                .WithCircuitKey("get-animals-on-holding-paged-from-cads")
                 .WithCancellationToken(cancellationToken)
-                .WithTimeout(options.Value.GetAnimalDetailsTimeout)
-                .WithActionDescription("Get animal details")
-                .WithResourceUrl($"{AnimalsResource}/{Uri.EscapeDataString(earTag)}")
-                .WithGet()
-                .Execute<CadsAnimalDetailResponse>();
+                .WithAction(async ct => await restStrategyFactory
+                    .BuildRestStrategy()
+                    .WithCancellationToken(ct)
+                    .WithTimeout(options.Value.GetAnimalsOnHoldingTimeout)
+                    .WithActionDescription("Get animals on holding")
+                    .WithResourceUrl(AnimalsResource)
+                    .WithGet()
+                    .WithQueryParameter("CPH", cph)
+                    .WithQueryParameter("page", page.ToString(CultureInfo.InvariantCulture))
+                    .WithQueryParameter("pageSize", pageSize.ToString(CultureInfo.InvariantCulture))
+                    .Execute<CadsAnimalsOnHolding>())
+                .Execute<CadsAnimalsOnHolding>();
         }
-        catch (RestResponseException ex) when (UpstreamErrors.IsNotFound(ex))
+        catch (RestResponseException ex) when (ex.IsNotFound())
         {
-            // Temporary data patch for CADS, check in the patch cache incase.
-            if (patchOptions.Value.IsEnabled)
-            {
-                var animalDetail = await dataPatchStore.GetAnimalDetailsAsync(earTag, cancellationToken);
-                if (animalDetail == null)
-                {
-                    LogAnimalNotKnownToCads(earTag);
-                    throw new NotFoundException($"Animal '{earTag}' was not found.");
-                }
+            LogHoldingNotKnownToCads(cph);
 
-                response = new CadsAnimalDetailResponse(null, null, null, null, animalDetail);
-            }
-            else
-            {
-                LogAnimalNotKnownToCads(earTag);
-                throw new NotFoundException($"Animal '{earTag}' was not found.");
-            }
+            throw new NotFoundException($"Holding '{cph}' was not found.");
         }
-
-        if (response.AnimalDetail is null)
-        {
-            LogAnimalNotKnownToCads(earTag);
-            throw new NotFoundException($"Animal '{earTag}' was not found.");
-        }
-
-        LogRetrievedAnimalDetails(earTag);
-
-        return ToCattleDetailsResponse(earTag, response.AnimalDetail);
     }
 
+#pragma warning disable SA1204
     private static CattleResponse ToCattleResponse(CadsAnimal animal) => new()
+#pragma warning restore SA1204
     {
         EarTag = animal.Identifier?.Identifier ?? string.Empty,
         DateBirth = animal.BirthDate,
@@ -255,33 +281,6 @@ public sealed partial class CadsService : ICadsService
         catch (AmazonServiceException ex)
         {
             LogCadsDataPatchUnavailable(ex, cph);
-        }
-    }
-
-    private async Task<CadsAnimalsOnHolding> GetAnimalsPagedAsync(
-        string cph,
-        int page,
-        int pageSize,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await strategyFactory
-                .BuildRestStrategy()
-                .WithCancellationToken(cancellationToken)
-                .WithTimeout(options.Value.GetAnimalsOnHoldingTimeout)
-                .WithActionDescription("Get animals on holding")
-                .WithResourceUrl(AnimalsResource)
-                .WithGet()
-                .WithQueryParameter("CPH", cph)
-                .WithQueryParameter("page", page.ToString(CultureInfo.InvariantCulture))
-                .WithQueryParameter("pageSize", pageSize.ToString(CultureInfo.InvariantCulture))
-                .Execute<CadsAnimalsOnHolding>();
-        }
-        catch (RestResponseException ex) when (UpstreamErrors.IsNotFound(ex))
-        {
-            LogHoldingNotKnownToCads(cph);
-            throw new NotFoundException($"Holding '{cph}' was not found.");
         }
     }
 }

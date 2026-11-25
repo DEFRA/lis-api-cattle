@@ -4,8 +4,8 @@
 
 namespace Defra.Lis.Database.Configurations;
 
-using Defra.Lis.Core.Extensions;
 using Defra.Lis.Entities;
+using Defra.Livestock.Sdk.Core.Extensions;
 
 public class SubmissionAnimalConfiguration : IEntityTypeConfiguration<SubmissionAnimal>
 {

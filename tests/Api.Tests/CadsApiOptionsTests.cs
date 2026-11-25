@@ -14,8 +14,10 @@ public class CadsApiOptionsTests
     [Fact]
     public void Defaults_AreInitializedCorrectly()
     {
+        // Act
         var options = new CadsApiOptions();
 
+        // Assert
         Assert.Equal("CadsApi", CadsApiOptions.SectionName);
         Assert.Equal(string.Empty, options.BaseUrl);
         Assert.Equal(string.Empty, options.ClientId);
@@ -24,11 +26,17 @@ public class CadsApiOptionsTests
         Assert.Equal(100, options.PageSize);
         Assert.Equal(60_000, options.GetAnimalsOnHoldingTimeout);
         Assert.Equal(60_000, options.GetAnimalDetailsTimeout);
+        Assert.Null(options.CircuitBreakerConsecutiveFailureThreshold);
+        Assert.Null(options.CircuitBreakerFailureRatio);
+        Assert.Equal(30_000, options.CircuitBreakerSamplingDuration);
+        Assert.Equal(30_000, options.CircuitBreakerDurationOfBreak);
+        Assert.Equal(10, options.CircuitBreakerMinimumThroughput);
     }
 
     [Fact]
     public void Properties_CanBeAssigned()
     {
+        // Act
         var options = new CadsApiOptions
         {
             BaseUrl = "https://fake-service.test/cads/",
@@ -38,8 +46,14 @@ public class CadsApiOptionsTests
             PageSize = 250,
             GetAnimalsOnHoldingTimeout = 30_000,
             GetAnimalDetailsTimeout = 45_000,
+            CircuitBreakerConsecutiveFailureThreshold = 5,
+            CircuitBreakerFailureRatio = 0.5,
+            CircuitBreakerSamplingDuration = 30_000,
+            CircuitBreakerDurationOfBreak = 30_000,
+            CircuitBreakerMinimumThroughput = 2,
         };
 
+        // Assert
         Assert.Equal("https://fake-service.test/cads/", options.BaseUrl);
         Assert.Equal("test-client-id", options.ClientId);
         Assert.Equal("test-client-secret", options.ClientSecret);
@@ -47,24 +61,29 @@ public class CadsApiOptionsTests
         Assert.Equal(250, options.PageSize);
         Assert.Equal(30_000, options.GetAnimalsOnHoldingTimeout);
         Assert.Equal(45_000, options.GetAnimalDetailsTimeout);
+        Assert.Equal(5, options.CircuitBreakerConsecutiveFailureThreshold);
+        Assert.Equal(0.5, options.CircuitBreakerFailureRatio);
+        Assert.Equal(30_000, options.CircuitBreakerSamplingDuration);
+        Assert.Equal(30_000, options.CircuitBreakerDurationOfBreak);
+        Assert.Equal(2, options.CircuitBreakerMinimumThroughput);
     }
 
     [Fact]
     public void Validation_Passes_WhenAllRequiredFieldsArePopulated()
     {
+        // Arrange
         var options = new CadsApiOptions
         {
-            BaseUrl = "http://localhost:3000/cads/",
-            ClientId = "client",
-            ClientSecret = "secret",
-            PageSize = 500,
+            BaseUrl = "http://localhost:3000/cads/", ClientId = "client", ClientSecret = "secret", PageSize = 500,
         };
 
         var context = new ValidationContext(options);
         var validationResults = new List<ValidationResult>();
 
+        // Act
         var isValid = Validator.TryValidateObject(options, context, validationResults, validateAllProperties: true);
 
+        // Assert
         Assert.True(isValid);
         Assert.Empty(validationResults);
     }
@@ -75,18 +94,16 @@ public class CadsApiOptionsTests
     [InlineData("http://localhost:3000/cads/", "client", "")]
     public void Validation_Fails_WhenRequiredFieldsAreEmpty(string baseUrl, string clientId, string clientSecret)
     {
-        var options = new CadsApiOptions
-        {
-            BaseUrl = baseUrl,
-            ClientId = clientId,
-            ClientSecret = clientSecret,
-        };
+        // Arrange
+        var options = new CadsApiOptions { BaseUrl = baseUrl, ClientId = clientId, ClientSecret = clientSecret, };
 
         var context = new ValidationContext(options);
         var validationResults = new List<ValidationResult>();
 
+        // Act
         var isValid = Validator.TryValidateObject(options, context, validationResults, validateAllProperties: true);
 
+        // Assert
         Assert.False(isValid);
         Assert.NotEmpty(validationResults);
     }
@@ -97,19 +114,19 @@ public class CadsApiOptionsTests
     [InlineData(1001)]
     public void Validation_Fails_WhenPageSizeIsOutOfRange(int pageSize)
     {
+        // Arrange
         var options = new CadsApiOptions
         {
-            BaseUrl = "http://localhost:3000/cads/",
-            ClientId = "client",
-            ClientSecret = "secret",
-            PageSize = pageSize,
+            BaseUrl = "http://localhost:3000/cads/", ClientId = "client", ClientSecret = "secret", PageSize = pageSize,
         };
 
         var context = new ValidationContext(options);
         var validationResults = new List<ValidationResult>();
 
+        // Act
         var isValid = Validator.TryValidateObject(options, context, validationResults, validateAllProperties: true);
 
+        // Assert
         Assert.False(isValid);
         Assert.Contains(validationResults, r => r.MemberNames.Contains(nameof(CadsApiOptions.PageSize)));
     }
@@ -117,12 +134,15 @@ public class CadsApiOptionsTests
     [Fact]
     public void AppSettings_CadsConfiguration_BindsCorrectly()
     {
+        // Arrange
         var configuration = new ConfigurationBuilder()
             .AddJsonFile("appsettings.json")
             .Build();
 
+        // Act
         var options = configuration.GetSection(CadsApiOptions.SectionName).Get<CadsApiOptions>();
 
+        // Assert
         Assert.NotNull(options);
         Assert.Equal("http://lis-fake-service/cads/", options.BaseUrl);
         Assert.Equal(string.Empty, options.ClientId);
@@ -130,18 +150,26 @@ public class CadsApiOptionsTests
         Assert.Equal(500, options.PageSize);
         Assert.Equal(60_000, options.GetAnimalsOnHoldingTimeout);
         Assert.Equal(60_000, options.GetAnimalDetailsTimeout);
+        Assert.Equal(5, options.CircuitBreakerConsecutiveFailureThreshold);
+        Assert.Equal(0.5, options.CircuitBreakerFailureRatio);
+        Assert.Equal(30_000, options.CircuitBreakerSamplingDuration);
+        Assert.Equal(30_000, options.CircuitBreakerDurationOfBreak);
+        Assert.Equal(10, options.CircuitBreakerMinimumThroughput);
     }
 
     [Fact]
     public void AppSettingsDevelopment_CadsConfiguration_BindsCorrectly()
     {
+        // Arrange
         var configuration = new ConfigurationBuilder()
             .AddJsonFile("appsettings.json")
             .AddJsonFile("appsettings.Development.json")
             .Build();
 
+        // Act
         var options = configuration.GetSection(CadsApiOptions.SectionName).Get<CadsApiOptions>();
 
+        // Assert
         Assert.NotNull(options);
         Assert.Equal("http://localhost:3000/cads/", options.BaseUrl);
         Assert.Equal("local-dev-cads-client", options.ClientId);
@@ -149,5 +177,10 @@ public class CadsApiOptionsTests
         Assert.Equal(500, options.PageSize);
         Assert.Equal(60_000, options.GetAnimalsOnHoldingTimeout);
         Assert.Equal(60_000, options.GetAnimalDetailsTimeout);
+        Assert.Equal(5, options.CircuitBreakerConsecutiveFailureThreshold);
+        Assert.Equal(0.5, options.CircuitBreakerFailureRatio);
+        Assert.Equal(30_000, options.CircuitBreakerSamplingDuration);
+        Assert.Equal(30_000, options.CircuitBreakerDurationOfBreak);
+        Assert.Equal(10, options.CircuitBreakerMinimumThroughput);
     }
 }

@@ -6,8 +6,8 @@
     <PackageReference Include="AWSSDK.SQS" />
     <PackageReference Include="AWSSDK.SimpleNotificationService" />
     <PackageReference Include="Asp.Versioning.OpenApi" />
-    <PackageReference Include="Defra.Lis.Core" />
     <PackageReference Include="Defra.Livestock.Sdk.Api.Strategies" />
+    <PackageReference Include="Defra.Livestock.Sdk.Core" />
     <PackageReference Include="Elastic.CommonSchema.Serilog"/>
     <PackageReference Include="FluentValidation" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions"/>
