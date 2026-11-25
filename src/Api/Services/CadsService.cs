@@ -11,9 +11,9 @@ using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models;
 using Defra.Lis.Api.Models.Cads;
 using Defra.Lis.Api.Models.Responses;
-using Defra.Lis.Core.Exceptions;
 using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Exceptions;
 using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Operations;
+using Defra.Livestock.Sdk.Core.Exceptions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 

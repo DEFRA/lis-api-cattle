@@ -5,7 +5,7 @@
 namespace Defra.Lis.Api.Tests.Authentication;
 
 using Defra.Lis.Api.Authentication;
-using Defra.Lis.Core.Middleware.Headers;
+using Defra.Livestock.Sdk.Core.Middleware.Headers;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;

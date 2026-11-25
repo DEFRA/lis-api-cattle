@@ -9,7 +9,7 @@ using Amazon.SQS;
 using Amazon.SQS.Model;
 using Defra.Lis.Api.Configurations;
 using Defra.Lis.Api.Messaging;
-using Defra.Livestock.Sdk.Api.Strategies.Abstractions.Exceptions;
+using Defra.Livestock.Sdk.Core.Exceptions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
