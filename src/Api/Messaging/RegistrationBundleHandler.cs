@@ -6,6 +6,7 @@ namespace Defra.Lis.Api.Messaging;
 
 using Defra.Database.Postgres;
 using Defra.Lis.Api.Cts;
+using Defra.Lis.Api.Validation;
 using Defra.Lis.Database.Claims;
 using Defra.Lis.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -18,7 +19,8 @@ using Microsoft.Extensions.Logging;
 /// <remarks>
 /// <list type="number">
 /// <item>The bundle, its animals and the CTS request are stored in one transaction, keyed by the submission ID that
-/// the API gave the bundle, so a redelivered message does not store a second bundle.</item>
+/// the API gave the bundle, so a redelivered message does not store a second bundle. The same transaction creates a
+/// pending animal record for each animal whose ear tag is not already allocated (LREG-1003).</item>
 /// <item>The submission row is locked, and the stored request is sent only when the bundle has no outcome yet, so
 /// two deliveries cannot both send it. The receipt, or the error, is saved before the lock is released.</item>
 /// </list>
@@ -79,12 +81,16 @@ public partial class RegistrationBundleHandler(
             CtsBirthRequestBuilder.Operation,
             CtsBirthRequestBuilder.Build(submission, timeProvider.GetUtcNow()));
 
+        var animals = await CreateAnimalRecordsAsync(submission, cancellationToken);
+
         await dbContext.Set<Submission>().AddAsync(submission, cancellationToken);
+        await dbContext.Set<Animal>().AddRangeAsync(animals, cancellationToken);
 
         try
         {
             await dbContext.SaveChangesAsync(cancellationToken);
             LogBundleStored(submission.Id, submission.Animals.Count);
+            LogAnimalRecordsCreated(submission.Id, animals.Count, submission.Animals.Count - animals.Count);
         }
         catch (DbUpdateException)
         {
@@ -96,6 +102,53 @@ public partial class RegistrationBundleHandler(
             // Another instance stored the same message first (a redelivery racing this one).
             LogBundleAlreadyStored(message.SubmissionId);
         }
+    }
+
+    /// <summary>
+    /// Creates the pending animal record for each animal in the bundle. The CTS request is already built, so it is
+    /// not changed. An ear tag identifies one animal across every submission, so an animal whose tag is already
+    /// allocated, or repeated earlier in the same bundle, gets no record and is marked as errored with the CTWS code
+    /// the API's validation uses. If another bundle allocates the same tag at the same time, the unique ear tag
+    /// index fails the save, and the retried message finds the tag allocated.
+    /// </summary>
+    private async Task<List<Animal>> CreateAnimalRecordsAsync(Submission submission, CancellationToken cancellationToken)
+    {
+        var earTags = submission.Animals
+            .Select(a => CtsFormat.EarTag(a.EarTag))
+            .OfType<string>()
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        var allocated = (await dbContext.Set<Animal>()
+            .AsNoTracking()
+            .Where(a => earTags.Contains(a.EarTag))
+            .Select(a => a.EarTag)
+            .ToListAsync(cancellationToken))
+            .ToHashSet(StringComparer.Ordinal);
+
+        var animals = new List<Animal>();
+        foreach (var submissionAnimal in submission.Animals)
+        {
+            var earTag = CtsFormat.EarTag(submissionAnimal.EarTag);
+            var rejection = earTag switch
+            {
+                null => ValidationRuleCodes.Ctws003,
+                _ when allocated.Contains(earTag) && animals.Exists(a => a.EarTag == earTag) => ValidationRuleCodes.Ctws204,
+                _ when allocated.Contains(earTag) => ValidationRuleCodes.Ctws192,
+                _ => null,
+            };
+
+            if (rejection is not null)
+            {
+                submissionAnimal.MarkAsError(rejection, ValidationRuleCodes.GetDescription(rejection));
+                continue;
+            }
+
+            animals.Add(new Animal(submissionAnimal, earTag!));
+            allocated.Add(earTag!);
+        }
+
+        return animals;
     }
 
     private async Task<bool> StoredByAnotherInstanceAsync(Guid submissionId, CancellationToken cancellationToken)

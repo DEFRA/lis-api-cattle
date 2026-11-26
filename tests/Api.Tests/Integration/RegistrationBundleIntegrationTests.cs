@@ -15,6 +15,7 @@ using Defra.Lis.Api.Messaging;
 using Defra.Lis.Api.Models;
 using Defra.Lis.Api.Services;
 using Defra.Lis.Api.Tests.Messaging;
+using Defra.Lis.Api.Validation;
 using Defra.Lis.Database.Claims;
 using Defra.Lis.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -151,8 +152,8 @@ public sealed class RegistrationBundleIntegrationTests(PostgresFixture postgres,
         var (queueUrl, _) = await localStack.CreateQueueAsync(visibilityTimeoutSeconds: 30, maxReceiveCount: 5);
 
         // CTS reports "not ready" first, then releases two more rows on each call; it rejects the second animal.
-        var cts = new CtsWebFake { RowsReleasedPerPoll = 2, RejectedEarTags = { "UK123456100002" } };
         var message = RegistrationBundleHandlerTests.Message(animals: 3);
+        var cts = new CtsWebFake { RowsReleasedPerPoll = 2, RejectedEarTags = { CtsFormat.EarTag(message.Bundle.Animals[1].EarTag)! } };
         await CreatePublisher(queueUrl).PublishAsync(message, TestContext.Current.CancellationToken);
         await DrainAsync(CreateProcessor(queueUrl, cts), expected: 1);
 
@@ -183,6 +184,94 @@ public sealed class RegistrationBundleIntegrationTests(PostgresFixture postgres,
         await PollAsync(cts);
         Assert.Equal(3, cts.ResultPolls[completed.CtsReceiptNumber.Value]);
         Assert.Single((await LoadAsync(message.SubmissionId)).Animals.SelectMany(a => a.Errors));
+    }
+
+    [Fact]
+    public async Task AReceivedBundleCreatesAPendingAnimalRecordPerAnimal_AndCtsOutcomesAreRecordedOnThem()
+    {
+        var (queueUrl, _) = await localStack.CreateQueueAsync(visibilityTimeoutSeconds: 30, maxReceiveCount: 5);
+        var message = RegistrationBundleHandlerTests.Message(animals: 2);
+        var rejectedTag = CtsFormat.EarTag(message.Bundle.Animals[1].EarTag)!;
+        var cts = new CtsWebFake { RejectedEarTags = { rejectedTag } };
+        await CreatePublisher(queueUrl).PublishAsync(message, TestContext.Current.CancellationToken);
+        await DrainAsync(CreateProcessor(queueUrl, cts), expected: 1);
+
+        var pending = await LoadAnimalRecordsAsync(message.SubmissionId);
+        Assert.Equal(2, pending.Count);
+        Assert.All(pending, r => Assert.Equal(AnimalStatuses.Pending, r.Status));
+        var submission = await LoadAsync(message.SubmissionId);
+        Assert.Equal(
+            submission.Animals.Select(a => a.Id).Order(),
+            pending.Select(r => r.SubmissionAnimalId).Order());
+
+        // The first poll is "not ready"; the second returns every row; the third must change nothing.
+        await PollAsync(cts);
+        await PollAsync(cts);
+        await PollAsync(cts);
+
+        var records = await LoadAnimalRecordsAsync(message.SubmissionId);
+        Assert.Equal(AnimalStatuses.Registered, records.Single(r => r.EarTag != rejectedTag).Status);
+        Assert.Empty(records.Single(r => r.EarTag != rejectedTag).Errors);
+        var rejected = records.Single(r => r.EarTag == rejectedTag);
+        Assert.Equal(AnimalStatuses.Error, rejected.Status);
+        var error = Assert.Single(rejected.Errors);
+        Assert.Equal(ValidationRuleCodes.Ctws014, error.ErrorCode);
+        Assert.Equal(ValidationRuleCodes.GetDescription(ValidationRuleCodes.Ctws014), error.ErrorText);
+        Assert.Equal(Animal.CtsErrorSource, error.Source);
+    }
+
+    [Fact]
+    public async Task ABundleReusingAnAllocatedEarTag_GetsNoNewRecordForThatAnimal()
+    {
+        var cts = new CtsWebFake();
+        var first = RegistrationBundleHandlerTests.Message();
+        await HandleAsync(first, cts);
+
+        var second = RegistrationBundleHandlerTests.Message(animals: 2);
+        second.Bundle.Animals[0].EarTag = first.Bundle.Animals[0].EarTag;
+        await HandleAsync(second, cts);
+
+        var records = await LoadAnimalRecordsAsync(second.SubmissionId);
+        var record = Assert.Single(records);
+        Assert.Equal(CtsFormat.EarTag(second.Bundle.Animals[1].EarTag), record.EarTag);
+        var reused = (await LoadAsync(second.SubmissionId)).Animals.Single(a => a.Id != record.SubmissionAnimalId);
+        Assert.Equal(Statuses.Error, reused.Status);
+        Assert.Equal(ValidationRuleCodes.Ctws192, Assert.Single(reused.Errors).ErrorCode);
+    }
+
+    [Fact]
+    public async Task TwoBundlesRacingForOneEarTag_CreateOneRecordForIt()
+    {
+        var cts = new CtsWebFake { Delay = TimeSpan.FromMilliseconds(50) };
+        var first = RegistrationBundleHandlerTests.Message();
+        var second = RegistrationBundleHandlerTests.Message();
+        second.Bundle.Animals[0].EarTag = first.Bundle.Animals[0].EarTag;
+
+        // The bundle that loses the race fails on the unique ear tag and is left on the queue; its redelivery then
+        // finds the tag allocated.
+        var failed = new ConcurrentBag<RegistrationBundleMessage>();
+        await Task.WhenAll(new[] { first, second }.Select(async m =>
+        {
+            try
+            {
+                await HandleAsync(m, cts);
+            }
+            catch (DbUpdateException)
+            {
+                failed.Add(m);
+            }
+        }));
+
+        foreach (var redelivered in failed)
+        {
+            await HandleAsync(redelivered, cts);
+        }
+
+        await using var db = postgres.CreateDbContext();
+        var earTag = CtsFormat.EarTag(first.Bundle.Animals[0].EarTag);
+        var record = await db.Set<Animal>().SingleAsync(a => a.EarTag == earTag, TestContext.Current.CancellationToken);
+        Assert.Contains(record.SubmissionId, new[] { first.SubmissionId, second.SubmissionId });
+        Assert.Equal(2, await db.Set<Submission>().CountAsync(s => s.Id == first.SubmissionId || s.Id == second.SubmissionId, TestContext.Current.CancellationToken));
     }
 
     private static async Task DrainAsync(RegistrationBundleQueueProcessor processor, int? expected)
@@ -246,6 +335,16 @@ public sealed class RegistrationBundleIntegrationTests(PostgresFixture postgres,
             .Include(s => s.Animals).ThenInclude(a => a.Errors)
             .AsSplitQuery()
             .SingleAsync(s => s.Id == id, TestContext.Current.CancellationToken);
+    }
+
+    private async Task<List<Animal>> LoadAnimalRecordsAsync(Guid submissionId)
+    {
+        await using var db = postgres.CreateDbContext();
+        return await db.Set<Animal>()
+            .Include(a => a.Errors)
+            .Where(a => a.SubmissionId == submissionId)
+            .AsSplitQuery()
+            .ToListAsync(TestContext.Current.CancellationToken);
     }
 
     private RegistrationBundlePublisher CreatePublisher(string queueUrl) =>

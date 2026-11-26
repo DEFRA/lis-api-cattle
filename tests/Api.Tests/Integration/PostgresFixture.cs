@@ -15,7 +15,7 @@ using Testcontainers.PostgreSql;
 /// </summary>
 public sealed class PostgresFixture : IAsyncLifetime
 {
-    private static readonly string[] ChangelogFiles = ["schema/01/initial.sql", "schema/02/update_status_check.sql", "schema/03/cts_requests.sql", "schema/04/cts_results_polling.sql"];
+    private static readonly string[] ChangelogFiles = ["schema/01/initial.sql", "schema/02/update_status_check.sql", "schema/03/cts_requests.sql", "schema/04/cts_results_polling.sql", "schema/06/animals.sql"];
 
     private readonly PostgreSqlContainer container = new PostgreSqlBuilder("postgres:16-alpine").Build();
 

@@ -181,7 +181,137 @@ public class RegistrationBundleHandlerTests
         Assert.Null(birth.Attribute("SiEtg"));
     }
 
-    internal static RegistrationBundleMessage Message(int animals = 1) => new()
+    [Fact]
+    public async Task HandleAsync_CreatesAPendingAnimalRecordForEachAnimalLinkedToItsSubmission()
+    {
+        var message = Message(animals: 2);
+        string? sentPayload = null;
+        ctsClient
+            .Setup(c => c.SubmitAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, CancellationToken>((_, payload, _) => sentPayload = payload)
+            .ReturnsAsync(CtsSubmitResult.Accepted(1));
+
+        await CreateHandler().HandleAsync(message, TestContext.Current.CancellationToken);
+
+        var stored = await LoadAsync(message.SubmissionId);
+        var records = await context.Set<Animal>().ToListAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(2, records.Count);
+        foreach (var submissionAnimal in stored.Animals)
+        {
+            var record = Assert.Single(records, r => r.SubmissionAnimalId == submissionAnimal.Id);
+            Assert.Equal(AnimalStatuses.Pending, record.Status);
+            Assert.Equal(message.SubmissionId, record.SubmissionId);
+            Assert.Equal(CtsFormat.EarTag(submissionAnimal.EarTag), record.EarTag);
+            Assert.Equal(submissionAnimal.DateBirth, record.DateBirth);
+            Assert.Equal("female", record.Sex);
+            Assert.Equal("AA", record.Breed);
+            Assert.Equal("surrogate", record.DamType);
+            Assert.Equal(submissionAnimal.DamGeneticEarTag, record.DamGeneticEarTag);
+            Assert.Equal(submissionAnimal.DamSurrogateEarTag, record.DamSurrogateEarTag);
+            Assert.Equal(submissionAnimal.SireEarTag, record.SireEarTag);
+            Assert.Equal("Example sire", record.SireName);
+            Assert.Empty(record.Errors);
+        }
+
+        // The CTS request is built and sent as before.
+        Assert.All(stored.Animals, a => Assert.Equal(Statuses.Submitted, a.Status));
+        Assert.Equal(stored.CtsRequest!.Payload, sentPayload);
+        Assert.Equal(2, XElement.Parse(sentPayload!).Descendants(CtsBirthRequestBuilder.Namespace + "Birth").Count());
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenAnEarTagIsAlreadyAllocated_CreatesNoRecordForItAndRejectsItWithCtws192()
+    {
+        ctsClient
+            .Setup(c => c.SubmitAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CtsSubmitResult.Accepted(1));
+        var first = Message(animals: 1);
+        await CreateHandler().HandleAsync(first, TestContext.Current.CancellationToken);
+
+        // The second bundle reuses the first animal's tag, written differently, alongside a new animal.
+        var second = Message(animals: 2);
+        second.Bundle.Animals[0].EarTag = first.Bundle.Animals[0].EarTag.Replace(" ", string.Empty, StringComparison.Ordinal).ToLowerInvariant();
+        await CreateHandler().HandleAsync(second, TestContext.Current.CancellationToken);
+
+        var stored = await LoadAsync(second.SubmissionId);
+        var reused = stored.Animals.Single(a => a.EarTag == second.Bundle.Animals[0].EarTag);
+        var fresh = stored.Animals.Single(a => a.EarTag == second.Bundle.Animals[1].EarTag);
+        Assert.Equal(Statuses.Error, reused.Status);
+        var error = Assert.Single(reused.Errors);
+        Assert.Equal("CTWS192", error.ErrorCode);
+        Assert.Equal("Ear Tag has already been used", error.ErrorText);
+        Assert.Equal(Statuses.Submitted, fresh.Status);
+
+        var records = await context.Set<Animal>().ToListAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(2, records.Count);
+        Assert.Single(records, r => r.EarTag == CtsFormat.EarTag(first.Bundle.Animals[0].EarTag) && r.SubmissionId == first.SubmissionId);
+        Assert.Single(records, r => r.SubmissionAnimalId == fresh.Id);
+
+        // The CTS request still names every animal.
+        Assert.Equal(2, XElement.Parse(stored.CtsRequest!.Payload).Descendants(CtsBirthRequestBuilder.Namespace + "Birth").Count());
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenAnEarTagIsRepeatedInTheBundle_CreatesOneRecordAndRejectsTheRepeatWithCtws204()
+    {
+        ctsClient
+            .Setup(c => c.SubmitAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CtsSubmitResult.Accepted(1));
+        var message = Message(animals: 2);
+        message.Bundle.Animals[1].EarTag = message.Bundle.Animals[0].EarTag;
+
+        await CreateHandler().HandleAsync(message, TestContext.Current.CancellationToken);
+
+        var stored = await LoadAsync(message.SubmissionId);
+        var record = await context.Set<Animal>().SingleAsync(TestContext.Current.CancellationToken);
+        var created = Assert.Single(stored.Animals, a => a.Id == record.SubmissionAnimalId);
+        Assert.Equal(Statuses.Submitted, created.Status);
+        var repeat = Assert.Single(stored.Animals, a => a.Id != record.SubmissionAnimalId);
+        Assert.Equal(Statuses.Error, repeat.Status);
+        Assert.Equal("CTWS204", Assert.Single(repeat.Errors).ErrorCode);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenTheMessageIsRedelivered_DoesNotCreateTheAnimalRecordsAgain()
+    {
+        ctsClient
+            .Setup(c => c.SubmitAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CtsSubmitResult.Accepted(1));
+        var message = Message(animals: 2);
+        await CreateHandler().HandleAsync(message, TestContext.Current.CancellationToken);
+
+        await CreateHandler().HandleAsync(message, TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, await context.Set<Animal>().CountAsync(TestContext.Current.CancellationToken));
+        Assert.All((await LoadAsync(message.SubmissionId)).Animals, a => Assert.Empty(a.Errors));
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenTheSaveFails_StoresNeitherTheBundleNorItsAnimalRecords()
+    {
+        var message = Message();
+        var failing = new TestDbContext(
+            new DbContextOptionsBuilder<TestDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options,
+            failSaves: true);
+        var handler = new RegistrationBundleHandler(failing, locker, ctsClient.Object, clock, NullLogger<RegistrationBundleHandler>.Instance);
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => handler.HandleAsync(message, TestContext.Current.CancellationToken));
+
+        failing.ChangeTracker.Clear();
+        Assert.Equal(0, await failing.Set<Submission>().CountAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(0, await failing.Set<Animal>().CountAsync(TestContext.Current.CancellationToken));
+        ctsClient.Verify(c => c.SubmitAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    /// <summary>
+    /// A bundle message. Each call uses a new herd number in its ear tags, because an ear tag identifies one animal
+    /// across every bundle stored in the same database.
+    /// </summary>
+    /// <param name="animals">The number of animals in the bundle.</param>
+    /// <returns>The message.</returns>
+    internal static RegistrationBundleMessage Message(int animals = 1) => Message(animals, Random.Shared.Next(100000, 1000000));
+
+    internal static RegistrationBundleMessage Message(int animals, int herd) => new()
     {
         SubmissionId = Guid.NewGuid(),
         CorrelationId = "corr-925",
@@ -193,7 +323,7 @@ public class RegistrationBundleHandlerTests
             SubmittedBy = "test user",
             Animals = Enumerable.Range(1, animals).Select(i => new AnimalRegistrationRequest
             {
-                EarTag = $"UK 12 3456 10000{i}",
+                EarTag = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"UK {herd / 10000:D2} {herd % 10000:D4} 10000{i}"),
                 DateOfBirth = new DateOnly(2026, 2, i),
                 Sex = "female",
                 Breed = "AA",
@@ -215,7 +345,7 @@ public class RegistrationBundleHandlerTests
     {
         context.ChangeTracker.Clear();
         return await context.Set<Submission>()
-            .Include(s => s.Animals)
+            .Include(s => s.Animals).ThenInclude(a => a.Errors)
             .Include(s => s.CtsRequest)
             .SingleAsync(s => s.Id == id, TestContext.Current.CancellationToken);
     }
@@ -251,8 +381,11 @@ public class RegistrationBundleHandlerTests
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
-    private sealed class TestDbContext(DbContextOptions<TestDbContext> options) : DbContext(options)
+    private sealed class TestDbContext(DbContextOptions<TestDbContext> options, bool failSaves = false) : DbContext(options)
     {
+        public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) =>
+            failSaves ? throw new DbUpdateException("The save failed.") : base.SaveChangesAsync(cancellationToken);
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<Submission>(builder =>
@@ -273,6 +406,19 @@ public class RegistrationBundleHandlerTests
 
             modelBuilder.Entity<SubmissionAnimalError>(builder => builder.HasKey(e => e.Id));
             modelBuilder.Entity<CtsRequest>(builder =>
+            {
+                builder.HasKey(e => e.Id);
+                builder.Property(e => e.Id).ValueGeneratedNever();
+            });
+
+            modelBuilder.Entity<Animal>(builder =>
+            {
+                builder.HasKey(e => e.Id);
+                builder.Property(e => e.Id).ValueGeneratedNever();
+                builder.HasMany(e => e.Errors).WithOne().HasForeignKey(e => e.AnimalId);
+            });
+
+            modelBuilder.Entity<AnimalError>(builder =>
             {
                 builder.HasKey(e => e.Id);
                 builder.Property(e => e.Id).ValueGeneratedNever();

@@ -93,6 +93,15 @@ public static class ValidationRuleCodes
         [Ctws209] = "Multiple calvings have occurred",
     };
 
+    /// <summary>Gets the curated text for a CTWS code, when the API's validation knows the code.</summary>
+    /// <param name="errorCode">The CTWS code.</param>
+    /// <param name="description">The curated text, when the code is known.</param>
+    /// <returns><see langword="true"/> if the code is known.</returns>
+    public static bool TryGetDescription(string errorCode, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? description)
+    {
+        return Descriptions.TryGetValue(errorCode, out description);
+    }
+
     public static string GetDescription(string errorCode)
     {
         return Descriptions.TryGetValue(errorCode, out var description)

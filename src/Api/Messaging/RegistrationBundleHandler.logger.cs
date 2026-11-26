@@ -9,6 +9,9 @@ public partial class RegistrationBundleHandler
     [LoggerMessage(LogLevel.Information, "Stored registration bundle {SubmissionId} with {AnimalCount} animals and its CTS Birth request")]
     partial void LogBundleStored(Guid submissionId, int animalCount);
 
+    [LoggerMessage(LogLevel.Information, "Created {CreatedCount} pending animal records for registration bundle {SubmissionId}; {RejectedCount} animals were rejected because their ear tag is missing, repeated or already allocated")]
+    partial void LogAnimalRecordsCreated(Guid submissionId, int createdCount, int rejectedCount);
+
     [LoggerMessage(LogLevel.Information, "Registration bundle {SubmissionId} is already stored")]
     partial void LogBundleAlreadyStored(Guid submissionId);
 

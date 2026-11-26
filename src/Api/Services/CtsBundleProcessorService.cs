@@ -11,6 +11,7 @@ using Defra.Lis.Api.Correlation;
 using Defra.Lis.Api.Cts;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models;
+using Defra.Lis.Api.Validation;
 using Defra.Lis.Database.Claims;
 using Defra.Lis.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -22,7 +23,8 @@ using Serilog.Context;
 /// Polls CTS for the validation results of bundles the registration bundle worker sent (LREG-926). Each claimed
 /// bundle gets one <c>Get_Register_Births_Validation_Results</c> call with its receipt. Every row CTS returns is
 /// recorded on its animal; rows CTS has not returned yet are left for the next poll. A bundle completes once every
-/// animal has its final outcome.
+/// animal has its final outcome. The outcome is also recorded on each animal's LIS record (LREG-1003): it becomes
+/// registered when CTS accepts it, or errored with the CTS errors when CTS rejects it.
 /// </summary>
 public partial class CtsBundleProcessorService(
     DbContext dbContext,
@@ -77,6 +79,10 @@ public partial class CtsBundleProcessorService(
         return rows;
     }
 
+    /// <summary>The errors CTS gave the animal, with the curated text the API's validation uses for each known code.</summary>
+    private static IEnumerable<(string ErrorCode, string ErrorText)> CuratedErrors(SubmissionAnimal animal) =>
+        animal.Errors.Select(e => (e.ErrorCode, ValidationRuleCodes.TryGetDescription(e.ErrorCode, out var curated) ? curated : e.ErrorText));
+
     private async Task ProcessBatchAsync(int batchSize, CancellationToken cancellationToken)
     {
         // A retried attempt must not save changes tracked by the attempt that failed.
@@ -101,6 +107,13 @@ public partial class CtsBundleProcessorService(
             .AsSplitQuery()
             .ToListAsync(cancellationToken);
 
+        // The animal records the bundles created, by the submission animal that created each one.
+        var animalRecords = await dbContext.Set<Animal>()
+            .Include(a => a.Errors)
+            .Where(a => claimedIds.Contains(a.SubmissionId))
+            .AsSplitQuery()
+            .ToDictionaryAsync(a => a.SubmissionAnimalId, cancellationToken);
+
         LogFoundCountBundlesToProcessWithCts(bundles.Count);
 
         foreach (var bundle in bundles)
@@ -114,7 +127,7 @@ public partial class CtsBundleProcessorService(
             using var correlationProperty = LogContext.PushProperty("CorrelationId", bundle.CorrelationId);
             try
             {
-                await ProcessBundleAsync(bundle, cancellationToken);
+                await ProcessBundleAsync(bundle, animalRecords, cancellationToken);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -141,7 +154,7 @@ public partial class CtsBundleProcessorService(
         }
     }
 
-    private async Task ProcessBundleAsync(Submission bundle, CancellationToken cancellationToken)
+    private async Task ProcessBundleAsync(Submission bundle, IReadOnlyDictionary<Guid, Animal> animalRecords, CancellationToken cancellationToken)
     {
         if (bundle.CtsReceiptNumber is not { } receiptNumber || bundle.CtsRequest is null)
         {
@@ -170,7 +183,7 @@ public partial class CtsBundleProcessorService(
             return;
         }
 
-        var updated = ApplyResults(bundle, results);
+        var updated = ApplyResults(bundle, results, animalRecords, now);
 
         if (bundle.TryCompleteFromCtsResults(now))
         {
@@ -199,7 +212,7 @@ public partial class CtsBundleProcessorService(
         LogCtsResultsFailed(bundle.Id, receiptNumber, results.ErrorCode, results.ErrorText, results.IsTransient);
     }
 
-    private int ApplyResults(Submission bundle, CtsBirthResults results)
+    private int ApplyResults(Submission bundle, CtsBirthResults results, IReadOnlyDictionary<Guid, Animal> animalRecords, DateTimeOffset now)
     {
         var sentRows = RowsOf(bundle.CtsRequest!.Payload);
         var animalsByEarTag = bundle.Animals
@@ -212,6 +225,7 @@ public partial class CtsBundleProcessorService(
             if (AnimalFor(bundle, rowNum, null) is { } animal && animal.RecordCtsAccepted())
             {
                 updated++;
+                animalRecords.GetValueOrDefault(animal.Id)?.RecordCtsAccepted(now);
             }
         }
 
@@ -221,6 +235,9 @@ public partial class CtsBundleProcessorService(
                 && animal.RecordCtsRejected(rejected.Causes.Select(c => (c.Code, c.Description))))
             {
                 updated++;
+
+                // The animal record holds the same CTWS codes, with the text the API's validation uses for them.
+                animalRecords.GetValueOrDefault(animal.Id)?.RecordCtsRejected(CuratedErrors(animal), now);
             }
         }
 
