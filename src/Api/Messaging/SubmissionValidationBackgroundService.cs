@@ -8,6 +8,7 @@ using Defra.Lis.Api.Configurations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 public partial class SubmissionValidationBackgroundService(
@@ -20,6 +21,8 @@ public partial class SubmissionValidationBackgroundService(
         serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
 
     private readonly AwsMessagingOptions options = options?.Value ?? new AwsMessagingOptions();
+
+    private readonly ILogger logger = logger ?? NullLogger<SubmissionValidationBackgroundService>.Instance;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {

@@ -46,7 +46,8 @@ published per API version, describing the same routes:
 
 `dotnet build Cattle.slnx` generates both OpenAPI 3.1 documents and copies them to
 `artifacts/openapi/v1.json` and `artifacts/openapi/v1-internal.json`, ready for artifact collection.
-The Cake build and `dotnet publish` run the same generation step. These files are gitignored.
+`dotnet publish` runs the same generation step, and the pipeline zips the generated documents into an
+`openapi-<version>.zip` artifact. These files are gitignored.
 
 Endpoints are internal-only until marked. `OpenApiConfigurationTests` lists the operations agreed as public, so a new
 public endpoint has to be added there too.
@@ -156,8 +157,9 @@ migrations itself.
   [liquibase image README](https://github.com/DEFRA/lis-dev/blob/main/.tools/liquibase/README.md),
   which also explains how to run a changelog from disk while you write a migration.
 - Locally with this repo's compose files: the `liquibase` service applies `./changelog`.
-- In CDP: the publish pipeline uploads the changelog to S3 and for CDP to apply. See
-  `liquibase.cake` and `.github/workflows/publish.yml`.
+- In CI: the build job validates the changelog and applies it to a throwaway PostgreSQL before the tests run.
+- In CDP: the publish pipeline uploads the validated changelog to S3 for CDP to apply. See
+  `.github/workflows/publish.yml`.
 - In the tests: the integration tests apply `changelog/schema` to a Postgres container.
 
 ### Messaging
@@ -441,15 +443,17 @@ secret must be set as secrets in the CDP portal for every deployed environment.
 ## Running tests
 
 ```bash
-dotnet test Cattle.slnx          # all tests, with coverage
+dotnet test Cattle.slnx          # all tests (Microsoft.Testing.Platform)
+dotnet test Cattle.slnx --coverage --coverage-output-format xml   # with coverage, as Sonar runs it
 dotnet format --verify-no-changes Cattle.slnx    # formatting
 ```
 
 The solution has one test project, `tests/Api.Tests` (xUnit). Most tests are unit tests. The
 tests in `tests/Api.Tests/Integration` start a Postgres container with Testcontainers and apply
 the Liquibase schema, so they need Docker running. The `.http` files in `tests/Endpoints` are for
-trying the API by hand. StyleCop analysers run during the build, and warnings are reported by the
-build and by Sonar.
+trying the API by hand. Tests run on Microsoft.Testing.Platform (`global.json`), so `dotnet test` options are
+MTP options, for example `--filter-not-trait "Category=Integration"` to skip the Docker tests. StyleCop and the
+.NET `recommended` analysers run during the build and warnings are errors.
 
 End-to-end journeys are covered by [lis-journey-tests](https://github.com/DEFRA/lis-journey-tests).
 
@@ -463,11 +467,13 @@ Logs are ECS JSON written with Serilog and carry the `CorrelationId`.
 
 ## Pipelines
 
-Build, versioning and publishing run in GitHub Actions (`.github/workflows`) using Cake scripts (`*.cake`):
+Build, versioning and publishing run in GitHub Actions (`.github/workflows`) using the composite actions in
+[lis-github-actions](https://github.com/DEFRA/lis-github-actions), pinned by commit SHA:
 
-- **Pull request to `main`**: validate (format, build, test), Sonar analysis, version check
-- **Push to a `feature/` or `hotfix/` branch**: prerelease build and tag
-- **Merge to `main`**: release tag, then publish the container image and the database migration to CDP
+- **Pull request to `main`**: version, build and test (Liquibase validation, OpenAPI documents, image smoke test), Sonar analysis
+- **Push to a `feature/` or `hotfix/` branch**: the same, then a prerelease tag when the quality gate passes
+- **Merge to `main`**: the same on the merge commit, then a release tag
+- **Tag push**: publish the tested container image to ECR (and Docker Hub for stable versions) and the database migrations to S3 for CDP
 
 Versions come from git tags (SemVer).
 

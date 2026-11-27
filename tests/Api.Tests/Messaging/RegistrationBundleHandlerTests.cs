@@ -14,7 +14,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
-public class RegistrationBundleHandlerTests
+public sealed class RegistrationBundleHandlerTests : IAsyncDisposable
 {
     private readonly TestDbContext context;
     private readonly Mock<ICtsWebClient> ctsClient = new();
@@ -301,6 +301,12 @@ public class RegistrationBundleHandlerTests
         Assert.Equal(0, await failing.Set<Submission>().CountAsync(TestContext.Current.CancellationToken));
         Assert.Equal(0, await failing.Set<Animal>().CountAsync(TestContext.Current.CancellationToken));
         ctsClient.Verify(c => c.SubmitAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await context.DisposeAsync();
+        await locker.DisposeAsync();
     }
 
     /// <summary>

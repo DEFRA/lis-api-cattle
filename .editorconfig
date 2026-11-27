@@ -2,8 +2,8 @@ root = true
 [*]
 charset = utf-8
 end_of_line = lf
-trim_trailing_whitespace = false
-insert_final_newline = false
+trim_trailing_whitespace = true
+insert_final_newline = true
 indent_style = space
 indent_size = 4
 tab_width = 4
@@ -57,10 +57,10 @@ dotnet_diagnostic.SA0001.severity = none # SA0001: XML comment analysis is disab
 dotnet_diagnostic.SA1101.severity = none # SA1101: Prefix local calls with this
 dotnet_diagnostic.SA1600.severity = none # SA1600: Elements should be documented
 
-[{*.cs,*.cake}]
+[*.cs]
 # file layout
-trim_trailing_whitespace = false
-insert_final_newline = false
+trim_trailing_whitespace = true
+insert_final_newline = true
 csharp_using_directive_placement = inside_namespace:error
 resharper_redundant_using_directive_highlighting = error # JetBrains Rider / ReSharper inspection severity
 dotnet_diagnostic.IDE0005.severity = error # Roslyn: Unnecessary using directive
@@ -252,3 +252,7 @@ dotnet_diagnostic.SA1629.severity = none
 dotnet_diagnostic.SA1633.severity = none
 dotnet_diagnostic.SA1636.severity = none
 dotnet_diagnostic.SA1642.severity = none
+
+# Test names separate the method, scenario and expected result with underscores.
+[tests/**/*.cs]
+dotnet_diagnostic.CA1707.severity = none

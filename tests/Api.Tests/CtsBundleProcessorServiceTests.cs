@@ -17,7 +17,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 
-public class CtsBundleProcessorServiceTests
+public sealed class CtsBundleProcessorServiceTests : IDisposable
 {
     private static readonly DateTimeOffset SentAt = DateTimeOffset.Parse("2026-11-18T09:00:00Z", CultureInfo.InvariantCulture);
 
@@ -396,6 +396,11 @@ public class CtsBundleProcessorServiceTests
         var rows = CtsBundleProcessorService.RowsOf(CtsBirthRequestBuilder.Build(bundle, SentAt));
 
         Assert.Equal(new Dictionary<int, string> { [1] = "UK123456100001", [2] = "UK123456100002" }, rows);
+    }
+
+    public void Dispose()
+    {
+        context.Dispose();
     }
 
     private static CtsBirthResults Ready(Submission bundle, int[]? accepted = null, CtsRejectedBirth[]? rejected = null) =>

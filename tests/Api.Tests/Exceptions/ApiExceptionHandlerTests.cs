@@ -4,6 +4,7 @@
 
 namespace Defra.Lis.Api.Tests.Exceptions;
 
+using System.Globalization;
 using System.Text.Json;
 using Defra.Lis.Api.Configurations;
 using Defra.Lis.Api.Exceptions;
@@ -301,7 +302,7 @@ public class ApiExceptionHandlerTests
         Assert.Equal("corr-999", ((ScalarValue)logEvent.Properties["CorrelationId"]).Value);
         Assert.Equal("trace-999", ((ScalarValue)logEvent.Properties["TraceId"]).Value);
         Assert.Equal("/v{version:apiVersion}/users/{subject}", ((ScalarValue)logEvent.Properties["Path"]).Value);
-        Assert.DoesNotContain("subject-751", logEvent.RenderMessage(), StringComparison.Ordinal);
+        Assert.DoesNotContain("subject-751", logEvent.RenderMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -343,7 +344,7 @@ public class ApiExceptionHandlerTests
         // Assert
         var logEvent = Assert.Single(sink.Events);
         Assert.Equal("/v{version:apiVersion}/users/{subject}", ((ScalarValue)logEvent.Properties["Path"]).Value);
-        Assert.DoesNotContain("subject-751", logEvent.RenderMessage(), StringComparison.Ordinal);
+        Assert.DoesNotContain("subject-751", logEvent.RenderMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
 
     private sealed class CapturingSink : ILogEventSink

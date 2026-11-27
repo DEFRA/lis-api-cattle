@@ -23,7 +23,7 @@ using Moq;
 using static System.Text.Encoding;
 using Convert = System.Convert;
 
-public class KrdsServiceTests
+public sealed class KrdsServiceTests : IDisposable
 {
     private const string OakfieldHolding = """
                                            {
@@ -1358,6 +1358,11 @@ public class KrdsServiceTests
 
         await Assert.ThrowsAsync<CircuitBreakerOpenException>(() =>
             service.GetUserAccountAsync(OakfieldSubject, TestContext.Current.CancellationToken));
+    }
+
+    public void Dispose()
+    {
+        handler.Dispose();
     }
 
     private static CreateUserRequest OakfieldClaims() => new()

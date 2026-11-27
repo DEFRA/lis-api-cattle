@@ -13,11 +13,26 @@ permissions:
   actions: read
   contents: read
   id-token: write
+  pull-requests: read
 
 jobs:
   publish:
     name: 'Publish'
-    uses: DEFRA/lis-github-actions/.github/workflows/container-publish.yml@0.5.0
-    with:
-      migrations-path: changelog
-    secrets: inherit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Publish container image
+        uses: DEFRA/lis-github-actions/actions/publish-container@5f5557f64c1344efb6ed44e482452f9cfe6bea51 # v0.11.0
+        with:
+          version: ${{ github.ref_name }}
+          aws-account-id: ${{ vars.AWS_ACCOUNT_ID || secrets.LIS_AWS_ACCOUNT_ID }}
+          aws-region: ${{ vars.AWS_REGION || 'eu-west-2' }}
+          image-name: ${{ vars.ECR_REPOSITORY || github.event.repository.name }}
+
+      - name: Publish database migrations
+        uses: DEFRA/lis-github-actions/actions/publish-liquibase@5f5557f64c1344efb6ed44e482452f9cfe6bea51 # v0.11.0
+        with:
+          version: ${{ github.ref_name }}
+          aws-account-id: ${{ vars.AWS_ACCOUNT_ID || secrets.LIS_AWS_ACCOUNT_ID }}
+          aws-region: ${{ vars.AWS_REGION || 'eu-west-2' }}
+          service-name: ${{ github.event.repository.name }}

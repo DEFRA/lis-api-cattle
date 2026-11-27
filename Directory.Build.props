@@ -2,6 +2,8 @@
   <PropertyGroup>
     <Authors>Defra</Authors>
     <TargetFramework>net10.0</TargetFramework>
+    <AnalysisLevel>10.0-recommended</AnalysisLevel>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <Title>LIS cattle api</Title>
@@ -15,7 +17,7 @@
     <RootNamespace>$(RootNamespace).$(MSBuildProjectName)</RootNamespace>
     <AssemblyName>$(RootNamespace)</AssemblyName>
   </PropertyGroup>
-  
+
   <!-- global packages -->
   <ItemGroup>
     <Using Include="Microsoft" />

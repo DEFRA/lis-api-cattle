@@ -45,9 +45,7 @@ public static partial class DatabaseSeeder
         }
         catch (Exception ex)
         {
-            logger?.LogWarning(
-                ex,
-                "Failed to seed development database due to a database error or connection issue. Continuing application startup.");
+            LogDevelopmentDatabaseSeedingFailed(logger, ex);
         }
     }
 

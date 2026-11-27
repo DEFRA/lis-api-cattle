@@ -5,6 +5,7 @@
 namespace Defra.Lis.Api.Tests.Logging;
 
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Net;
 using System.Text;
 using Asp.Versioning;
@@ -32,7 +33,7 @@ using Serilog.Events;
 /// Runs the user endpoints through the logging pipeline from <c>Program</c>, against a real <see cref="KrdsService"/>
 /// over a stub KRDS, and checks that no log event carries the Defra ID subject (LREG-751).
 /// </summary>
-public class SubjectLoggingTests
+public sealed class SubjectLoggingTests : IDisposable
 {
     private const string Subject = "5e0c8f8a-4b1d-4c7e-9a3f-6d2b8e1f0a47";
 
@@ -145,6 +146,11 @@ public class SubjectLoggingTests
         AssertNoEventContainsTheSubject();
     }
 
+    public void Dispose()
+    {
+        krds.Dispose();
+    }
+
     private static StringContent ClaimsBody() => new(
         $$"""{"sub":"{{Subject}}","email":"oakfield.farmer@oakhill-farms.co.uk","given_name":"Oakfield","family_name":"Farmer"}""",
         Encoding.UTF8,
@@ -159,7 +165,7 @@ public class SubjectLoggingTests
 
     private static string Describe(LogEvent logEvent)
     {
-        var text = new StringBuilder(logEvent.RenderMessage());
+        var text = new StringBuilder(logEvent.RenderMessage(CultureInfo.InvariantCulture));
         foreach (var property in logEvent.Properties)
         {
             text.Append(' ').Append(property.Key).Append('=').Append(property.Value);

@@ -13,7 +13,7 @@ using Defra.Livestock.Sdk.Core.Exceptions;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 
-public class CattleServiceTests
+public sealed class CattleServiceTests : IDisposable
 {
     private readonly Mock<ICadsService> mockCadsService;
     private readonly CattleService service;
@@ -215,7 +215,12 @@ public class CattleServiceTests
         Assert.Empty(result);
     }
 
-    private class TestDbContext(DbContextOptions<TestDbContext> options)
+    public void Dispose()
+    {
+        context.Dispose();
+    }
+
+    private sealed class TestDbContext(DbContextOptions<TestDbContext> options)
         : DbContext(options)
     {
         protected override void OnModelCreating(ModelBuilder modelBuilder)

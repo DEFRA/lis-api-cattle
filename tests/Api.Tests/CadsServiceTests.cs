@@ -19,7 +19,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
-public class CadsServiceTests
+public sealed class CadsServiceTests : IDisposable
 {
     private const string Cph = "22/001/0001";
     private const string EarTag = "UK200000000001";
@@ -1156,6 +1156,11 @@ public class CadsServiceTests
 
         await Assert.ThrowsAsync<CircuitBreakerOpenException>(() =>
             service.GetCattleByCphAsync(Cph, TestContext.Current.CancellationToken));
+    }
+
+    public void Dispose()
+    {
+        handler.Dispose();
     }
 
     private static string Parent(string relationship, string earTag) => $$"""

@@ -14,7 +14,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-public class ApiKeyAuthenticationHandlerTests
+public sealed class ApiKeyAuthenticationHandlerTests : IDisposable
 {
     private const string HeaderName = "x-api-key";
 
@@ -108,6 +108,11 @@ public class ApiKeyAuthenticationHandlerTests
         Assert.NotEmpty(logs.Messages);
         Assert.DoesNotContain(logs.Messages, message => message.Contains("presented-secret-value", StringComparison.Ordinal));
         Assert.DoesNotContain(logs.Messages, message => message.Contains(TestAuthentication.ApiKey, StringComparison.Ordinal));
+    }
+
+    public void Dispose()
+    {
+        logs.Dispose();
     }
 
     private static async Task<HttpResponseMessage> SendAsync(WebApplication app, string path, string key)

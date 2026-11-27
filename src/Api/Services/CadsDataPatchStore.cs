@@ -39,7 +39,7 @@ public sealed partial class CadsDataPatchStore(
                 .Where(key => PatchKeyPattern().IsMatch(key))
                 .Select(key => key[..key.LastIndexOf('/')])
                 .Distinct(StringComparer.Ordinal)
-                .Order(StringComparer.Ordinal)
+                .Order(StringComparer.Ordinal),
         ];
     }
 
@@ -57,7 +57,7 @@ public sealed partial class CadsDataPatchStore(
         [
             .. keys
                 .Where(key => key.StartsWith(prefix, StringComparison.Ordinal) && PatchKeyPattern().IsMatch(key))
-                .Select(key => key[prefix.Length..^FileExtension.Length])
+                .Select(key => key[prefix.Length..^FileExtension.Length]),
         ];
     }
 

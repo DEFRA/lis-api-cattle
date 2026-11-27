@@ -5,6 +5,7 @@
 namespace Defra.Lis.Api.Services;
 
 using System.Diagnostics;
+using System.Globalization;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using Defra.Database.Postgres;
@@ -184,12 +185,13 @@ public partial class HealthService : IHealthService
 
             stopwatch.Stop();
 
-            var messageCount = attributesResponse.Attributes != null &&
-                               attributesResponse.Attributes.TryGetValue(
-                                   QueueAttributeName.ApproximateNumberOfMessages,
-                                   out var countStr) && int.TryParse(countStr, out var count)
-                ? count
-                : 0;
+            var messageCount = 0;
+            if (attributesResponse.Attributes != null
+                && attributesResponse.Attributes.TryGetValue(QueueAttributeName.ApproximateNumberOfMessages, out var countStr)
+                && int.TryParse(countStr, CultureInfo.InvariantCulture, out var count))
+            {
+                messageCount = count;
+            }
 
             return new ComponentHealthResult(
                 nameof(HealthStatus.Healthy),

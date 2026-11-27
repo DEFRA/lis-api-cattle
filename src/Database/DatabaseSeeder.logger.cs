@@ -19,4 +19,7 @@ public static partial class DatabaseSeeder
 
     [LoggerMessage(LogLevel.Information, "Development test data successfully seeded ({Count} submissions).")]
     static partial void LogDevelopmentTestDataSuccessfullySeededCountSubmissions(ILogger logger, int count);
+
+    [LoggerMessage(LogLevel.Warning, "Failed to seed development database due to a database error or connection issue. Continuing application startup.")]
+    static partial void LogDevelopmentDatabaseSeedingFailed(ILogger logger, Exception exception);
 }
