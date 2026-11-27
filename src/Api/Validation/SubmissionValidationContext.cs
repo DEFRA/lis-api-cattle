@@ -6,13 +6,15 @@ namespace Defra.Lis.Api.Validation;
 
 using System.Text.RegularExpressions;
 using Defra.Lis.Api.Configurations;
+using Defra.Lis.Api.Cts;
 using Defra.Lis.Api.Models.Responses;
 using Defra.Lis.Entities;
 
 /// <summary>
 /// Everything the per-animal rules need that is computed once per submission:
 /// the configured thresholds and patterns, the CADS animals for the holding, the
-/// animals already held in other submissions, and the ear tags duplicated in this file.
+/// animals already held in other submissions, the ear tags already allocated to an
+/// LIS animal record, and the ear tags duplicated in this file.
 /// </summary>
 internal sealed class SubmissionValidationContext
 {
@@ -21,12 +23,14 @@ internal sealed class SubmissionValidationContext
         SubmissionValidationOptions options,
         IReadOnlyList<CattleResponse> cadsCattle,
         IReadOnlyList<SubmissionAnimal> existingAnimals,
+        IReadOnlySet<string> allocatedEarTags,
         DateOnly today)
     {
         Submission = submission;
         Options = options;
         CadsCattle = cadsCattle;
         ExistingAnimals = existingAnimals;
+        AllocatedEarTags = allocatedEarTags;
         Today = today;
         EarTagRegex = new Regex(options.EarTagRegexPattern, RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromSeconds(2));
 
@@ -48,6 +52,11 @@ internal sealed class SubmissionValidationContext
     public IReadOnlyList<CattleResponse> CadsCattle { get; }
 
     public IReadOnlyList<SubmissionAnimal> ExistingAnimals { get; }
+
+    /// <summary>
+    /// Gets the ear tags, in CTS form, already allocated to an LIS animal record by another submission.
+    /// </summary>
+    public IReadOnlySet<string> AllocatedEarTags { get; }
 
     public DateOnly Today { get; }
 
@@ -77,10 +86,17 @@ internal sealed class SubmissionValidationContext
             .FirstOrDefault();
     }
 
+    /// <summary>
+    /// An ear tag is never issued to two animals: it is in use when CADS holds it, another submission completed it,
+    /// or it is already allocated to an LIS animal record (LREG-1003).
+    /// </summary>
+    /// <param name="earTag">The ear tag as submitted.</param>
+    /// <returns><see langword="true"/> when the tag is already in use.</returns>
     public bool IsEarTagAlreadyUsed(string earTag)
     {
         return CadsCattle.Any(c => EarTags.AreEqual(c.EarTag, earTag))
-               || ExistingAnimals.Any(a => EarTags.AreEqual(a.EarTag, earTag) && a.Status == Statuses.Complete);
+               || ExistingAnimals.Any(a => EarTags.AreEqual(a.EarTag, earTag) && a.Status == Statuses.Complete)
+               || (CtsFormat.EarTag(earTag) is { } ctsEarTag && AllocatedEarTags.Contains(ctsEarTag));
     }
 
     /// <summary>

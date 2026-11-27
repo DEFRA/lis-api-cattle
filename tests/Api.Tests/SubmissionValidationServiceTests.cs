@@ -451,6 +451,43 @@ public class SubmissionValidationServiceTests
     }
 
     [Fact]
+    public async Task ValidateSubmissionAsync_EarTagAllocatedToAnAnimalRecord_TriggersCTWS192()
+    {
+        var (dbContext, service) = CreateService(nameof(ValidateSubmissionAsync_EarTagAllocatedToAnAnimalRecord_TriggersCTWS192));
+
+        var earlier = new Submission("REF0", "12/345/6789", "USER1");
+        var allocated = earlier.AddAnimal("UK123456789012");
+        dbContext.Set<Submission>().Add(earlier);
+        dbContext.Set<Animal>().Add(new Animal(allocated, "UK123456789012"));
+        await dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var submission = new Submission("REF1", "12/345/6789", "USER1");
+        var used = submission.AddAnimal("uk 123456 789012", dateBirth: DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-5)));
+        var free = submission.AddAnimal("UK123456789013", dateBirth: DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-5)));
+
+        await service.ValidateSubmissionAsync(submission, TestContext.Current.CancellationToken);
+
+        Assert.Contains(used.Errors, e => e.ErrorCode == ValidationRuleCodes.Ctws192);
+        Assert.DoesNotContain(free.Errors, e => e.ErrorCode == ValidationRuleCodes.Ctws192);
+    }
+
+    [Fact]
+    public async Task ValidateSubmissionAsync_EarTagAllocatedByThisSubmission_IsNotAlreadyUsed()
+    {
+        var (dbContext, service) = CreateService(nameof(ValidateSubmissionAsync_EarTagAllocatedByThisSubmission_IsNotAlreadyUsed));
+
+        var submission = new Submission("REF1", "12/345/6789", "USER1");
+        var animal = submission.AddAnimal("UK123456789012", dateBirth: DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-5)));
+        dbContext.Set<Submission>().Add(submission);
+        dbContext.Set<Animal>().Add(new Animal(animal, "UK123456789012"));
+        await dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        await service.ValidateSubmissionAsync(submission, TestContext.Current.CancellationToken);
+
+        Assert.DoesNotContain(animal.Errors, e => e.ErrorCode == ValidationRuleCodes.Ctws192);
+    }
+
+    [Fact]
     public async Task ValidateSubmissionAsync_DamCalvedWithinIntervalInAnotherSubmission_TriggersCTWS200()
     {
         var (dbContext, service) = CreateService(nameof(ValidateSubmissionAsync_DamCalvedWithinIntervalInAnotherSubmission_TriggersCTWS200));
@@ -564,6 +601,21 @@ public class SubmissionValidationServiceTests
             {
                 builder.ToTable("submission_animal_errors", "public");
                 builder.HasKey(e => e.Id);
+            });
+
+            modelBuilder.Entity<Animal>(builder =>
+            {
+                builder.ToTable("animals", "public");
+                builder.HasKey(e => e.Id);
+                builder.Property(e => e.Id).ValueGeneratedNever();
+                builder.HasMany(e => e.Errors).WithOne().HasForeignKey(e => e.AnimalId);
+            });
+
+            modelBuilder.Entity<AnimalError>(builder =>
+            {
+                builder.ToTable("animal_errors", "public");
+                builder.HasKey(e => e.Id);
+                builder.Property(e => e.Id).ValueGeneratedNever();
             });
         }
     }
