@@ -326,6 +326,69 @@ public class CtsBundleProcessorServiceTests
     }
 
     [Fact]
+    public async Task ProcessPendingBundlesAsync_RecordsTheCtsOutcomeOnEachAnimalRecord()
+    {
+        var bundle = await SeedSentBundleAsync(2);
+        await SeedAnimalRecordsAsync(bundle);
+        Respond(bundle, Ready(bundle, accepted: [1], rejected: [Reject(bundle, 2, ("CTWS014", "Invalid Breed"), ("CTWS999", "Something CTS-only"))]));
+
+        await CreateService().ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
+
+        var rows = CtsBirthRequestBuilder.OrderedAnimals(await ReloadAsync(bundle.Id));
+        var records = await ReloadAnimalRecordsAsync();
+        var accepted = records[rows[0].Id];
+        Assert.Equal(AnimalStatuses.Registered, accepted.Status);
+        Assert.Equal(clock.GetUtcNow(), accepted.UpdatedAt);
+        Assert.Empty(accepted.Errors);
+
+        var rejected = records[rows[1].Id];
+        Assert.Equal(AnimalStatuses.Error, rejected.Status);
+        Assert.Equal(clock.GetUtcNow(), rejected.UpdatedAt);
+        Assert.Equal(["CTWS014", "CTWS999"], rejected.Errors.Select(e => e.ErrorCode).Order(StringComparer.Ordinal));
+
+        // A code the API's validation knows gets its curated text; any other keeps the text CTS sent.
+        Assert.Equal("Invalid Breed Code", rejected.Errors.Single(e => e.ErrorCode == "CTWS014").ErrorText);
+        Assert.Equal("Something CTS-only", rejected.Errors.Single(e => e.ErrorCode == "CTWS999").ErrorText);
+        Assert.All(rejected.Errors, e => Assert.Equal(Animal.CtsErrorSource, e.Source));
+        Assert.All(rejected.Errors, e => Assert.Equal(clock.GetUtcNow(), e.CreatedAt));
+    }
+
+    [Fact]
+    public async Task ProcessPendingBundlesAsync_WhenTheSameResultsAreRecordedTwice_AddsNoDuplicateAnimalErrors()
+    {
+        var bundle = await SeedSentBundleAsync(2);
+        await SeedAnimalRecordsAsync(bundle);
+        Respond(bundle, Ready(bundle, accepted: [1]));
+        await CreateService().ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
+
+        // The rejection arrives on a later poll, then the same response is returned again.
+        Respond(bundle, Ready(bundle, accepted: [1], rejected: [Reject(bundle, 2, ("CTWS014", "Invalid Breed"))]));
+        await CreateService().ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
+        Respond(bundle, Ready(bundle, accepted: [1], rejected: [Reject(bundle, 2, ("CTWS014", "Invalid Breed"))]));
+        await CreateService().ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
+
+        var rows = CtsBirthRequestBuilder.OrderedAnimals(await ReloadAsync(bundle.Id));
+        var records = await ReloadAnimalRecordsAsync();
+        Assert.Equal("CTWS014", Assert.Single(records[rows[1].Id].Errors).ErrorCode);
+        Assert.Equal(1, await context.Set<AnimalError>().CountAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(AnimalStatuses.Registered, records[rows[0].Id].Status);
+    }
+
+    [Fact]
+    public async Task ProcessPendingBundlesAsync_WhenAnAnimalHasNoRecord_StillRecordsItsCtsOutcome()
+    {
+        // An animal whose ear tag was already allocated got no record of its own.
+        var bundle = await SeedSentBundleAsync(1);
+        Respond(bundle, Ready(bundle, rejected: [Reject(bundle, 1, ("CTWS192", "Ear Tag has already been used"))]));
+
+        await CreateService().ProcessPendingBundlesAsync(TestContext.Current.CancellationToken);
+
+        var updated = await ReloadAsync(bundle.Id);
+        Assert.Equal(Statuses.CompleteWithErrors, updated.Status);
+        Assert.Empty(await context.Set<Animal>().ToListAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public void RowsOf_ReadsTheEarTagSentInEachRow()
     {
         var bundle = CtsBirthRequestBuilderTests.Bundle(2);
@@ -359,6 +422,21 @@ public class CtsBundleProcessorServiceTests
         await context.SaveChangesAsync(TestContext.Current.CancellationToken);
         context.ChangeTracker.Clear();
         return bundle;
+    }
+
+    private async Task SeedAnimalRecordsAsync(Submission bundle)
+    {
+        context.Set<Animal>().AddRange(bundle.Animals.Select(a => new Animal(a, CtsFormat.EarTag(a.EarTag)!)));
+        await context.SaveChangesAsync(TestContext.Current.CancellationToken);
+        context.ChangeTracker.Clear();
+    }
+
+    private async Task<Dictionary<Guid, Animal>> ReloadAnimalRecordsAsync()
+    {
+        context.ChangeTracker.Clear();
+        return await context.Set<Animal>()
+            .Include(a => a.Errors)
+            .ToDictionaryAsync(a => a.SubmissionAnimalId, TestContext.Current.CancellationToken);
     }
 
     private async Task<Submission> ReloadAsync(Guid id)
@@ -425,6 +503,21 @@ public class CtsBundleProcessorServiceTests
             modelBuilder.Entity<SubmissionAnimalError>(builder =>
             {
                 builder.ToTable("submission_animal_errors", "public");
+                builder.HasKey(e => e.Id);
+                builder.Property(e => e.Id).ValueGeneratedNever();
+            });
+
+            modelBuilder.Entity<Animal>(builder =>
+            {
+                builder.ToTable("animals", "public");
+                builder.HasKey(e => e.Id);
+                builder.Property(e => e.Id).ValueGeneratedNever();
+                builder.HasMany(e => e.Errors).WithOne().HasForeignKey(e => e.AnimalId);
+            });
+
+            modelBuilder.Entity<AnimalError>(builder =>
+            {
+                builder.ToTable("animal_errors", "public");
                 builder.HasKey(e => e.Id);
                 builder.Property(e => e.Id).ValueGeneratedNever();
             });

@@ -6,6 +6,7 @@ namespace Defra.Lis.Api.Validation;
 
 using Defra.Database.Postgres;
 using Defra.Lis.Api.Configurations;
+using Defra.Lis.Api.Cts;
 using Defra.Lis.Api.Interfaces;
 using Defra.Lis.Api.Models.Responses;
 using Defra.Lis.Entities;
@@ -117,11 +118,25 @@ public partial class SubmissionValidationService(
             .Where(a => a.SubmissionId != submission.Id)
             .ToListAsync(cancellationToken);
 
+        // Ear tags already allocated to an LIS animal record by another submission: a tag is never reused.
+        var earTags = submission.Animals
+            .Select(a => CtsFormat.EarTag(a.EarTag))
+            .OfType<string>()
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        var allocatedEarTags = (await dbContext.Set<Animal>()
+                .AsNoTracking()
+                .Where(a => a.SubmissionId != submission.Id && earTags.Contains(a.EarTag))
+                .Select(a => a.EarTag)
+                .ToListAsync(cancellationToken))
+            .ToHashSet(StringComparer.Ordinal);
+
         return new SubmissionValidationContext(
             submission,
             options,
             cadsCattle,
             existingAnimals,
+            allocatedEarTags,
             DateOnly.FromDateTime(DateTime.UtcNow));
     }
 
